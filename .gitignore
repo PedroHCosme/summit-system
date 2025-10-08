@@ -1,0 +1,30 @@
+# Arquivos de Credenciais e Banco de Dados
+credentials.json
+gym_database.db
+src/credentials.json
+src/gym_database.db
+
+# Cache e arquivos compilados do Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Pasta de dependências (gerenciada via requirements.txt)
+src/lib/
+
+# Ambientes virtuais
+venv/
+env/
+.venv/
+.env
+
+# Arquivos de configuração de IDEs e editores
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Arquivos de sistema operacional
+.DS_Store
+Thumbs.db
