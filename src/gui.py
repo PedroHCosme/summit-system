@@ -688,17 +688,6 @@ class AniversariantesApp(QMainWindow):
         self.dashboard_worker.error_occurred.connect(self._on_dashboard_error)
         self.dashboard_worker.start()
 
-    def _get_periodo_checkin(self, hour: int) -> str:
-        """Retorna o período do dia com base na hora."""
-        if 6 <= hour < 12:
-            return "Manhã"
-        elif 12 <= hour < 18:
-            return "Tarde"
-        elif 18 <= hour < 24:
-            return "Noite"
-        else:  # 00:00 - 05:59
-            return "Pernoite"
-
     def _on_dashboard_updated(self, data):
         """Atualiza a UI do dashboard com novos dados."""
         self.checkins_today_label.setText(str(data.get("checkins_today", 0)))
@@ -714,8 +703,9 @@ class AniversariantesApp(QMainWindow):
                 nome = checkin.get('nome')
                 dt_str = checkin.get('checkin_datetime')
                 dt_obj = datetime.fromisoformat(dt_str)
-                periodo = self._get_periodo_checkin(dt_obj.hour)
-                html += f"<li style='margin-bottom: 5px;'><b>{nome}</b> - {periodo}</li>"
+                # Formata a data e hora para o formato "dd/mm/aaaa HH:MM"
+                checkin_datetime_str = dt_obj.strftime('%d/%m/%Y às %H:%M')
+                html += f"<li style='margin-bottom: 5px;'><b>{nome}</b> - {checkin_datetime_str}</li>"
             html += "</ul>"
         self.last_checkins_browser.setHtml(html)
 
