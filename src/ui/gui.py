@@ -225,9 +225,7 @@ class AddMemberDialog(QDialog):
     def _toggle_vencimento_visibility(self, plano: str):
         """Mostra ou esconde o campo de vencimento baseado no plano."""
         is_visible = plano in PLANOS_COM_VENCIMENTO
-        vencimento_label = self.form_layout.labelForField(self.vencimento_plano_input)
-        if vencimento_label:
-            vencimento_label.setVisible(is_visible)
+        self.form_layout.labelForField(self.vencimento_plano_input).setVisible(is_visible)
         self.vencimento_plano_input.setVisible(is_visible)
 
     def get_data(self):

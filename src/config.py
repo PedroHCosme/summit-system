@@ -23,30 +23,28 @@ COL_FREQUENCIA = 69  # Coluna BR
 COL_WHATSAPP = 70  # Coluna BS (71ª coluna)
 COL_CALCADO = 71  # Coluna BT (72ª coluna)
 
-# Usar banco de dados SQLite em vez do Google Sheets
+# Usado para determinar se a conexão será com SQLite ou Google Sheets
 USE_SQLITE = True
 
-# Lista de planos que possuem data de vencimento
-PLANOS_COM_VENCIMENTO = [
-    'Mensal',
-    'Mens. c/ Treino',
-    'Semestral',
-    'Anual',
-    'Escolhinha'
-]
-
-# Lista completa de todos os planos disponíveis
+# Lista de todos os planos disponíveis
 PLANOS = [
-    "",  # Opção vazia para seleção
     "Mensal",
-    "Mens. c/ Treino",
-    "Diaria",
-    "Semanal",
-    "Gympass",
-    "Totalpass",
-    "Classpass",
-    "Cortesia",
+    "Mens c/. Treino",
     "Semestral",
     "Anual",
     "Escolhinha",
+    "FitDance",
+    "Funcional",
+    "Luta",
+    "Pilates",
+    "Yoga"
+]
+
+# Planos que exigem uma data de vencimento
+PLANOS_COM_VENCIMENTO = [
+    "Mensal",
+    "Mens. c/ Treino",
+    "Trimestral",
+    "Semestral",
+    "Anual"
 ]
