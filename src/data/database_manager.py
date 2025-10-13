@@ -159,6 +159,49 @@ class DatabaseManager:
             print(f"Erro ao adicionar membro: {e}")
             return None
     
+    def add_member(self, member_data: Dict[str, Any]) -> Optional[int]:
+        """
+        Adiciona um novo membro ao banco de dados.
+
+        Args:
+            member_data: Dicionário com os dados do membro.
+
+        Returns:
+            O ID do membro recém-criado ou None em caso de erro.
+        """
+        if not self.connection:
+            print("Erro: Conexão com o banco de dados não estabelecida.")
+            return None
+
+        # Define o estado do plano como 'ATIVO' por padrão para novos membros
+        if 'estado_plano' not in member_data:
+            member_data['estado_plano'] = 'ATIVO'
+
+        # Prepara a query de inserção
+        columns = ', '.join(member_data.keys())
+        placeholders = ', '.join('?' for _ in member_data)
+        query = f"INSERT INTO membros ({columns}) VALUES ({placeholders})"
+        
+        cursor = None
+        try:
+            cursor = self.connection.cursor()
+            cursor.execute(query, list(member_data.values()))
+            self.connection.commit()
+            
+            new_id = cursor.lastrowid
+            print(f"Novo membro '{member_data.get('nome')}' adicionado com ID: {new_id}")
+            return new_id
+
+        except sqlite3.IntegrityError as e:
+            print(f"Erro de integridade ao adicionar membro: {e}")
+            return None
+        except sqlite3.Error as e:
+            print(f"Erro ao adicionar membro no banco de dados: {e}")
+            return None
+        finally:
+            if cursor:
+                cursor.close()
+
     def get_member_by_id(self, member_id: int) -> Optional[Dict[str, Any]]:
         """
         Busca um membro pelo seu ID.

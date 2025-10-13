@@ -100,6 +100,12 @@ class DataProvider:
             return self.db_manager.get_member_checkin_history(member_id)
         return []
 
+    def add_member(self, member_data: Dict[str, Any]) -> Optional[int]:
+        """Delega a adição de um novo membro para o db_manager."""
+        if self.db_manager:
+            return self.db_manager.add_member(member_data)
+        return None
+
     def add_checkin(self, member_id: int, checkin_datetime: datetime) -> Optional[int]:
         """
         Registra um check-in para um membro.
@@ -328,6 +334,11 @@ def get_birthdays_for_month(month: int) -> List[Dict[str, Any]]:
 def get_member_checkin_history(member_id: int) -> List[Dict[str, Any]]:
     """Retorna histórico completo de check-ins de um membro."""
     return get_provider().get_member_checkin_history(member_id)
+
+
+def add_member(member_data: Dict[str, Any]) -> Optional[int]:
+    """Adiciona um novo membro."""
+    return get_provider().add_member(member_data)
 
 
 def add_checkin(member_id: int, checkin_datetime: datetime) -> Optional[int]:

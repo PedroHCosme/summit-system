@@ -8,12 +8,13 @@ from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QTextBrowser, QLabel, QLineEdit, QStackedWidget,
     QMenuBar, QListWidget, QListWidgetItem, QTabWidget, QMessageBox,
-    QDialog, QTableWidget, QTableWidgetItem, QHeaderView
+    QDialog, QTableWidget, QTableWidgetItem, QHeaderView, QFormLayout,
+    QComboBox, QDateEdit
 )
-from PyQt6.QtCore import QThread, pyqtSignal, Qt
+from PyQt6.QtCore import QThread, pyqtSignal, Qt, QDate
 from PyQt6.QtGui import QAction
 
-from src.config import CREDENTIALS_PATH, PLANOS_COM_VENCIMENTO
+from src.config import CREDENTIALS_PATH, PLANOS_COM_VENCIMENTO, PLANOS
 from src.ui.styles import STYLESHEET
 from src.core.aniversariantes_manager import AniversariantesManager
 from src.ui.html_formatter import HTMLFormatter
@@ -161,6 +162,90 @@ class DashboardWorker(QThread):
             self.error_occurred.emit(f"Erro ao atualizar dashboard: {e}")
 
 
+class AddMemberDialog(QDialog):
+    """Janela de diálogo para adicionar um novo membro."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Adicionar Novo Membro")
+        self.setMinimumWidth(450)
+
+        self.layout = QVBoxLayout(self)
+        
+        # Formulário
+        self.form_layout = QFormLayout()
+        self.nome_input = QLineEdit()
+        self.plano_combo = QComboBox()
+        self.plano_combo.addItems(PLANOS)
+        
+        self.vencimento_plano_input = QDateEdit()
+        self.vencimento_plano_input.setCalendarPopup(True)
+        self.vencimento_plano_input.setDate(QDate.currentDate())
+        self.vencimento_plano_input.setDisplayFormat("dd/MM/yyyy")
+        
+        self.data_nascimento_input = QDateEdit()
+        self.data_nascimento_input.setCalendarPopup(True)
+        self.data_nascimento_input.setDate(QDate.currentDate())
+        self.data_nascimento_input.setDisplayFormat("dd/MM/yyyy")
+
+        self.whatsapp_input = QLineEdit()
+        self.whatsapp_input.setPlaceholderText("(XX) XXXXX-XXXX")
+        self.genero_combo = QComboBox()
+        self.genero_combo.addItems(["", "M", "F"])
+        self.email_input = QLineEdit()
+        self.email_input.setPlaceholderText("exemplo@email.com")
+
+        # Adiciona campos ao formulário
+        self.form_layout.addRow("Nome (*):", self.nome_input)
+        self.form_layout.addRow("Plano (*):", self.plano_combo)
+        self.vencimento_row = self.form_layout.addRow("Vencimento do Plano:", self.vencimento_plano_input)
+        self.form_layout.addRow("Data de Nascimento (*):", self.data_nascimento_input)
+        self.form_layout.addRow("WhatsApp (*):", self.whatsapp_input)
+        self.form_layout.addRow("Gênero (*):", self.genero_combo)
+        self.form_layout.addRow("Email:", self.email_input)
+        
+        self.layout.addLayout(self.form_layout)
+
+        # Botões
+        self.button_layout = QHBoxLayout()
+        self.save_button = QPushButton("Salvar")
+        self.cancel_button = QPushButton("Cancelar")
+        self.button_layout.addStretch()
+        self.button_layout.addWidget(self.cancel_button)
+        self.button_layout.addWidget(self.save_button)
+        
+        self.layout.addLayout(self.button_layout)
+
+        # Conexões
+        self.save_button.clicked.connect(self.accept)
+        self.cancel_button.clicked.connect(self.reject)
+        self.plano_combo.currentTextChanged.connect(self._toggle_vencimento_visibility)
+
+        self._toggle_vencimento_visibility(self.plano_combo.currentText())
+
+    def _toggle_vencimento_visibility(self, plano: str):
+        """Mostra ou esconde o campo de vencimento baseado no plano."""
+        is_visible = plano in PLANOS_COM_VENCIMENTO
+        vencimento_label = self.form_layout.labelForField(self.vencimento_plano_input)
+        if vencimento_label:
+            vencimento_label.setVisible(is_visible)
+        self.vencimento_plano_input.setVisible(is_visible)
+
+    def get_data(self):
+        """Retorna os dados do formulário como um dicionário."""
+        data = {
+            "nome": self.nome_input.text().strip(),
+            "plano": self.plano_combo.currentText(),
+            "data_nascimento": self.data_nascimento_input.date().toString("dd/MM/yyyy"),
+            "whatsapp": self.whatsapp_input.text().strip(),
+            "genero": self.genero_combo.currentText(),
+            "email": self.email_input.text().strip(),
+        }
+        if self.vencimento_plano_input.isVisible():
+            data["vencimento_plano"] = self.vencimento_plano_input.date().toString("dd/MM/yyyy")
+        
+        return data
+
+
 class AniversariantesApp(QMainWindow):
     """Janela principal da aplicação."""
     
@@ -222,6 +307,11 @@ class AniversariantesApp(QMainWindow):
         self.gestao_menu = self.menubar.addMenu("Gestão")
         if self.gestao_menu:
             self.gestao_menu.setEnabled(False)  # Desabilitado até conectar
+
+            # Ação para Adicionar Membro
+            add_member_action = QAction("Adicionar Membro", self)
+            add_member_action.triggered.connect(self._show_add_member_dialog)
+            self.gestao_menu.addAction(add_member_action)
 
             # Ação para Buscar Membro
             buscar_action = QAction("Buscar Membro", self)
@@ -676,6 +766,35 @@ class AniversariantesApp(QMainWindow):
         if not self.is_connected:
             return
         self.stacked_widget.setCurrentIndex(4)
+
+    def _show_add_member_dialog(self):
+        """Mostra a janela de diálogo para adicionar um novo membro."""
+        if not self.is_connected:
+            QMessageBox.warning(self, "Aviso", "A conexão com o banco de dados ainda não foi estabelecida.")
+            return
+
+        dialog = AddMemberDialog(self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            member_data = dialog.get_data()
+
+            # Validação dos campos obrigatórios
+            required_fields = ["nome", "plano", "data_nascimento", "whatsapp", "genero"]
+            for field in required_fields:
+                if not member_data.get(field):
+                    QMessageBox.warning(self, "Campo Obrigatório", f"O campo '{field.replace('_', ' ').title()}' é obrigatório.")
+                    return
+
+            # Lógica para salvar o novo membro
+            try:
+                from src.data.data_provider import add_member
+                
+                new_id = add_member(member_data)
+                if new_id:
+                    QMessageBox.information(self, "Sucesso", f"Membro '{member_data['nome']}' adicionado com sucesso!")
+                else:
+                    QMessageBox.critical(self, "Erro", "Não foi possível adicionar o membro. Verifique o console para mais detalhes.")
+            except Exception as e:
+                QMessageBox.critical(self, "Erro Crítico", f"Ocorreu um erro inesperado ao salvar o membro: {e}")
 
     def _on_connection_status_updated(self, status):
         """
