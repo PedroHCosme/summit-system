@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Optional, Tuple
 
 
-def parse_date(date_str: str) -> Optional[datetime]:
+def parse_date(date_str: Optional[str]) -> Optional[datetime]:
     """
     Converte uma string de data para datetime.
     Tenta múltiplos formatos de data.

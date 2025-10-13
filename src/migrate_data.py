@@ -1,9 +1,10 @@
 """
-Script de migração de dados do Google Sheets para SQLite.
-Executa a migração de todos os membros e seus check-ins de frequência.
+Script de migração de dados do Google Sheets para SQLite. (VERSÃO FINAL E CORRIGIDA)
+Executa a migração de todos os membros e seus check-ins de frequência,
+validando corretamente as linhas de membros e consolidando os dados.
 """
-from datetime import datetime, time
-from typing import Dict, List
+from datetime import datetime, time, date
+from typing import Dict, List, Any
 import sys
 
 from google_sheets_service import GoogleSheetsService
@@ -28,15 +29,11 @@ from config import (
 SHEET_NAMES = [
     'Jan/25', 'Fev/25', 'Mar/25', 'Abr/25', 
     'Mai/25', 'Jun/25', 'Jul/25', 'Ago/25', 
-    'Set/25', 'Out/25', 'Nov/25', 'Dez/25'  # Adicionei os meses restantes
+    'Set/25', 'Out/25', 'Nov/25', 'Dez/25'
 ]
 
-# --- NOVAS CONSTANTES PARA A LÓGICA DE CHECK-IN ---
-# A primeira coluna de dados de check-in é a 'E', que tem índice 4.
+# --- CONSTANTES PARA A LÓGICA DE CHECK-IN ---
 CHECKIN_DATA_START_COL = 4 
-# A última coluna de dados relevantes antes de Gênero (BO) é BN. Índice 65.
-CHECKIN_DATA_END_COL = 65
-# O cabeçalho com os dias do mês (1, 2, 3...) está na segunda linha da planilha.
 DAY_HEADER_ROW_INDEX = 1
 
 def get_safe_value(row: List, col_index: int) -> str:
@@ -65,181 +62,150 @@ def get_time_from_period(period: str) -> time:
     """Converte a letra do período (M, T, N) para um horário específico."""
     period = period.upper()
     if period == 'T':
-        return time(14, 0)  # Tarde
+        return time(14, 0)
     if period == 'N':
-        return time(19, 0)  # Noite
-    # M (Manhã) ou qualquer outro valor como padrão
+        return time(19, 0)
     return time(9, 0)
-
-# A função calculate_checkin_date foi removida pois não é mais necessária.
 
 def migrate_data():
     """Executa a migração completa de dados."""
     
-    # ... (seções 1, 2 e 3 do seu código permanecem exatamente iguais) ...
     print("=" * 60)
-    print("MIGRAÇÃO DE DADOS: Google Sheets → SQLite")
+    print("MIGRAÇÃO DE DADOS: Google Sheets → SQLite (VERSÃO FINAL)")
     print("=" * 60)
     
-    # 1. Conectar ao Google Sheets
-    print("\n[1/5] Conectando ao Google Sheets...")
+    # --- ETAPAS 1, 2 e 3: CONEXÕES E SETUP ---
+    print("\n[1/6] Conectando ao Google Sheets...")
     sheets_service = GoogleSheetsService(CREDENTIALS_PATH)
     if not sheets_service.authenticate():
         print("❌ Erro ao autenticar no Google Sheets")
         return False
     print("✓ Conectado ao Google Sheets")
     
-    # 2. Conectar ao SQLite
-    print("\n[2/5] Conectando ao banco de dados SQLite...")
+    print("\n[2/6] Conectando ao banco de dados SQLite...")
     db_manager = DatabaseManager()
     if not db_manager.connect():
         print("❌ Erro ao conectar ao banco de dados")
         return False
     print("✓ Conectado ao SQLite")
     
-    # 3. Criar tabelas
-    print("\n[3/5] Recriando tabelas no banco de dados...")
+    print("\n[3/6] Limpando e recriando tabelas...")
     if not db_manager.recreate_tables():
         print("❌ Erro ao recriar tabelas")
         return False
     print("✓ Tabelas recriadas com sucesso")
     
-    # --- LÓGICA DE MIGRAÇÃO REFEITA ---
-    print("\n[4/5] Migrando membros e check-ins...")
-    membros_migrados: Dict[str, int] = {}  # {nome: member_id}
-    total_membros = 0
-    total_checkins = 0
+    # --- PASSO 4: CONSOLIDAR DADOS DE MEMBROS EM MEMÓRIA ---
+    print("\n[4/6] Lendo e consolidando dados dos membros de todas as abas...")
+    consolidated_members: Dict[str, Dict[str, Any]] = {}
     
-    # Iterar sobre cada aba (mês)
     for sheet_name in SHEET_NAMES:
-        print(f"\n  → Processando aba: {sheet_name}")
-        
-        # Ler dados da aba
-        data = sheets_service.read_spreadsheet(
-            SPREADSHEET_ID,
-            range_name='A:CZ',
-            sheet_name=sheet_name
-        )
-        
-        if not data or len(data) <= DAY_HEADER_ROW_INDEX:
-            print(f"    ⚠ Dados insuficientes ou não encontrados na aba {sheet_name}")
+        print(f"  → Lendo aba: {sheet_name}")
+        data = sheets_service.read_spreadsheet(SPREADSHEET_ID, 'A:CZ', sheet_name)
+        if not data or len(data) <= 3:
+            print(f"    ⚠ Dados insuficientes na aba {sheet_name}, pulando.")
             continue
         
-        # --- PASSO 1: Construir o mapa de datas para este mês ---
-        date_map: Dict[int, datetime.date] = {}
+        for row in data[3:]:
+            nome = get_safe_value(row, COL_NOME)
+            plano = get_safe_value(row, COL_PLANO)
+
+            if not nome or not plano:
+                continue
+            
+            if nome not in consolidated_members:
+                consolidated_members[nome] = {'nome': nome}
+
+            member_data_from_row = {
+                'plano': plano,
+                'vencimento_plano': get_safe_value(row, COL_VENCIMENTO_PLANO),
+                'estado_plano': get_safe_value(row, COL_ESTADO_PLANO),
+                'data_nascimento': get_safe_value(row, COL_DATA_NASCIMENTO),
+                'whatsapp': get_safe_value(row, COL_WHATSAPP),
+                'genero': get_safe_value(row, COL_GENERO),
+                'frequencia': get_safe_value(row, COL_FREQUENCIA),
+                'calcado': get_safe_value(row, COL_CALCADO),
+            }
+            
+            for key, value in member_data_from_row.items():
+                if value:
+                    consolidated_members[nome][key] = value
+
+    print(f"✓ {len(consolidated_members)} membros únicos consolidados.")
+
+    # --- PASSO 5: INSERIR MEMBROS CONSOLIDADOS NO BANCO DE DADOS ---
+    print("\n[5/6] Inserindo membros consolidados no banco de dados...")
+    membros_migrados: Dict[str, int] = {}
+    for nome, data_dict in consolidated_members.items():
+        pessoa = Pessoa(
+            nome=nome,
+            data_nascimento=parse_date(data_dict.get('data_nascimento')),
+            whatsapp=data_dict.get('whatsapp', ''),
+            plano=data_dict.get('plano', 'N/A'),
+            vencimento_plano=data_dict.get('vencimento_plano', ''),
+            estado_plano=data_dict.get('estado_plano', ''),
+            genero=data_dict.get('genero', ''),
+            frequencia=data_dict.get('frequencia', ''),
+            calcado=data_dict.get('calcado', '')
+        )
+        
+        member_id = db_manager.add_member(pessoa)
+        if member_id:
+            membros_migrados[nome] = member_id
+    
+    print(f"✓ {len(membros_migrados)} membros inseridos no banco de dados.")
+
+    # --- PASSO 6: MIGRAR CHECK-INS ---
+    print("\n[6/6] Migrando registros de check-in...")
+    total_checkins = 0
+    for sheet_name in SHEET_NAMES:
+        print(f"  → Processando check-ins da aba: {sheet_name}")
+        data = sheets_service.read_spreadsheet(SPREADSHEET_ID, 'A:CZ', sheet_name)
+        
+        if not data or len(data) <= DAY_HEADER_ROW_INDEX:
+            print(f"    ⚠ Dados insuficientes para check-ins na aba {sheet_name}")
+            continue
+        
+        date_map: Dict[int, date] = {}
         month, year = parse_sheet_month_year(sheet_name)
         day_header_row = data[DAY_HEADER_ROW_INDEX]
 
         for col_index in range(CHECKIN_DATA_START_COL, len(day_header_row)):
             day_str = get_safe_value(day_header_row, col_index)
             if day_str.isdigit():
-                day = int(day_str)
                 try:
-                    # Cria a data e a mapeia para o índice da coluna do "check"
-                    date_obj = datetime(year, month, day).date()
+                    date_obj = datetime(year, month, int(day_str)).date()
                     date_map[col_index] = date_obj
                 except ValueError:
-                    # Dia inválido para o mês (ex: 31 em Fev), ignorar.
                     pass
         
-        print(f"    ✓ Mapa de datas criado para {sheet_name}. {len(date_map)} dias mapeados.")
-        
-        # --- PASSO 2: Iterar sobre as linhas dos membros ---
-        # Começa a partir da linha 4 (índice 3), que é onde os nomes dos membros começam.
-        for row_index, row in enumerate(data[3:], start=4):
+        for row in data[3:]:
             nome = get_safe_value(row, COL_NOME)
-            plano = get_safe_value(row, COL_PLANO)
-
-            # VALIDAÇÃO ROBUSTA: Um membro real deve ter um nome e um plano.
-            # Isso ignora automaticamente linhas de resumo, totais e mal formatadas.
-            if not nome or not plano:
-                continue
-
-            # A verificação antiga foi removida em favor desta mais estrita.
-            
-            # Extrair todos os dados da linha atual
-            data_nasc_str = get_safe_value(row, COL_DATA_NASCIMENTO)
-            data_nasc = parse_date(data_nasc_str)
-            
-            # Se a data não for válida, imprime um aviso mas não pula o membro
-            if not data_nasc and data_nasc_str:
-                print(f"    ⓘ Aviso: Data de nascimento '{data_nasc_str}' para o membro '{nome}' (linha {row_index}) é inválida e será ignorada.")
-            
-            # Se é a primeira vez que vemos este membro
-            if nome not in membros_migrados:
-                # Cria o objeto Pessoa com todos os dados
-                pessoa_obj = Pessoa(
-                    nome=nome,
-                    data_nascimento=data_nasc,  # Pode ser None
-                    plano=get_safe_value(row, COL_PLANO),
-                    vencimento_plano=get_safe_value(row, COL_VENCIMENTO_PLANO),
-                    estado_plano=get_safe_value(row, COL_ESTADO_PLANO),
-                    whatsapp=get_safe_value(row, COL_WHATSAPP),
-                    genero=get_safe_value(row, COL_GENERO),
-                    frequencia=get_safe_value(row, COL_FREQUENCIA),
-                    calcado=get_safe_value(row, COL_CALCADO)
-                )
-                
-                # Adiciona o membro através do objeto
-                member_id = db_manager.add_member(pessoa_obj)
-                
-                if member_id:
-                    membros_migrados[nome] = member_id
-                    total_membros += 1
-                    if total_membros % 20 == 0:
-                        print(f"    {total_membros} membros migrados...")
-                else:
-                    print(f"    ⚠ Erro ao inserir membro {nome} no banco de dados.")
-                    continue
-            else:
-                # Membro já existe - atualizar dados se houver mudanças (mantém apenas valores não-vazios)
-                member_id = membros_migrados[nome]
-                db_manager.update_member(
-                    member_id=member_id,
-                    plano=get_safe_value(row, COL_PLANO) or None,
-                    frequencia=get_safe_value(row, COL_FREQUENCIA) or None,
-                    estado_plano=get_safe_value(row, COL_ESTADO_PLANO) or None,
-                    vencimento_plano=get_safe_value(row, COL_VENCIMENTO_PLANO) or None,
-                    whatsapp=get_safe_value(row, COL_WHATSAPP) or None,
-                    genero=get_safe_value(row, COL_GENERO) or None,
-                    calcado=get_safe_value(row, COL_CALCADO) or None
-                )
-
-            # --- PASSO 3: Migrar os check-ins usando o mapa de datas ---
             member_id = membros_migrados.get(nome)
+            
             if member_id:
-                # Itera sobre as colunas que mapeamos como dias válidos
                 for check_col, check_date in date_map.items():
                     check_value = get_safe_value(row, check_col)
                     
-                    # Se houver um valor que indique presença
                     if check_value and check_value.upper() not in ['FALSE', 'F']:
-                        # A coluna do período é a próxima (índice + 1)
                         period_col = check_col + 1
                         period_value = get_safe_value(row, period_col)
-                        
                         check_time = get_time_from_period(period_value)
-                        
-                        # Combina a data da planilha com a hora do período
                         full_checkin_datetime = datetime.combine(check_date, check_time)
                         
                         db_manager.add_checkin(member_id, full_checkin_datetime)
                         total_checkins += 1
                         
-    print(f"\n✓ Migração de membros concluída!")
-    print(f"  Total de membros únicos: {total_membros}")
+    print(f"✓ {total_checkins} registros de check-in migrados.")
     
-    # 5. Resumo final
-    print(f"\n[5/5] Resumo de check-ins")
-    
+    # --- RESUMO FINAL ---
     db_manager.close()
-    
     print("\n" + "=" * 60)
     print("MIGRAÇÃO CONCLUÍDA COM SUCESSO!")
     print("=" * 60)
     print(f"\n📊 Resumo:")
-    print(f"  • Membros migrados: {len(membros_migrados)}")
-    print(f"  • Check-ins migrados: {total_checkins}")
+    print(f"  • Membros únicos migrados: {len(membros_migrados)}")
+    print(f"  • Total de Check-ins: {total_checkins}")
     print(f"  • Banco de dados: gym_database.db")
     print("\n")
     
