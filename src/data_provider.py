@@ -127,6 +127,24 @@ class DataProvider:
             print("Aviso: A funcionalidade de check-in não é suportada para Google Sheets.")
             return None
 
+    def get_checkins_today(self) -> int:
+        """Retorna o número de check-ins de hoje."""
+        if self.use_sqlite:
+            return self.db_manager.get_checkins_today()
+        return 0
+
+    def get_checkins_today_details(self) -> List[Dict[str, Any]]:
+        """Retorna os detalhes dos check-ins de hoje."""
+        if self.use_sqlite:
+            return self.db_manager.get_checkins_today_details()
+        return []
+
+    def get_last_checkins(self, limit: int = 5) -> List[Dict[str, Any]]:
+        """Retorna os últimos check-ins."""
+        if self.use_sqlite:
+            return self.db_manager.get_last_checkins(limit)
+        return []
+
     # ========================================================================
     # MÉTODOS PRIVADOS - SQLite
     # ========================================================================
@@ -219,8 +237,16 @@ class DataProvider:
                 if birth_date and birth_date.month == month:
                     birthdays.append(member)
         
+        # Função auxiliar para ordenação segura
+        def get_day(member_dict: Dict[str, Any]) -> int:
+            date_str = member_dict.get('data_nascimento')
+            if not date_str:
+                return 0
+            date_obj = parse_date(date_str)
+            return date_obj.day if date_obj else 0
+
         # Ordenar por dia
-        birthdays.sort(key=lambda m: parse_date(m['data_nascimento']).day if m.get('data_nascimento') else 0)
+        birthdays.sort(key=get_day)
         return birthdays
     
     def _get_member_checkin_history_from_sheets(self, member_id: int) -> List[Dict[str, Any]]:
@@ -313,8 +339,12 @@ def add_checkin(member_id: int, checkin_datetime: datetime) -> Optional[int]:
 
 def get_checkins_today() -> int:
     """Retorna o número de check-ins de hoje."""
-    return get_provider().db_manager.get_checkins_today()
+    return get_provider().get_checkins_today()
+
+def get_checkins_today_details() -> List[Dict[str, Any]]:
+    """Retorna os detalhes dos check-ins de hoje."""
+    return get_provider().get_checkins_today_details()
 
 def get_last_checkins(limit: int = 5) -> List[Dict[str, Any]]:
     """Retorna os últimos check-ins."""
-    return get_provider().db_manager.get_last_checkins(limit)
+    return get_provider().get_last_checkins(limit)

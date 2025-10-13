@@ -7,7 +7,8 @@ import os
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QTextBrowser, QLabel, QLineEdit, QStackedWidget,
-    QMenuBar, QListWidget, QListWidgetItem, QTabWidget, QMessageBox
+    QMenuBar, QListWidget, QListWidgetItem, QTabWidget, QMessageBox,
+    QDialog, QTableWidget, QTableWidgetItem, QHeaderView
 )
 from PyQt6.QtCore import QThread, pyqtSignal, Qt
 from PyQt6.QtGui import QAction
@@ -209,28 +210,29 @@ class AniversariantesApp(QMainWindow):
         self.menubar = self.menuBar()
         
         # Menu Membros
-        self.membros_menu = self.menubar.addMenu("Membros")
-        self.membros_menu.setEnabled(False)  # Desabilitado até conectar
+        self.membros_menu = self.menubar.addMenu("Membros") if self.menubar else None
+        if self.membros_menu:
+            self.membros_menu.setEnabled(False)  # Desabilitado até conectar
         
-        # Ação para o Dashboard
-        dashboard_action = QAction("Dashboard", self)
-        dashboard_action.triggered.connect(self._show_dashboard)
-        self.membros_menu.addAction(dashboard_action)
+            # Ação para o Dashboard
+            dashboard_action = QAction("Dashboard", self)
+            dashboard_action.triggered.connect(self._show_dashboard)
+            self.membros_menu.addAction(dashboard_action)
 
-        # Submenu Aniversariantes
-        aniversariantes_action = QAction("Aniversariantes", self)
-        aniversariantes_action.triggered.connect(self._show_aniversariantes)
-        self.membros_menu.addAction(aniversariantes_action)
-        
-        # Submenu Buscar Membro
-        buscar_action = QAction("Buscar Membro", self)
-        buscar_action.triggered.connect(self._show_member_search)
-        self.membros_menu.addAction(buscar_action)
+            # Submenu Aniversariantes
+            aniversariantes_action = QAction("Aniversariantes", self)
+            aniversariantes_action.triggered.connect(self._show_aniversariantes)
+            self.membros_menu.addAction(aniversariantes_action)
+            
+            # Submenu Buscar Membro
+            buscar_action = QAction("Buscar Membro", self)
+            buscar_action.triggered.connect(self._show_member_search)
+            self.membros_menu.addAction(buscar_action)
 
-        # Submenu Check-in
-        checkin_action = QAction("Check-in", self)
-        checkin_action.triggered.connect(self._show_checkin_screen)
-        self.membros_menu.addAction(checkin_action)
+            # Submenu Check-in
+            checkin_action = QAction("Check-in", self)
+            checkin_action.triggered.connect(self._show_checkin_screen)
+            self.membros_menu.addAction(checkin_action)
     
     def _create_dashboard_screen(self):
         """Cria a tela do dashboard."""
@@ -250,8 +252,17 @@ class AniversariantesApp(QMainWindow):
         # Card para Check-ins Hoje
         checkins_today_card = self._create_stat_card("Check-ins Hoje", "0")
         self.checkins_today_label = checkins_today_card.findChild(QLabel, "stat_value")
-        stats_layout.addWidget(checkins_today_card)
 
+        # Botão para ver detalhes dos check-ins
+        self.view_checkins_button = QPushButton("Ver Detalhes")
+        self.view_checkins_button.clicked.connect(self._show_checkins_today_details)
+        
+        # Adiciona o botão ao layout do card
+        card_layout = checkins_today_card.layout()
+        if card_layout:
+            card_layout.addWidget(self.view_checkins_button)
+
+        stats_layout.addWidget(checkins_today_card)
         layout.addLayout(stats_layout)
 
         # Lista de Últimos Check-ins
@@ -271,6 +282,63 @@ class AniversariantesApp(QMainWindow):
         layout.addStretch()
 
         self.stacked_widget.addWidget(widget)
+
+    def _show_checkins_today_details(self):
+        """Mostra uma janela com os detalhes dos check-ins de hoje."""
+        try:
+            from data_provider import get_checkins_today_details
+            from datetime import datetime
+
+            checkins = get_checkins_today_details()
+
+            if not checkins:
+                QMessageBox.information(self, "Check-ins de Hoje", "Nenhum check-in registrado hoje.")
+                return
+
+            # Cria a janela de diálogo
+            dialog = QDialog(self)
+            dialog.setWindowTitle("Detalhes dos Check-ins de Hoje")
+            dialog.setMinimumSize(600, 400)
+            
+            layout = QVBoxLayout(dialog)
+            
+            table = QTableWidget()
+            table.setColumnCount(4)
+            table.setHorizontalHeaderLabels(["Nome do Membro", "Plano", "Data", "Horário"])
+            table.setRowCount(len(checkins))
+            
+            for row, checkin in enumerate(checkins):
+                nome = checkin.get('nome', 'N/A')
+                plano = checkin.get('plano', 'N/A')
+                checkin_datetime_str = checkin.get('checkin_datetime')
+                
+                if checkin_datetime_str:
+                    dt_obj = datetime.fromisoformat(checkin_datetime_str)
+                    table.setItem(row, 2, QTableWidgetItem(dt_obj.strftime('%d/%m/%Y')))
+                    table.setItem(row, 3, QTableWidgetItem(dt_obj.strftime('%H:%M:%S')))
+                else:
+                    table.setItem(row, 2, QTableWidgetItem('N/A'))
+                    table.setItem(row, 3, QTableWidgetItem('N/A'))
+
+                table.setItem(row, 0, QTableWidgetItem(nome))
+                table.setItem(row, 1, QTableWidgetItem(plano))
+
+
+            header = table.horizontalHeader()
+            if header:
+                header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+            table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers) # Read-only
+            
+            layout.addWidget(table)
+            
+            close_button = QPushButton("Fechar")
+            close_button.clicked.connect(dialog.close)
+            layout.addWidget(close_button)
+            
+            dialog.exec()
+
+        except Exception as e:
+            QMessageBox.critical(self, "Erro", f"Erro ao buscar detalhes dos check-ins: {e}")
 
     def _create_stat_card(self, title: str, initial_value: str) -> QWidget:
         """Cria um card de estatística para o dashboard."""
@@ -600,7 +668,8 @@ class AniversariantesApp(QMainWindow):
         """
         if success:
             self.is_connected = True
-            self.membros_menu.setEnabled(True)
+            if self.membros_menu:
+                self.membros_menu.setEnabled(True)
             self._show_dashboard() # Vai para o dashboard
         else:
             self.home_status_browser.setHtml("""

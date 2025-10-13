@@ -420,6 +420,39 @@ class DatabaseManager:
             print(f"Erro ao contar check-ins de hoje: {e}")
             return 0
 
+    def get_checkins_today_details(self) -> List[Dict[str, Any]]:
+        """
+        Busca os detalhes de todos os check-ins realizados hoje.
+        
+        Returns:
+            Lista de dicionários com dados dos check-ins de hoje (nome, plano, data).
+        """
+        try:
+            if not self.connection:
+                print("Erro: Conexão com o banco de dados não estabelecida.")
+                return []
+                
+            cursor = self.connection.cursor()
+            
+            today_str = datetime.now().strftime('%Y-%m-%d')
+            
+            cursor.execute("""
+                SELECT 
+                    m.nome,
+                    m.plano,
+                    f.checkin_datetime
+                FROM frequencia f
+                JOIN membros m ON f.member_id = m.id
+                WHERE DATE(f.checkin_datetime) = ?
+                ORDER BY f.checkin_datetime DESC
+            """, (today_str,))
+            
+            rows = cursor.fetchall()
+            return [dict(row) for row in rows]
+        except Exception as e:
+            print(f"Erro ao buscar detalhes dos check-ins de hoje: {e}")
+            return []
+
     def get_last_checkins(self, limit: int = 5) -> List[Dict[str, Any]]:
         """
         Busca os últimos check-ins realizados.
@@ -431,6 +464,10 @@ class DatabaseManager:
             Lista de dicionários com dados dos últimos check-ins (membro e data)
         """
         try:
+            if not self.connection:
+                print("Erro: Conexão com o banco de dados não estabelecida.")
+                return []
+
             cursor = self.connection.cursor()
             
             cursor.execute("""
