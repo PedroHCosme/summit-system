@@ -148,8 +148,14 @@ def migrate_data():
         # Começa a partir da linha 4 (índice 3), que é onde os nomes dos membros começam.
         for row_index, row in enumerate(data[3:], start=4):
             nome = get_safe_value(row, COL_NOME)
-            if not nome or nome.lower() in ['gympass', 'totalpass', 'voucher', 'livre', 'anual', 'trimestral']:
+            plano = get_safe_value(row, COL_PLANO)
+
+            # VALIDAÇÃO ROBUSTA: Um membro real deve ter um nome e um plano.
+            # Isso ignora automaticamente linhas de resumo, totais e mal formatadas.
+            if not nome or not plano:
                 continue
+
+            # A verificação antiga foi removida em favor desta mais estrita.
             
             # Extrair todos os dados da linha atual
             data_nasc_str = get_safe_value(row, COL_DATA_NASCIMENTO)
