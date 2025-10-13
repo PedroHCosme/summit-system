@@ -3,11 +3,11 @@ Gerenciador de aniversariantes.
 Responsável por extrair e processar pessoas que fazem aniversário no mês.
 """
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 
-from models import Pessoa
-from utils import parse_date, get_current_month_name
-from data_provider import get_provider
+from src.core.models import Pessoa
+from src.utils.utils import parse_date, get_current_month_name
+from src.data.data_provider import get_provider
 
 
 class AniversariantesManager:
@@ -40,7 +40,7 @@ class AniversariantesManager:
         aniversariantes.sort()
         return aniversariantes
     
-    def _dict_to_pessoa(self, member_dict: dict) -> Pessoa:
+    def _dict_to_pessoa(self, member_dict: dict) -> Optional[Pessoa]:
         """
         Converte um dicionário de membro em objeto Pessoa.
         

@@ -2,11 +2,15 @@
 Configurações do aplicativo.
 """
 
+import os
+
+# --- CONFIGURAÇÕES GLOBAIS ---
+
 # ID da planilha do Google Sheets
 SPREADSHEET_ID = '1xjIv3wMnnPKVXVWc8EwhaTqkSG-jJoFQUodOJe-GZjQ'
 
-# Caminho para o arquivo de credenciais
-CREDENTIALS_PATH = 'credentials.json'
+# Caminho para o arquivo de credenciais (relativo à raiz do projeto)
+CREDENTIALS_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'credentials.json')
 
 # Índices das colunas na planilha (zero-based)
 COL_NOME = 0  # Coluna A

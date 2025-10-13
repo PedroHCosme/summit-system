@@ -13,11 +13,11 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import QThread, pyqtSignal, Qt
 from PyQt6.QtGui import QAction
 
-from config import CREDENTIALS_PATH, PLANOS_COM_VENCIMENTO
-from styles import STYLESHEET
-from aniversariantes_manager import AniversariantesManager
-from html_formatter import HTMLFormatter
-from member_search_service import MemberSearchService
+from src.config import CREDENTIALS_PATH, PLANOS_COM_VENCIMENTO
+from src.ui.styles import STYLESHEET
+from src.core.aniversariantes_manager import AniversariantesManager
+from src.ui.html_formatter import HTMLFormatter
+from src.core.member_search_service import MemberSearchService
 
 
 class DataFetchWorker(QThread):
@@ -67,7 +67,7 @@ class DatabaseConnectionWorker(QThread):
     def run(self):
         """Executa a conexão com a fonte de dados."""
         try:
-            from data_provider import USE_SQLITE, get_provider
+            from src.data.data_provider import USE_SQLITE, get_provider
             
             if USE_SQLITE:
                 self.status_updated.emit("Conectando ao banco de dados SQLite...")
@@ -139,7 +139,7 @@ class DashboardWorker(QThread):
     def run(self):
         """Executa a busca de dados do dashboard."""
         try:
-            from data_provider import get_checkins_today, get_last_checkins
+            from src.data.data_provider import get_checkins_today, get_last_checkins
             
             checkins_count = get_checkins_today()
             last_checkins = get_last_checkins(5)
@@ -206,33 +206,40 @@ class AniversariantesApp(QMainWindow):
         self.stacked_widget.setCurrentIndex(0)
     
     def _create_menu(self):
-        """Cria o menu superior."""
+        """Cria o menu superior com seções 'Gestão' e 'Atividade'."""
         self.menubar = self.menuBar()
-        
-        # Menu Membros
-        self.membros_menu = self.menubar.addMenu("Membros") if self.menubar else None
-        if self.membros_menu:
-            self.membros_menu.setEnabled(False)  # Desabilitado até conectar
-        
+        if not self.menubar:
+            return
+
+        # --- Menu Gestão ---
+        self.gestao_menu = self.menubar.addMenu("Gestão")
+        if self.gestao_menu:
+            self.gestao_menu.setEnabled(False)  # Desabilitado até conectar
+
+            # Ação para Buscar Membro
+            buscar_action = QAction("Buscar Membro", self)
+            buscar_action.triggered.connect(self._show_member_search)
+            self.gestao_menu.addAction(buscar_action)
+
+            # Ação para Aniversariantes
+            aniversariantes_action = QAction("Aniversariantes", self)
+            aniversariantes_action.triggered.connect(self._show_aniversariantes)
+            self.gestao_menu.addAction(aniversariantes_action)
+
+        # --- Menu Atividade ---
+        self.atividade_menu = self.menubar.addMenu("Atividade")
+        if self.atividade_menu:
+            self.atividade_menu.setEnabled(False)  # Desabilitado até conectar
+
             # Ação para o Dashboard
             dashboard_action = QAction("Dashboard", self)
             dashboard_action.triggered.connect(self._show_dashboard)
-            self.membros_menu.addAction(dashboard_action)
+            self.atividade_menu.addAction(dashboard_action)
 
-            # Submenu Aniversariantes
-            aniversariantes_action = QAction("Aniversariantes", self)
-            aniversariantes_action.triggered.connect(self._show_aniversariantes)
-            self.membros_menu.addAction(aniversariantes_action)
-            
-            # Submenu Buscar Membro
-            buscar_action = QAction("Buscar Membro", self)
-            buscar_action.triggered.connect(self._show_member_search)
-            self.membros_menu.addAction(buscar_action)
-
-            # Submenu Check-in
+            # Ação para Check-in
             checkin_action = QAction("Check-in", self)
             checkin_action.triggered.connect(self._show_checkin_screen)
-            self.membros_menu.addAction(checkin_action)
+            self.atividade_menu.addAction(checkin_action)
     
     def _create_dashboard_screen(self):
         """Cria a tela do dashboard."""
@@ -256,6 +263,19 @@ class AniversariantesApp(QMainWindow):
         # Botão para ver detalhes dos check-ins
         self.view_checkins_button = QPushButton("Ver Detalhes")
         self.view_checkins_button.clicked.connect(self._show_checkins_today_details)
+        self.view_checkins_button.setStyleSheet("""
+            QPushButton {
+                background-color: #007ACC;
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 4px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #005C99;
+            }
+        """)
         
         # Adiciona o botão ao layout do card
         card_layout = checkins_today_card.layout()
@@ -286,7 +306,7 @@ class AniversariantesApp(QMainWindow):
     def _show_checkins_today_details(self):
         """Mostra uma janela com os detalhes dos check-ins de hoje."""
         try:
-            from data_provider import get_checkins_today_details
+            from src.data.data_provider import get_checkins_today_details
             from datetime import datetime
 
             checkins = get_checkins_today_details()
@@ -395,7 +415,7 @@ class AniversariantesApp(QMainWindow):
         layout.addWidget(title_label)
         
         # Informação do mês atual
-        from utils import get_current_sheet_name
+        from src.utils.utils import get_current_sheet_name
         mes_atual = get_current_sheet_name()
         self.aniver_mes_label = QLabel(f"Consultando aba: {mes_atual}")
         self.aniver_mes_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -430,7 +450,7 @@ class AniversariantesApp(QMainWindow):
         layout.addWidget(title_label)
         
         # Informação do mês atual
-        from utils import get_current_sheet_name
+        from src.utils.utils import get_current_sheet_name
         mes_atual = get_current_sheet_name()
         self.search_mes_label = QLabel(f"Consultando aba: {mes_atual}")
         self.search_mes_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -668,8 +688,12 @@ class AniversariantesApp(QMainWindow):
         """
         if success:
             self.is_connected = True
-            if self.membros_menu:
-                self.membros_menu.setEnabled(True)
+            # Habilita os menus após a conexão
+            if hasattr(self, 'gestao_menu') and self.gestao_menu:
+                self.gestao_menu.setEnabled(True)
+            if hasattr(self, 'atividade_menu') and self.atividade_menu:
+                self.atividade_menu.setEnabled(True)
+            
             self._show_dashboard() # Vai para o dashboard
         else:
             self.home_status_browser.setHtml("""
@@ -903,7 +927,7 @@ class AniversariantesApp(QMainWindow):
         if self.current_checkin_member_id is None:
             return
 
-        from data_provider import add_checkin
+        from src.data.data_provider import add_checkin
         from datetime import datetime
 
         try:
@@ -1025,7 +1049,7 @@ class AniversariantesApp(QMainWindow):
         """
         try:
             # Importar data_provider aqui para evitar importação circular
-            from data_provider import get_member_checkin_history
+            from src.data.data_provider import get_member_checkin_history
             
             history = get_member_checkin_history(member_id)
             
@@ -1192,9 +1216,9 @@ class AniversariantesApp(QMainWindow):
 def main():
     """Função principal."""
     print("Iniciando aplicação...")
-    print(f"Diretório de trabalho: {os.getcwd()}")
-    print(f"Arquivo de credenciais: {CREDENTIALS_PATH}")
-    print(f"Credenciais encontradas: {os.path.exists(CREDENTIALS_PATH)}")
+    
+    # O caminho para as credenciais agora é relativo à raiz do projeto
+    # e gerenciado pelo config.py
     
     app = QApplication(sys.argv)
     print("QApplication criada")

@@ -6,7 +6,7 @@ import sqlite3
 import os
 from typing import Optional, List, Dict, Any
 from datetime import datetime
-from models import Pessoa
+from src.core.models import Pessoa
 
 
 class DatabaseManager:
@@ -19,16 +19,9 @@ class DatabaseManager:
         Args:
             db_path: Caminho para o arquivo do banco de dados
         """
-        # Se o caminho for relativo, usa o diretório pai de src/
-        if not os.path.isabs(db_path):
-            # Pega o diretório deste arquivo (src/)
-            current_dir = os.path.dirname(os.path.abspath(__file__))
-            # Sobe um nível para o diretório do projeto
-            project_dir = os.path.dirname(current_dir)
-            # Cria o caminho completo
-            self.db_path = os.path.join(project_dir, db_path)
-        else:
-            self.db_path = db_path
+        # O caminho do banco de dados agora é relativo à raiz do projeto
+        project_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        self.db_path = os.path.join(project_dir, db_path)
         
         self.connection = None
     
@@ -59,6 +52,8 @@ class DatabaseManager:
         Returns:
             True se as tabelas foram criadas com sucesso, False caso contrário
         """
+        if not self.connection:
+            return False
         try:
             cursor = self.connection.cursor()
             
@@ -105,6 +100,8 @@ class DatabaseManager:
         Returns:
             True se a operação foi bem-sucedida, False caso contrário
         """
+        if not self.connection:
+            return False
         try:
             cursor = self.connection.cursor()
             
@@ -134,6 +131,8 @@ class DatabaseManager:
         Returns:
             ID do novo membro ou None se houver erro
         """
+        if not self.connection:
+            return None
         try:
             cursor = self.connection.cursor()
             
@@ -170,6 +169,8 @@ class DatabaseManager:
         Returns:
             Dicionário com os dados do membro ou None se não encontrado
         """
+        if not self.connection:
+            return None
         try:
             cursor = self.connection.cursor()
             cursor.execute("SELECT * FROM membros WHERE id = ?", (member_id,))
@@ -192,6 +193,8 @@ class DatabaseManager:
         Returns:
             Lista de dicionários com os dados dos membros encontrados
         """
+        if not self.connection:
+            return []
         try:
             cursor = self.connection.cursor()
             cursor.execute(
@@ -212,6 +215,8 @@ class DatabaseManager:
         Returns:
             Lista de dicionários com os dados de todos os membros
         """
+        if not self.connection:
+            return []
         try:
             cursor = self.connection.cursor()
             cursor.execute("SELECT * FROM membros ORDER BY nome")
@@ -233,6 +238,8 @@ class DatabaseManager:
         Returns:
             ID do registro de check-in ou None se houver erro
         """
+        if not self.connection:
+            return None
         try:
             cursor = self.connection.cursor()
             
@@ -258,6 +265,8 @@ class DatabaseManager:
         Returns:
             Lista de dicionários com os dados dos membros
         """
+        if not self.connection:
+            return []
         try:
             cursor = self.connection.cursor()
             
@@ -310,6 +319,8 @@ class DatabaseManager:
         Returns:
             True se a atualização foi bem-sucedida, False caso contrário
         """
+        if not self.connection:
+            return False
         try:
             cursor = self.connection.cursor()
             
@@ -376,6 +387,8 @@ class DatabaseManager:
             Lista de dicionários com os dados dos check-ins, ordenados do mais recente ao mais antigo.
             Cada dicionário contém: id, member_id, checkin_datetime, created_at
         """
+        if not self.connection:
+            return []
         try:
             cursor = self.connection.cursor()
             
@@ -403,6 +416,8 @@ class DatabaseManager:
         Returns:
             Número de check-ins de hoje.
         """
+        if not self.connection:
+            return 0
         try:
             cursor = self.connection.cursor()
             

@@ -5,11 +5,11 @@ Decide automaticamente se busca dados do SQLite ou Google Sheets.
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 
-import config
-from google_sheets_service import GoogleSheetsService
-from database_manager import DatabaseManager
-from utils import parse_date, get_current_sheet_name
-from models import Pessoa
+from src import config
+from src.data.google_sheets_service import GoogleSheetsService
+from src.data.database_manager import DatabaseManager
+from src.utils.utils import parse_date, get_current_sheet_name
+from src.core.models import Pessoa
 
 
 # ============================================================================

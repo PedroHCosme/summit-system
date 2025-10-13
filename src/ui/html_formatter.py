@@ -2,8 +2,9 @@
 Formatador HTML para exibição de aniversariantes.
 Trabalha com objetos da classe Pessoa.
 """
-from utils import format_whatsapp_link
-from models import Pessoa
+from typing import Optional
+from src.core.models import Aniversariante, Pessoa
+from src.utils.utils import format_whatsapp_link
 
 
 class HTMLFormatter:
@@ -59,10 +60,11 @@ class HTMLFormatter:
         
         # Adiciona informação de dias até o aniversário
         dias = pessoa.dias_ate_aniversario()
-        if dias == 0:
-            html += '                    <b style="color: #28a745;">HOJE É O DIA!</b><br>'
-        elif dias <= 7:
-            html += f'                    <i>Faltam {dias} dias</i><br>'
+        if dias is not None:  # Verifica se dias não é None
+            if dias == 0:
+                html += '                    <b style="color: #28a745;">HOJE É O DIA!</b><br>'
+            elif dias <= 7:
+                html += f'                    <i>Faltam {dias} dias</i><br>'
         
         html += """
                 </span>

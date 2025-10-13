@@ -6,11 +6,17 @@ validando corretamente as linhas de membros e consolidando os dados.
 from datetime import datetime, time, date
 from typing import Dict, List, Any
 import sys
+import os
 
-from google_sheets_service import GoogleSheetsService
-from database_manager import DatabaseManager
-from models import Pessoa
-from utils import parse_date
+# Adiciona o diretório 'src' ao sys.path para encontrar os módulos
+project_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+src_dir = os.path.join(project_dir, 'src')
+sys.path.insert(0, src_dir)
+
+from data.google_sheets_service import GoogleSheetsService
+from data.database_manager import DatabaseManager
+from core.models import Pessoa
+from utils.utils import parse_date
 from config import (
     SPREADSHEET_ID, 
     CREDENTIALS_PATH,

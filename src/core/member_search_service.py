@@ -3,7 +3,7 @@ Serviço para busca de membros.
 Usa o data_provider para abstrair a fonte de dados.
 """
 from typing import Optional, Dict, List, Any
-from data_provider import get_provider
+from src.data.data_provider import get_provider
 
 
 class MemberSearchService:
