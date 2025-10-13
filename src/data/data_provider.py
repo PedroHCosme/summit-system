@@ -95,20 +95,11 @@ class DataProvider:
             return self._get_birthdays_from_sheets(month)
     
     def get_member_checkin_history(self, member_id: int) -> List[Dict[str, Any]]:
-        """
-        Retorna o histórico completo de check-ins de um membro.
-        
-        Args:
-            member_id: ID do membro
-            
-        Returns:
-            Lista de dicionários com os check-ins (ordenados do mais recente ao mais antigo)
-        """
-        if self.use_sqlite:
-            return self._get_member_checkin_history_from_sqlite(member_id)
-        else:
-            return self._get_member_checkin_history_from_sheets(member_id)
-    
+        """Busca o histórico de check-ins de um membro."""
+        if self.db_manager:
+            return self.db_manager.get_member_checkin_history(member_id)
+        return []
+
     def add_checkin(self, member_id: int, checkin_datetime: datetime) -> Optional[int]:
         """
         Registra um check-in para um membro.
@@ -144,6 +135,12 @@ class DataProvider:
         if self.use_sqlite:
             return self.db_manager.get_last_checkins(limit)
         return []
+
+    def update_expired_plans(self):
+        """Delega a atualização de planos expirados para o db_manager."""
+        if self.db_manager:
+            return self.db_manager.update_expired_plans()
+        return 0
 
     # ========================================================================
     # MÉTODOS PRIVADOS - SQLite

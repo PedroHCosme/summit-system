@@ -506,3 +506,45 @@ class DatabaseManager:
         if self.connection:
             self.connection.close()
             self.connection = None
+
+    def update_expired_plans(self):
+        """
+        Atualiza o estado do plano para 'INATIVO' para membros cujo plano expirou.
+        A verificação é feita com base na data atual.
+        """
+        if not self.connection:
+            print("Erro: Conexão com o banco de dados não estabelecida.")
+            return 0
+
+        cursor = None
+        try:
+            cursor = self.connection.cursor()
+            
+            # A data no banco está como 'DD/MM/AAAA', precisamos converter para 'AAAA-MM-DD' para comparar
+            # Usamos substr para reordenar a data para o formato YYYY-MM-DD
+            # A data de hoje já está em 'YYYY-MM-DD'
+            today_str = datetime.now().strftime('%Y-%m-%d')
+            
+            query = """
+                UPDATE membros
+                SET estado_plano = 'INATIVO'
+                WHERE vencimento_plano IS NOT NULL 
+                  AND vencimento_plano != ''
+                  AND substr(vencimento_plano, 7, 4) || '-' || substr(vencimento_plano, 4, 2) || '-' || substr(vencimento_plano, 1, 2) < ?
+                  AND estado_plano = 'ATIVO';
+            """
+            
+            cursor.execute(query, (today_str,))
+            self.connection.commit()
+            
+            updated_rows = cursor.rowcount
+            if updated_rows > 0:
+                print(f"Planos de {updated_rows} membro(s) foram atualizados para 'INATIVO'.")
+            return updated_rows
+
+        except sqlite3.Error as e:
+            print(f"Erro ao atualizar planos expirados no banco de dados: {e}")
+            return 0
+        finally:
+            if cursor:
+                cursor.close()

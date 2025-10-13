@@ -84,6 +84,13 @@ class DatabaseConnectionWorker(QThread):
             
             # Tenta inicializar o provider
             provider = get_provider()
+
+            if USE_SQLITE:
+                self.status_updated.emit("Verificando e atualizando planos expirados...")
+                # A instância do provider é o DatabaseManager
+                updated_count = provider.update_expired_plans()
+                if updated_count > 0:
+                    self.status_updated.emit(f"{updated_count} plano(s) atualizado(s) para INATIVO.")
             
             self.status_updated.emit("Conexão estabelecida com sucesso!")
             self.connection_completed.emit(True)
@@ -906,7 +913,8 @@ class AniversariantesApp(QMainWindow):
             plano = member_data.get('plano', 'N/A')
             estado_plano = member_data.get('estado_plano', 'N/A')
             
-            color = '#28a745' if estado_plano.upper() == 'ATIVO' else '#FF6B6B'
+            is_active = estado_plano.upper() == 'ATIVO'
+            color = '#28a745' if is_active else '#FF6B6B'
 
             html = f"""
                 <div style='padding: 10px; font-size: 16px;'>
@@ -916,7 +924,13 @@ class AniversariantesApp(QMainWindow):
                 </div>
             """
             self.checkin_member_details_browser.setHtml(html)
-            self.confirm_checkin_button.setEnabled(True)
+            
+            # Permite o check-in apenas se o plano estiver ATIVO
+            self.confirm_checkin_button.setEnabled(is_active)
+            if not is_active:
+                self.confirm_checkin_button.setText("Plano Inativo")
+            else:
+                self.confirm_checkin_button.setText("Confirmar Check-in")
         else:
             self.checkin_member_details_browser.setHtml("<p style='color: #FF6B6B; text-align: center;'>Erro ao carregar dados do membro.</p>")
             self.confirm_checkin_button.setEnabled(False)
