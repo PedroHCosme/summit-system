@@ -70,6 +70,7 @@ class DatabaseManager:
                     genero TEXT,
                     frequencia TEXT,
                     calcado TEXT,
+                    email TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
@@ -81,6 +82,22 @@ class DatabaseManager:
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     member_id INTEGER NOT NULL,
                     checkin_datetime TIMESTAMP NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (member_id) REFERENCES membros (id)
+                )
+            """)
+            
+            # Tabela de pagamentos
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS pagamentos (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    member_id INTEGER,
+                    data_pagamento TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    tipo_transacao TEXT NOT NULL,
+                    descricao TEXT,
+                    valor REAL NOT NULL,
+                    metodo_pagamento TEXT,
+                    nova_data_vencimento TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (member_id) REFERENCES membros (id)
                 )
@@ -104,6 +121,9 @@ class DatabaseManager:
             return False
         try:
             cursor = self.connection.cursor()
+            
+            print("    - Apagando tabela 'pagamentos' (se existir)...")
+            cursor.execute("DROP TABLE IF EXISTS pagamentos")
             
             print("    - Apagando tabela 'frequencia' (se existir)...")
             cursor.execute("DROP TABLE IF EXISTS frequencia")
@@ -273,6 +293,7 @@ class DatabaseManager:
     def add_checkin(self, member_id: int, checkin_datetime: datetime) -> Optional[int]:
         """
         Adiciona um registro de check-in na tabela de frequência.
+        Para planos Diária, Gympass e Totalpass, registra pagamento automaticamente.
         
         Args:
             member_id: ID do membro
@@ -286,15 +307,47 @@ class DatabaseManager:
         try:
             cursor = self.connection.cursor()
             
+            # Inserir check-in
             cursor.execute("""
                 INSERT INTO frequencia (member_id, checkin_datetime)
                 VALUES (?, ?)
             """, (member_id, checkin_datetime.strftime('%Y-%m-%d %H:%M:%S')))
             
+            checkin_id = cursor.lastrowid
+            
+            # Buscar plano do membro para verificar se precisa registrar pagamento
+            cursor.execute("SELECT plano, nome FROM membros WHERE id = ?", (member_id,))
+            result = cursor.fetchone()
+            
+            if result:
+                member_data = dict(result)
+                plano = member_data.get('plano', '')
+                nome = member_data.get('nome', '')
+                
+                # Verificar se é um plano que gera pagamento por check-in
+                from src.config import PLANOS_PAGAMENTO_POR_CHECKIN
+                
+                if plano in PLANOS_PAGAMENTO_POR_CHECKIN:
+                    valor = PLANOS_PAGAMENTO_POR_CHECKIN[plano]
+                    
+                    # Registrar pagamento automaticamente
+                    self.add_payment(
+                        member_id=member_id,
+                        data_pagamento=checkin_datetime,
+                        tipo_transacao=plano,
+                        descricao=f"Check-in - {plano}",
+                        valor=valor,
+                        metodo_pagamento="Check-in"
+                    )
+                    
+                    print(f"💰 Pagamento registrado: {nome} - {plano} - R$ {valor:.2f}")
+            
             self.connection.commit()
-            return cursor.lastrowid
+            return checkin_id
         except Exception as e:
             print(f"Erro ao adicionar check-in: {e}")
+            import traceback
+            traceback.print_exc()
             return None
     
     def delete_checkin(self, checkin_id: int) -> bool:
@@ -322,6 +375,246 @@ class DatabaseManager:
         except Exception as e:
             print(f"Erro ao deletar check-in: {e}")
             return False
+    
+    # ========================================================================
+    # MÉTODOS DE GESTÃO FINANCEIRA
+    # ========================================================================
+    
+    def add_payment(
+        self,
+        member_id: Optional[int],
+        valor: float,
+        tipo_transacao: str,
+        descricao: str = "",
+        metodo_pagamento: str = "",
+        nova_data_vencimento: Optional[str] = None,
+        data_pagamento: Optional[datetime] = None
+    ) -> Optional[int]:
+        """
+        Registra um novo pagamento no sistema.
+        
+        Args:
+            member_id: ID do membro (None para vendas sem membro específico)
+            valor: Valor do pagamento
+            tipo_transacao: Tipo da transação (ex: "Renovação Plano", "Diária", "Venda Produto")
+            descricao: Descrição detalhada (ex: "Plano Mensal", "Sapatilha X")
+            metodo_pagamento: Método de pagamento (ex: "PIX", "Cartão", "Dinheiro")
+            nova_data_vencimento: Nova data de vencimento (apenas para renovações)
+            data_pagamento: Data e hora do pagamento (usa data atual se None)
+            
+        Returns:
+            ID do pagamento registrado ou None se houver erro
+        """
+        if not self.connection:
+            return None
+        
+        try:
+            cursor = self.connection.cursor()
+            
+            # Usa a data atual se não fornecida
+            if data_pagamento is None:
+                data_pagamento = datetime.now()
+            
+            cursor.execute("""
+                INSERT INTO pagamentos (
+                    member_id, data_pagamento, tipo_transacao, descricao,
+                    valor, metodo_pagamento, nova_data_vencimento
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (
+                member_id,
+                data_pagamento.strftime('%Y-%m-%d %H:%M:%S'),
+                tipo_transacao,
+                descricao,
+                valor,
+                metodo_pagamento,
+                nova_data_vencimento
+            ))
+            
+            self.connection.commit()
+            return cursor.lastrowid
+        except Exception as e:
+            print(f"Erro ao registrar pagamento: {e}")
+            return None
+    
+    def get_financial_summary(
+        self,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None
+    ) -> Dict[str, Any]:
+        """
+        Obtém um resumo financeiro para um período.
+        
+        Args:
+            start_date: Data inicial (None para desde o início)
+            end_date: Data final (None para até hoje)
+            
+        Returns:
+            Dicionário com total_receita, total_transacoes, ticket_medio
+        """
+        if not self.connection:
+            return {'total_receita': 0.0, 'total_transacoes': 0, 'ticket_medio': 0.0}
+        
+        try:
+            cursor = self.connection.cursor()
+            
+            # Construir query com filtros de data
+            query = "SELECT SUM(valor) as total, COUNT(*) as count FROM pagamentos WHERE 1=1"
+            params = []
+            
+            if start_date:
+                query += " AND data_pagamento >= ?"
+                params.append(start_date.strftime('%Y-%m-%d %H:%M:%S'))
+            
+            if end_date:
+                query += " AND data_pagamento <= ?"
+                params.append(end_date.strftime('%Y-%m-%d %H:%M:%S'))
+            
+            cursor.execute(query, params)
+            result = cursor.fetchone()
+            
+            total_receita = result['total'] if result['total'] else 0.0
+            total_transacoes = result['count'] if result['count'] else 0
+            ticket_medio = total_receita / total_transacoes if total_transacoes > 0 else 0.0
+            
+            return {
+                'total_receita': total_receita,
+                'total_transacoes': total_transacoes,
+                'ticket_medio': ticket_medio
+            }
+        except Exception as e:
+            print(f"Erro ao obter resumo financeiro: {e}")
+            return {'total_receita': 0.0, 'total_transacoes': 0, 'ticket_medio': 0.0}
+    
+    def get_revenue_breakdown(
+        self,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Obtém a receita agrupada por tipo de transação (ideal para gráficos).
+        
+        Args:
+            start_date: Data inicial (None para desde o início)
+            end_date: Data final (None para até hoje)
+            
+        Returns:
+            Lista de dicionários com tipo_transacao, total_valor, quantidade
+        """
+        if not self.connection:
+            return []
+        
+        try:
+            cursor = self.connection.cursor()
+            
+            query = """
+                SELECT 
+                    tipo_transacao,
+                    SUM(valor) as total_valor,
+                    COUNT(*) as quantidade
+                FROM pagamentos
+                WHERE 1=1
+            """
+            params = []
+            
+            if start_date:
+                query += " AND data_pagamento >= ?"
+                params.append(start_date.strftime('%Y-%m-%d %H:%M:%S'))
+            
+            if end_date:
+                query += " AND data_pagamento <= ?"
+                params.append(end_date.strftime('%Y-%m-%d %H:%M:%S'))
+            
+            query += " GROUP BY tipo_transacao ORDER BY total_valor DESC"
+            
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
+            
+            return [dict(row) for row in rows]
+        except Exception as e:
+            print(f"Erro ao obter breakdown de receita: {e}")
+            return []
+    
+    def get_transactions_in_range(
+        self,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None,
+        limit: int = 100
+    ) -> List[Dict[str, Any]]:
+        """
+        Lista todas as transações em um período.
+        
+        Args:
+            start_date: Data inicial (None para desde o início)
+            end_date: Data final (None para até hoje)
+            limit: Número máximo de transações a retornar
+            
+        Returns:
+            Lista de dicionários com dados das transações
+        """
+        if not self.connection:
+            return []
+        
+        try:
+            cursor = self.connection.cursor()
+            
+            query = """
+                SELECT 
+                    p.*,
+                    m.nome as member_nome
+                FROM pagamentos p
+                LEFT JOIN membros m ON p.member_id = m.id
+                WHERE 1=1
+            """
+            params = []
+            
+            if start_date:
+                query += " AND p.data_pagamento >= ?"
+                params.append(start_date.strftime('%Y-%m-%d %H:%M:%S'))
+            
+            if end_date:
+                query += " AND p.data_pagamento <= ?"
+                params.append(end_date.strftime('%Y-%m-%d %H:%M:%S'))
+            
+            query += " ORDER BY p.data_pagamento DESC LIMIT ?"
+            params.append(limit)
+            
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
+            
+            return [dict(row) for row in rows]
+        except Exception as e:
+            print(f"Erro ao obter transações: {e}")
+            return []
+    
+    def get_member_payment_history(self, member_id: int) -> List[Dict[str, Any]]:
+        """
+        Obtém todo o histórico de pagamentos de um membro.
+        
+        Args:
+            member_id: ID do membro
+            
+        Returns:
+            Lista de dicionários com dados dos pagamentos do membro
+        """
+        if not self.connection:
+            return []
+        
+        try:
+            cursor = self.connection.cursor()
+            
+            cursor.execute("""
+                SELECT *
+                FROM pagamentos
+                WHERE member_id = ?
+                ORDER BY data_pagamento DESC
+            """, (member_id,))
+            
+            rows = cursor.fetchall()
+            return [dict(row) for row in rows]
+        except Exception as e:
+            print(f"Erro ao obter histórico de pagamentos do membro: {e}")
+            return []
     
     def get_members_by_birthday_month(self, month: int) -> List[Dict[str, Any]]:
         """
@@ -445,12 +738,20 @@ class DatabaseManager:
             print(f"Erro ao atualizar membro: {e}")
             return False
     
-    def update_member_from_dict(self, member_data: Dict[str, Any]) -> bool:
+    def update_member_from_dict(
+        self, 
+        member_data: Dict[str, Any], 
+        register_payment: bool = False,
+        metodo_pagamento: str = ""
+    ) -> bool:
         """
         Atualiza os dados de um membro usando um dicionário.
+        Opcionalmente registra um pagamento se houver mudança de plano.
         
         Args:
             member_data: Dicionário com os dados do membro (deve incluir 'id')
+            register_payment: Se True, registra pagamento ao atualizar plano/vencimento
+            metodo_pagamento: Método de pagamento usado
             
         Returns:
             True se a atualização foi bem-sucedida, False caso contrário
@@ -460,6 +761,15 @@ class DatabaseManager:
         
         try:
             cursor = self.connection.cursor()
+            member_id = member_data['id']
+            
+            # Buscar dados atuais do membro para detectar mudanças
+            old_data = None
+            if register_payment:
+                cursor.execute("SELECT plano, vencimento_plano FROM membros WHERE id = ?", (member_id,))
+                row = cursor.fetchone()
+                if row:
+                    old_data = dict(row)
             
             # Construir query dinamicamente com todos os campos fornecidos
             updates = []
@@ -475,7 +785,8 @@ class DatabaseManager:
                 'whatsapp': 'whatsapp',
                 'genero': 'genero',
                 'frequencia': 'frequencia',
-                'calcado': 'calcado'
+                'calcado': 'calcado',
+                'email': 'email'
             }
             
             # Adicionar campos que estão no dicionário
@@ -494,18 +805,93 @@ class DatabaseManager:
                 return True
             
             # Adicionar o member_id no final dos valores
-            values.append(member_data['id'])
+            values.append(member_id)
             
             # Executar a query
             query = f"UPDATE membros SET {', '.join(updates)} WHERE id = ?"
             cursor.execute(query, values)
             
             self.connection.commit()
+            
+            # Registrar pagamento se solicitado e houver mudança de plano/vencimento
+            if register_payment and old_data:
+                new_plano = member_data.get('plano')
+                new_vencimento = member_data.get('vencimento_plano')
+                old_plano = old_data.get('plano')
+                old_vencimento = old_data.get('vencimento_plano')
+                
+                # Detectar se houve mudança significativa
+                plano_changed = new_plano and new_plano != old_plano
+                vencimento_changed = new_vencimento and new_vencimento != old_vencimento
+                
+                if plano_changed or vencimento_changed:
+                    # Importar config para buscar preços
+                    from src.config import PLANOS_PRECOS
+                    
+                    # Determinar tipo de transação e descrição
+                    if plano_changed and new_plano:
+                        tipo_transacao = f"Mudança de Plano"
+                        descricao = f"De '{old_plano}' para '{new_plano}'"
+                        valor = PLANOS_PRECOS.get(new_plano, 0.0)
+                    elif new_plano:
+                        tipo_transacao = f"Renovação Plano"
+                        descricao = f"Plano: {new_plano}"
+                        valor = PLANOS_PRECOS.get(new_plano, 0.0)
+                    else:
+                        return cursor.rowcount > 0
+                    
+                    # Registrar o pagamento
+                    self.add_payment(
+                        member_id=member_id,
+                        valor=valor,
+                        tipo_transacao=tipo_transacao,
+                        descricao=descricao,
+                        metodo_pagamento=metodo_pagamento,
+                        nova_data_vencimento=new_vencimento
+                    )
+            
             return cursor.rowcount > 0
         except Exception as e:
             print(f"Erro ao atualizar membro: {e}")
             import traceback
             traceback.print_exc()
+            return False
+    
+    def delete_member(self, member_id: int) -> bool:
+        """
+        Deleta um membro do banco de dados.
+        
+        Args:
+            member_id: ID do membro a ser deletado
+            
+        Returns:
+            True se deletado com sucesso, False caso contrário
+        """
+        if not self.connection:
+            print("Erro: Conexão não estabelecida")
+            return False
+        
+        try:
+            cursor = self.connection.cursor()
+            
+            # Primeiro, deletar todos os check-ins do membro
+            cursor.execute("DELETE FROM checkins WHERE member_id = ?", (member_id,))
+            
+            # Deletar todos os pagamentos do membro
+            cursor.execute("DELETE FROM pagamentos WHERE membro_id = ?", (member_id,))
+            
+            # Finalmente, deletar o membro
+            cursor.execute("DELETE FROM membros WHERE id = ?", (member_id,))
+            
+            self.connection.commit()
+            
+            return cursor.rowcount > 0
+        except Exception as e:
+            print(f"Erro ao deletar membro: {e}")
+            import traceback
+            traceback.print_exc()
+            if self.connection:
+                self.connection.rollback()
             return False
     
     def get_member_checkin_history(self, member_id: int) -> List[Dict[str, Any]]:

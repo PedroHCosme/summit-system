@@ -106,18 +106,29 @@ class DataProvider:
             return self.db_manager.add_member(member_data)
         return None
 
-    def update_member(self, member_data: Dict[str, Any]) -> bool:
+    def update_member(
+        self, 
+        member_data: Dict[str, Any], 
+        register_payment: bool = False,
+        metodo_pagamento: str = ""
+    ) -> bool:
         """
         Atualiza os dados de um membro existente.
         
         Args:
             member_data: Dicionário com os dados atualizados do membro (deve incluir 'id')
+            register_payment: Se True, registra pagamento ao atualizar plano/vencimento
+            metodo_pagamento: Método de pagamento usado
             
         Returns:
             True se a atualização foi bem-sucedida, False caso contrário
         """
         if self.use_sqlite:
-            return self.db_manager.update_member_from_dict(member_data)
+            return self.db_manager.update_member_from_dict(
+                member_data, 
+                register_payment, 
+                metodo_pagamento
+            )
         else:
             # Funcionalidade não suportada para Google Sheets
             print("Aviso: A funcionalidade de atualização não é suportada para Google Sheets.")
@@ -140,6 +151,23 @@ class DataProvider:
             # Funcionalidade não suportada para Google Sheets
             print("Aviso: A funcionalidade de check-in não é suportada para Google Sheets.")
             return None
+    
+    def delete_member(self, member_id: int) -> bool:
+        """
+        Deleta um membro do sistema.
+        
+        Args:
+            member_id: ID do membro a ser deletado
+            
+        Returns:
+            True se a exclusão foi bem-sucedida, False caso contrário
+        """
+        if self.use_sqlite:
+            return self.db_manager.delete_member(member_id)
+        else:
+            # Funcionalidade não suportada para Google Sheets
+            print("Aviso: A funcionalidade de exclusão de membro não é suportada para Google Sheets.")
+            return False
     
     def delete_checkin(self, checkin_id: int) -> bool:
         """
@@ -392,17 +420,36 @@ def get_last_checkins(limit: int = 5) -> List[Dict[str, Any]]:
     return get_provider().get_last_checkins(limit)
 
 
-def update_member(member_data: Dict[str, Any]) -> bool:
+def update_member(
+    member_data: Dict[str, Any], 
+    register_payment: bool = False,
+    metodo_pagamento: str = ""
+) -> bool:
     """
     Atualiza os dados de um membro existente.
     
     Args:
         member_data: Dicionário com os dados atualizados do membro (deve incluir 'id')
+        register_payment: Se True, registra pagamento ao atualizar plano/vencimento
+        metodo_pagamento: Método de pagamento usado
         
     Returns:
         True se a atualização foi bem-sucedida, False caso contrário
     """
-    return get_provider().update_member(member_data)
+    return get_provider().update_member(member_data, register_payment, metodo_pagamento)
+
+
+def delete_member(member_id: int) -> bool:
+    """
+    Deleta um membro do sistema.
+    
+    Args:
+        member_id: ID do membro a ser deletado
+        
+    Returns:
+        True se a exclusão foi bem-sucedida, False caso contrário
+    """
+    return get_provider().delete_member(member_id)
 
 
 def delete_checkin(checkin_id: int) -> bool:

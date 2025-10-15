@@ -91,27 +91,27 @@ class AddMemberDialog(QDialog):
         if is_visible:
             from src.utils.utils import calculate_new_due_date
             
-            new_due_date_str = calculate_new_due_date(plano)
-            if new_due_date_str != "N/A":
-                try:
-                    # Converte a string para QDate
-                    due_date = datetime.strptime(new_due_date_str, '%d/%m/%Y')
-                    qdate = QDate(due_date.year, due_date.month, due_date.day)
-                    self.vencimento_plano_input.setDate(qdate)
-                except ValueError:
-                    pass  # Se falhar, mantém a data atual
+            new_due_date = calculate_new_due_date(plano)
+            if new_due_date and isinstance(new_due_date, datetime):
+                # Já é um objeto datetime, converter diretamente para QDate
+                qdate = QDate(new_due_date.year, new_due_date.month, new_due_date.day)
+                self.vencimento_plano_input.setDate(qdate)
 
     def get_data(self):
         """Retorna os dados do formulário como um dicionário."""
+        plano = self.plano_combo.currentText()
+        
         data = {
             "nome": self.nome_input.text().strip(),
-            "plano": self.plano_combo.currentText(),
+            "plano": plano,
             "data_nascimento": self.data_nascimento_input.date().toString("dd/MM/yyyy"),
             "whatsapp": self.whatsapp_input.text().strip(),
             "genero": self.genero_combo.currentText(),
             "email": self.email_input.text().strip(),
         }
-        if self.vencimento_plano_input.isVisible():
+        
+        # Para planos com vencimento, sempre incluir a data
+        if plano in PLANOS_COM_VENCIMENTO:
             data["vencimento_plano"] = self.vencimento_plano_input.date().toString("dd/MM/yyyy")
         
         return data

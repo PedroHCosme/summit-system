@@ -23,7 +23,8 @@ from src.ui.screens import (
     DashboardScreen,
     AniversariantesScreen,
     MemberSearchScreen,
-    CheckinScreen
+    CheckinScreen,
+    FinancialScreen
 )
 from src.ui.dialogs import AddMemberDialog
 
@@ -71,6 +72,7 @@ class MainWindow(QMainWindow):
         self.aniversariantes_screen = AniversariantesScreen()
         self.member_search_screen = MemberSearchScreen()
         self.checkin_screen = CheckinScreen()
+        self.financial_screen = FinancialScreen()
         
         # Adiciona ao stack
         self.stacked_widget.addWidget(self.home_screen)  # 0
@@ -78,6 +80,7 @@ class MainWindow(QMainWindow):
         self.stacked_widget.addWidget(self.aniversariantes_screen)  # 2
         self.stacked_widget.addWidget(self.member_search_screen)  # 3
         self.stacked_widget.addWidget(self.checkin_screen)  # 4
+        self.stacked_widget.addWidget(self.financial_screen)  # 5
         
         # Conecta sinais das telas
         self._connect_screen_signals()
@@ -120,6 +123,10 @@ class MainWindow(QMainWindow):
             checkin_action = QAction("Check-in", self)
             checkin_action.triggered.connect(self._show_checkin_screen)
             self.atividade_menu.addAction(checkin_action)
+            
+            financeiro_action = QAction("Financeiro", self)
+            financeiro_action.triggered.connect(self._show_financial_screen)
+            self.atividade_menu.addAction(financeiro_action)
     
     def _connect_screen_signals(self):
         """Conecta sinais das telas."""
@@ -146,6 +153,9 @@ class MainWindow(QMainWindow):
         self.member_search_screen.edit_button.clicked.connect(
             self._on_edit_member_clicked
         )
+        self.member_search_screen.delete_button.clicked.connect(
+            self._on_delete_member_clicked
+        )
         # Substituir o método request_delete_checkin por nossa implementação
         self.member_search_screen.request_delete_checkin = self._on_delete_checkin_requested
         
@@ -161,6 +171,14 @@ class MainWindow(QMainWindow):
         )
         self.checkin_screen.confirm_button.clicked.connect(
             self._on_confirm_checkin_clicked
+        )
+        
+        # Financeiro
+        self.financial_screen.update_button.clicked.connect(
+            self._load_financial_data
+        )
+        self.financial_screen.plan_chart_button.clicked.connect(
+            self._show_plan_distribution_dialog
         )
     
     # === Navegação entre telas ===
@@ -187,6 +205,13 @@ class MainWindow(QMainWindow):
         if not self.is_connected:
             return
         self.stacked_widget.setCurrentIndex(4)
+    
+    def _show_financial_screen(self):
+        """Mostra a tela de gestão financeira."""
+        if not self.is_connected:
+            return
+        self.stacked_widget.setCurrentIndex(5)
+        self._load_financial_data()
     
     # === Handlers de Conexão ===
     
@@ -310,18 +335,88 @@ class MainWindow(QMainWindow):
         dialog.member_updated.connect(self._on_member_updated)
         dialog.exec()
     
-    def _on_member_updated(self, updated_data: dict):
-        """Manipula a atualização de um membro."""
+    def _on_delete_member_clicked(self):
+        """Abre o diálogo de confirmação de exclusão do membro atual."""
+        if not self.member_search_screen.current_member_data:
+            return
+        
+        from src.ui.dialogs.delete_member_dialog import DeleteMemberDialog
+        
+        dialog = DeleteMemberDialog(self.member_search_screen.current_member_data, self)
+        
+        # Se o usuário confirmar a exclusão
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self._delete_member(self.member_search_screen.current_member_data)
+    
+    def _delete_member(self, member_data: dict):
+        """Executa a exclusão do membro."""
         try:
-            from src.data.data_provider import update_member
+            from src.data.data_provider import delete_member
             
-            success = update_member(updated_data)
+            member_id = member_data['id']
+            member_name = member_data['nome']
+            
+            success = delete_member(member_id)
             
             if success:
                 QMessageBox.information(
                     self,
                     "Sucesso",
-                    f"Membro '{updated_data['nome']}' atualizado com sucesso!"
+                    f"Membro '{member_name}' foi excluído com sucesso!\n\n"
+                    f"Todos os check-ins e pagamentos relacionados também foram removidos."
+                )
+                
+                # Limpa a tela
+                self.member_search_screen.results_list.clear()
+                self.member_search_screen.member_result_browser.setHtml(
+                    self.member_search_screen._get_initial_message()
+                )
+                self.member_search_screen.member_history_browser.setHtml(
+                    "<p style='color: #888888;'>Selecione um membro para ver o histórico.</p>"
+                )
+                self.member_search_screen.edit_button.setVisible(False)
+                self.member_search_screen.delete_button.setVisible(False)
+                self.member_search_screen.current_member_data = None
+                
+            else:
+                QMessageBox.warning(
+                    self,
+                    "Erro",
+                    f"Não foi possível excluir o membro '{member_name}'."
+                )
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Erro",
+                f"Erro ao excluir membro: {str(e)}"
+            )
+    
+    def _on_member_updated(self, updated_data: dict):
+        """Manipula a atualização de um membro."""
+        try:
+            from src.data.data_provider import update_member
+            
+            # Extrai o método de pagamento
+            metodo_pagamento = updated_data.pop('metodo_pagamento', '')
+            
+            # Define se deve registrar pagamento (apenas se método foi informado)
+            register_payment = bool(metodo_pagamento)
+            
+            success = update_member(
+                updated_data, 
+                register_payment=register_payment,
+                metodo_pagamento=metodo_pagamento
+            )
+            
+            if success:
+                mensagem = f"Membro '{updated_data['nome']}' atualizado com sucesso!"
+                if register_payment:
+                    mensagem += "\n\nPagamento registrado no sistema financeiro."
+                
+                QMessageBox.information(
+                    self,
+                    "Sucesso",
+                    mensagem
                 )
                 
                 # Atualiza a exibição com os novos dados
@@ -467,6 +562,61 @@ class MainWindow(QMainWindow):
             except Exception as e:
                 QMessageBox.critical(self, "Erro Crítico", 
                                     f"Ocorreu um erro inesperado ao salvar o membro: {e}")
+    
+    # === Financeiro ===
+    
+    def _load_financial_data(self):
+        """Carrega os dados financeiros com base no período selecionado."""
+        try:
+            # Mostra estado de carregamento
+            self.financial_screen.show_loading()
+            
+            # Obter datas
+            start_date = self.financial_screen.start_date_input.date().toPyDate()
+            end_date = self.financial_screen.end_date_input.date().toPyDate()
+            
+            # Converter para datetime com hora mínima/máxima
+            from datetime import datetime, time
+            start_datetime = datetime.combine(start_date, time.min)
+            end_datetime = datetime.combine(end_date, time.max)
+            
+            # Obter resumo
+            summary = self.manager.data_provider.db_manager.get_financial_summary(
+                start_datetime, end_datetime
+            )
+            
+            # Atualizar cards de resumo
+            self.financial_screen.update_summary(
+                summary['total_receita'],
+                summary['total_transacoes'],
+                summary['ticket_medio']
+            )
+            
+            # Obter breakdown por tipo
+            breakdown = self.manager.data_provider.db_manager.get_revenue_breakdown(
+                start_datetime, end_datetime
+            )
+            self.financial_screen.update_breakdown(breakdown)
+            
+            # Obter transações
+            transactions = self.manager.data_provider.db_manager.get_transactions_in_range(
+                start_datetime, end_datetime
+            )
+            self.financial_screen.update_transactions(transactions)
+            
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Erro",
+                f"Erro ao carregar dados financeiros: {str(e)}"
+            )
+    
+    def _show_plan_distribution_dialog(self):
+        """Abre o diálogo de distribuição de planos."""
+        from src.ui.dialogs.plan_distribution_dialog import PlanDistributionDialog
+        
+        dialog = PlanDistributionDialog(self)
+        dialog.exec()
 
 
 def main():
@@ -477,6 +627,10 @@ def main():
     
     app = QApplication(sys.argv)
     print("QApplication criada")
+    
+    # Aplicar estilo globalmente para todos os widgets, incluindo diálogos
+    app.setStyleSheet(STYLESHEET)
+    print("Estilo global aplicado")
     
     window = MainWindow()
     print("Janela criada")

@@ -47,3 +47,23 @@ PLANOS_COM_VENCIMENTO = [
     "Semestral",
     "Anual"
 ]
+
+# Preços dos planos (em R$)
+PLANOS_PRECOS = {
+    "Mensal": 180.0,
+    "Mens. c/ Treino": 270.0,
+    "Trimestral": 500.0,
+    "Semestral": 950.0,
+    "Anual": 1900.0,
+    "Diária": 35.0,
+    "Gympass": 0.0,  # Gympass é pago pela própria empresa
+    "Totalpass": 0.0,  # Totalpass é pago pela própria empresa
+    "Cortesia": 0.0  # Cortesia não tem custo
+}
+
+# Planos que geram pagamento por check-in
+PLANOS_PAGAMENTO_POR_CHECKIN = {
+    "Diária": 35.0,      # Cada check-in = R$ 35,00
+    "Gympass": 15.0,     # Cada check-in = R$ 15,00
+    "Totalpass": 15.0    # Cada check-in = R$ 15,00
+}

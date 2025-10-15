@@ -132,12 +132,34 @@ class MemberSearchScreen(QWidget):
         self.member_result_browser.setHtml(self._get_initial_message())
         info_tab_layout.addWidget(self.member_result_browser)
         
-        # Botão de editar no canto inferior direito
+        # Botões de ação no canto inferior direito
         button_container = QWidget()
         button_layout = QHBoxLayout(button_container)
         button_layout.setContentsMargins(10, 10, 10, 10)
         button_layout.addStretch()
         
+        # Botão Deletar
+        self.delete_button = QPushButton("🗑️ Deletar")
+        self.delete_button.setFixedWidth(120)
+        self.delete_button.setFixedHeight(35)
+        self.delete_button.setStyleSheet("""
+            QPushButton {
+                background-color: #D32F2F;
+                color: white;
+                font-weight: bold;
+                border: none;
+                border-radius: 4px;
+                padding: 8px;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #B71C1C;
+            }
+        """)
+        self.delete_button.setVisible(False)  # Escondido até que um membro seja selecionado
+        button_layout.addWidget(self.delete_button)
+        
+        # Botão Editar
         self.edit_button = QPushButton("✏️ Editar")
         self.edit_button.setFixedWidth(120)
         self.edit_button.setFixedHeight(35)
@@ -190,7 +212,8 @@ class MemberSearchScreen(QWidget):
         self.search_button.setEnabled(False)
         self.results_list.clear()
         self.member_result_browser.clear()
-        self.edit_button.setVisible(False)  # Esconde o botão durante a busca
+        self.edit_button.setVisible(False)  # Esconde os botões durante a busca
+        self.delete_button.setVisible(False)
         self.current_member_data = None
     
     def set_ready_state(self):
@@ -207,6 +230,7 @@ class MemberSearchScreen(QWidget):
             </div>
         """)
         self.edit_button.setVisible(False)
+        self.delete_button.setVisible(False)
     
     def show_empty_search_warning(self):
         """Mostra aviso de busca vazia."""
@@ -216,6 +240,7 @@ class MemberSearchScreen(QWidget):
             </div>
         """)
         self.edit_button.setVisible(False)
+        self.delete_button.setVisible(False)
     
     def populate_results(self, results: list):
         """Popula a lista de resultados."""
@@ -232,13 +257,15 @@ class MemberSearchScreen(QWidget):
             </div>
         """)
         self.edit_button.setVisible(False)  # Esconde até selecionar um membro
+        self.delete_button.setVisible(False)
     
     def display_member_data(self, member_data: dict):
         """Exibe os dados do membro."""
         self.current_member_data = member_data  # Armazena os dados atuais
         html = self._format_member_data(member_data)
         self.member_result_browser.setHtml(html)
-        self.edit_button.setVisible(True)  # Mostra o botão de editar
+        self.edit_button.setVisible(True)  # Mostra os botões de ação
+        self.delete_button.setVisible(True)
     
     def display_member_history(self, member_id: int, member_name: str, history: list):
         """Exibe o histórico do membro."""
@@ -258,6 +285,7 @@ class MemberSearchScreen(QWidget):
             </div>
         """)
         self.edit_button.setVisible(False)
+        self.delete_button.setVisible(False)
     
     def open_edit_dialog(self):
         """Abre o diálogo de edição do membro atual."""
@@ -296,6 +324,10 @@ class MemberSearchScreen(QWidget):
     
     def _format_member_data(self, member_data: dict) -> str:
         """Formata os dados do membro em HTML."""
+        # Calcular frequência do mês atual
+        member_id = member_data.get('id')
+        frequencia_mes_atual = self._calculate_monthly_frequency(member_id) if member_id else 0
+        
         fields = [
             ('nome', 'Nome'),
             ('plano', 'Plano'),
@@ -309,8 +341,8 @@ class MemberSearchScreen(QWidget):
             ('estado_plano', 'Estado do Plano'),
             ('data_nascimento', 'Data de Nascimento'),
             ('whatsapp', 'WhatsApp'),
+            ('email', 'Email'),
             ('genero', 'Gênero'),
-            ('frequencia', 'Frequência'),
             ('calcado', 'Calçado')
         ])
         
@@ -318,6 +350,14 @@ class MemberSearchScreen(QWidget):
             <div style="padding: 20px;">
                 <h2 style="color: #007ACC; text-align: center; margin-bottom: 20px;">Dados do Membro</h2>
                 <div style="background-color: #F8F8F8; border: 1px solid #DDDDDD; border-radius: 8px; padding: 15px;">
+        """
+        
+        # Adicionar frequência do mês após os outros campos
+        html += f"""
+            <div style="margin-bottom: 10px;">
+                <strong style="color: #333333;">Frequência (Este Mês):</strong>
+                <span style="color: #007ACC; font-weight: bold;"> {frequencia_mes_atual} check-ins</span>
+            </div>
         """
         
         for field_key, field_label in fields:
@@ -456,3 +496,51 @@ class MemberSearchScreen(QWidget):
         """
         
         return html
+    
+    def _calculate_monthly_frequency(self, member_id: int) -> int:
+        """
+        Calcula quantos check-ins o membro fez no mês atual.
+        
+        Args:
+            member_id: ID do membro
+            
+        Returns:
+            Número de check-ins no mês atual
+        """
+        if not member_id:
+            return 0
+        
+        try:
+            from src.data.data_provider import get_provider
+            
+            # Buscar histórico completo do membro
+            history = get_provider().get_member_checkin_history(member_id)
+            
+            if not history:
+                return 0
+            
+            # Obter mês e ano atuais
+            now = datetime.now()
+            current_month = now.month
+            current_year = now.year
+            
+            # Contar check-ins do mês atual
+            count = 0
+            for checkin in history:
+                checkin_datetime_str = checkin.get('checkin_datetime', '')
+                
+                try:
+                    # Tentar parsear a data
+                    checkin_dt = datetime.fromisoformat(checkin_datetime_str.replace(' ', 'T'))
+                    
+                    # Verificar se é do mês atual
+                    if checkin_dt.month == current_month and checkin_dt.year == current_year:
+                        count += 1
+                except (ValueError, AttributeError):
+                    continue
+            
+            return count
+            
+        except Exception as e:
+            print(f"Erro ao calcular frequência mensal: {e}")
+            return 0

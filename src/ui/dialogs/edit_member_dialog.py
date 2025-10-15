@@ -83,15 +83,20 @@ class EditMemberDialog(QDialog):
         self.genero_combo.addItems(["", "Masculino", "Feminino", "Outro"])
         form_layout.addRow("Gênero:", self.genero_combo)
         
-        # Frequência
-        self.frequencia_input = QLineEdit()
-        self.frequencia_input.setPlaceholderText("Ex: 3x por semana")
-        form_layout.addRow("Frequência:", self.frequencia_input)
-        
         # Calçado
         self.calcado_input = QLineEdit()
         self.calcado_input.setPlaceholderText("Ex: 42")
         form_layout.addRow("Calçado:", self.calcado_input)
+        
+        # Email
+        self.email_input = QLineEdit()
+        self.email_input.setPlaceholderText("exemplo@email.com")
+        form_layout.addRow("Email:", self.email_input)
+        
+        # Método de Pagamento (para registrar transação)
+        self.metodo_pagamento_combo = QComboBox()
+        self.metodo_pagamento_combo.addItems(["", "PIX", "Cartão de Crédito", "Cartão de Débito", "Dinheiro", "Transferência"])
+        form_layout.addRow("Método de Pagamento:", self.metodo_pagamento_combo)
         
         layout.addLayout(form_layout)
         
@@ -163,11 +168,11 @@ class EditMemberDialog(QDialog):
         if genero:
             self.genero_combo.setCurrentText(genero)
         
-        # Frequência
-        self.frequencia_input.setText(self.member_data.get('frequencia', ''))
-        
         # Calçado
         self.calcado_input.setText(self.member_data.get('calcado', ''))
+        
+        # Email
+        self.email_input.setText(self.member_data.get('email', ''))
         
         # Ajusta visibilidade do campo de vencimento
         self._toggle_vencimento_visibility()
@@ -273,8 +278,9 @@ class EditMemberDialog(QDialog):
             'data_nascimento': data_nasc_str,
             'whatsapp': self.whatsapp_input.text().strip(),
             'genero': self.genero_combo.currentText(),
-            'frequencia': self.frequencia_input.text().strip(),
-            'calcado': self.calcado_input.text().strip()
+            'calcado': self.calcado_input.text().strip(),
+            'email': self.email_input.text().strip(),
+            'metodo_pagamento': self.metodo_pagamento_combo.currentText()
         }
         
         # Emite o sinal com os dados atualizados
