@@ -143,6 +143,11 @@ class MainWindow(QMainWindow):
         self.member_search_screen.results_list.itemClicked.connect(
             self._on_member_result_clicked
         )
+        self.member_search_screen.edit_button.clicked.connect(
+            self._on_edit_member_clicked
+        )
+        # Substituir o método request_delete_checkin por nossa implementação
+        self.member_search_screen.request_delete_checkin = self._on_delete_checkin_requested
         
         # Check-in
         self.checkin_screen.name_input.returnPressed.connect(
@@ -293,6 +298,92 @@ class MainWindow(QMainWindow):
                     <p style="color: #888;">{str(e)}</p>
                 </div>
             """)
+    
+    def _on_edit_member_clicked(self):
+        """Abre o diálogo de edição do membro atual."""
+        if not self.member_search_screen.current_member_data:
+            return
+        
+        from src.ui.dialogs.edit_member_dialog import EditMemberDialog
+        
+        dialog = EditMemberDialog(self.member_search_screen.current_member_data, self)
+        dialog.member_updated.connect(self._on_member_updated)
+        dialog.exec()
+    
+    def _on_member_updated(self, updated_data: dict):
+        """Manipula a atualização de um membro."""
+        try:
+            from src.data.data_provider import update_member
+            
+            success = update_member(updated_data)
+            
+            if success:
+                QMessageBox.information(
+                    self,
+                    "Sucesso",
+                    f"Membro '{updated_data['nome']}' atualizado com sucesso!"
+                )
+                
+                # Atualiza a exibição com os novos dados
+                member_id = updated_data['id']
+                updated_member = self.search_service.get_member_by_id(member_id)
+                
+                if updated_member:
+                    self.member_search_screen.display_member_data(updated_member)
+            else:
+                QMessageBox.warning(
+                    self,
+                    "Erro",
+                    "Não foi possível atualizar o membro. Verifique o console."
+                )
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Erro Crítico",
+                f"Ocorreu um erro inesperado: {e}"
+            )
+    
+    def _on_delete_checkin_requested(self, checkin_id: int):
+        """Manipula a solicitação de exclusão de um check-in."""
+        # Confirmação
+        reply = QMessageBox.question(
+            self,
+            "Confirmar Exclusão",
+            "Tem certeza que deseja deletar este check-in?\n\nEsta ação não pode ser desfeita.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+        
+        if reply == QMessageBox.StandardButton.Yes:
+            try:
+                from src.data.data_provider import delete_checkin
+                
+                success = delete_checkin(checkin_id)
+                
+                if success:
+                    QMessageBox.information(
+                        self,
+                        "Sucesso",
+                        "Check-in deletado com sucesso!"
+                    )
+                    
+                    # Recarrega o histórico do membro atual
+                    if self.member_search_screen.current_member_data:
+                        member_id = self.member_search_screen.current_member_data['id']
+                        member_name = self.member_search_screen.current_member_data['nome']
+                        self._load_member_history(member_id, member_name)
+                else:
+                    QMessageBox.warning(
+                        self,
+                        "Erro",
+                        "Não foi possível deletar o check-in. Verifique o console."
+                    )
+            except Exception as e:
+                QMessageBox.critical(
+                    self,
+                    "Erro Crítico",
+                    f"Ocorreu um erro inesperado: {e}"
+                )
     
     # === Check-in ===
     

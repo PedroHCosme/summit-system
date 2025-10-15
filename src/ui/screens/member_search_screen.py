@@ -17,6 +17,7 @@ class MemberSearchScreen(QWidget):
     
     def __init__(self):
         super().__init__()
+        self.current_member_data = None  # Armazena os dados do membro atual
         self._setup_ui()
     
     def _setup_ui(self):
@@ -93,6 +94,7 @@ class MemberSearchScreen(QWidget):
         right_layout = QVBoxLayout(right_container)
         right_layout.setContentsMargins(0, 0, 0, 0)
         
+        # Header com título apenas
         details_label = QLabel("Detalhes:")
         details_label.setStyleSheet("color: #007ACC; font-weight: bold; font-size: 14px;")
         right_layout.addWidget(details_label)
@@ -119,16 +121,52 @@ class MemberSearchScreen(QWidget):
             }
         """)
         
-        # Aba 1: Informações do Membro
+        # Aba 1: Informações do Membro com botão de editar
+        info_tab_container = QWidget()
+        info_tab_layout = QVBoxLayout(info_tab_container)
+        info_tab_layout.setContentsMargins(0, 0, 0, 0)
+        info_tab_layout.setSpacing(0)
+        
         self.member_result_browser = QTextBrowser()
         self.member_result_browser.setOpenExternalLinks(True)
         self.member_result_browser.setHtml(self._get_initial_message())
-        self.member_tabs.addTab(self.member_result_browser, "Informações")
+        info_tab_layout.addWidget(self.member_result_browser)
+        
+        # Botão de editar no canto inferior direito
+        button_container = QWidget()
+        button_layout = QHBoxLayout(button_container)
+        button_layout.setContentsMargins(10, 10, 10, 10)
+        button_layout.addStretch()
+        
+        self.edit_button = QPushButton("✏️ Editar")
+        self.edit_button.setFixedWidth(120)
+        self.edit_button.setFixedHeight(35)
+        self.edit_button.setStyleSheet("""
+            QPushButton {
+                background-color: #007ACC;
+                color: white;
+                font-weight: bold;
+                border: none;
+                border-radius: 4px;
+                padding: 8px;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #005FA3;
+            }
+        """)
+        self.edit_button.setVisible(False)  # Escondido até que um membro seja selecionado
+        button_layout.addWidget(self.edit_button)
+        
+        info_tab_layout.addWidget(button_container)
+        
+        self.member_tabs.addTab(info_tab_container, "Informações")
         
         # Aba 2: Histórico de Frequência
         self.member_history_browser = QTextBrowser()
         self.member_history_browser.setOpenExternalLinks(False)
         self.member_history_browser.setHtml("<p style='color: #888888;'>Selecione um membro para ver o histórico.</p>")
+        self.member_history_browser.anchorClicked.connect(self._on_history_link_clicked)
         self.member_tabs.addTab(self.member_history_browser, "Histórico de Frequência")
         
         right_layout.addWidget(self.member_tabs)
@@ -152,6 +190,8 @@ class MemberSearchScreen(QWidget):
         self.search_button.setEnabled(False)
         self.results_list.clear()
         self.member_result_browser.clear()
+        self.edit_button.setVisible(False)  # Esconde o botão durante a busca
+        self.current_member_data = None
     
     def set_ready_state(self):
         """Define o estado pronto."""
@@ -166,6 +206,7 @@ class MemberSearchScreen(QWidget):
                 <p style="color: #555555;">Tente buscar com outros termos.</p>
             </div>
         """)
+        self.edit_button.setVisible(False)
     
     def show_empty_search_warning(self):
         """Mostra aviso de busca vazia."""
@@ -174,6 +215,7 @@ class MemberSearchScreen(QWidget):
                 <p style="color: #FF6B6B;">Por favor, digite um nome para buscar.</p>
             </div>
         """)
+        self.edit_button.setVisible(False)
     
     def populate_results(self, results: list):
         """Popula a lista de resultados."""
@@ -189,11 +231,14 @@ class MemberSearchScreen(QWidget):
                 <p style="color: #555555;">Clique em um nome na lista ao lado para ver os detalhes.</p>
             </div>
         """)
+        self.edit_button.setVisible(False)  # Esconde até selecionar um membro
     
     def display_member_data(self, member_data: dict):
         """Exibe os dados do membro."""
+        self.current_member_data = member_data  # Armazena os dados atuais
         html = self._format_member_data(member_data)
         self.member_result_browser.setHtml(html)
+        self.edit_button.setVisible(True)  # Mostra o botão de editar
     
     def display_member_history(self, member_id: int, member_name: str, history: list):
         """Exibe o histórico do membro."""
@@ -212,6 +257,42 @@ class MemberSearchScreen(QWidget):
                 <h3 style="color: #FF6B6B;">Erro ao carregar histórico</h3>
             </div>
         """)
+        self.edit_button.setVisible(False)
+    
+    def open_edit_dialog(self):
+        """Abre o diálogo de edição do membro atual."""
+        if not self.current_member_data:
+            return
+        
+        from src.ui.dialogs.edit_member_dialog import EditMemberDialog
+        
+        dialog = EditMemberDialog(self.current_member_data, self)
+        
+        # Quando o membro for atualizado, o sinal será emitido
+        # A conexão desse sinal será feita no controller
+        
+        dialog.exec()
+    
+    def _on_history_link_clicked(self, url):
+        """Manipula cliques em links no histórico."""
+        from PyQt6.QtCore import QUrl
+        
+        url_str = url.toString() if isinstance(url, QUrl) else str(url)
+        
+        # Verifica se é um link de deletar
+        if url_str.startswith("delete:"):
+            checkin_id = int(url_str.split(":")[1])
+            # Emite um sinal ou chama diretamente o controller
+            # Por enquanto, vamos armazenar o ID para ser tratado externamente
+            self.request_delete_checkin(checkin_id)
+    
+    def request_delete_checkin(self, checkin_id: int):
+        """
+        Solicita a exclusão de um check-in.
+        Este método será conectado ao controller na main_window.
+        """
+        # Placeholder - será conectado no main_window
+        pass
     
     def _format_member_data(self, member_data: dict) -> str:
         """Formata os dados do membro em HTML."""
@@ -336,26 +417,31 @@ class MemberSearchScreen(QWidget):
             
             if month_year not in grouped:
                 grouped[month_year] = []
-            grouped[month_year].append(checkin_dt)
+            grouped[month_year].append(checkin)
         
-        for month_year, dates in grouped.items():
+        for month_year, checkins in grouped.items():
             html += f"""
                 <div style="margin-bottom: 20px;">
                     <h4 style="color: #007ACC; margin-bottom: 10px;">{month_year}</h4>
                     <div style="margin-left: 15px;">
             """
             
-            for dt in dates:
+            for checkin_data in checkins:
+                dt = datetime.fromisoformat(checkin_data['checkin_datetime'])
+                checkin_id = checkin_data['id']
                 day_name = dt.strftime('%A')
                 date_str = dt.strftime('%d/%m/%Y')
                 time_str = dt.strftime('%H:%M')
                 day_name_pt = days_pt.get(day_name, day_name)
                 
                 html += f"""
-                    <div style="margin-bottom: 8px; padding: 8px; background: #F0F0F0; border-radius: 4px;">
-                        <span style="color: #333333;">📅 {day_name_pt}</span>
-                        <span style="color: #555555; margin-left: 10px;">{date_str}</span>
-                        <span style="color: #007ACC; margin-left: 10px;">⏰ {time_str}</span>
+                    <div style="margin-bottom: 8px; padding: 8px; background: #F0F0F0; border-radius: 4px; display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <span style="color: #333333;">📅 {day_name_pt}</span>
+                            <span style="color: #555555; margin-left: 10px;">{date_str}</span>
+                            <span style="color: #007ACC; margin-left: 10px;">⏰ {time_str}</span>
+                        </div>
+                        <a href="delete:{checkin_id}" style="color: #FF6B6B; text-decoration: none; font-weight: bold; padding: 4px 8px; background: #FFE5E5; border-radius: 4px;">🗑️ Deletar</a>
                     </div>
                 """
             

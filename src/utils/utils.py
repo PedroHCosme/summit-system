@@ -168,39 +168,40 @@ def get_sheet_range(sheet_name: str, columns: str = 'A:BT') -> str:
     return f"'{sheet_name}'!{columns}"
 
 
-def calculate_new_due_date(plan_name: str) -> str:
+def calculate_new_due_date(plan_name: str, start_date: Optional[datetime] = None) -> Optional[datetime]:
     """
     Calcula a nova data de vencimento com base no nome do plano.
 
     Args:
         plan_name: O nome do plano.
+        start_date: Data inicial para o cálculo. Se None, usa a data atual.
 
     Returns:
-        A nova data de vencimento como uma string no formato 'dd/mm/AAAA' ou 'N/A'.
+        Objeto datetime com a nova data de vencimento ou None para planos sem vencimento.
     """
-    hoje = datetime.now()
-    new_date = None
-
+    # Usa a data atual se start_date não for fornecida
+    base_date = start_date if start_date else datetime.now()
+    
     # Planos mensais (1 mês)
-    if plan_name in ["Mensal", "Mens. c/ Treino"]:
-        new_date = hoje + relativedelta(months=1)
+    if plan_name in ["Mensal", "Mens. c/ Treino", "Escolhinha"]:
+        return base_date + relativedelta(months=1)
+    
     # Plano trimestral (3 meses)
     elif plan_name == "Trimestral":
-        new_date = hoje + relativedelta(months=3)
+        return base_date + relativedelta(months=3)
+    
     # Plano semestral (6 meses)
     elif plan_name == "Semestral":
-        new_date = hoje + relativedelta(months=6)
+        return base_date + relativedelta(months=6)
+    
     # Plano anual (1 ano)
     elif plan_name == "Anual":
-        new_date = hoje + relativedelta(years=1)
+        return base_date + relativedelta(years=1)
+    
     # Planos diários (1 dia)
-    elif plan_name in ["Diária", "Gympass", "Totalpass", "Cortesia"]:
-        new_date = hoje + relativedelta(days=1)
-    # Planos sem vencimento retornam N/A
+    elif plan_name in ["Diária", "Diária Boulder"]:
+        return base_date + relativedelta(days=1)
+    
+    # Planos sem vencimento (Gympass, Totalpass, Cortesia, etc.)
     else:
-        return "N/A"
-    
-    if new_date:
-        return new_date.strftime('%d/%m/%Y')
-    
-    return "N/A"
+        return None

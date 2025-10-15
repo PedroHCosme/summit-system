@@ -297,6 +297,32 @@ class DatabaseManager:
             print(f"Erro ao adicionar check-in: {e}")
             return None
     
+    def delete_checkin(self, checkin_id: int) -> bool:
+        """
+        Remove um registro de check-in da tabela de frequência.
+        
+        Args:
+            checkin_id: ID do check-in a ser removido
+            
+        Returns:
+            True se a exclusão foi bem-sucedida, False caso contrário
+        """
+        if not self.connection:
+            return False
+        try:
+            cursor = self.connection.cursor()
+            
+            cursor.execute("""
+                DELETE FROM frequencia
+                WHERE id = ?
+            """, (checkin_id,))
+            
+            self.connection.commit()
+            return cursor.rowcount > 0
+        except Exception as e:
+            print(f"Erro ao deletar check-in: {e}")
+            return False
+    
     def get_members_by_birthday_month(self, month: int) -> List[Dict[str, Any]]:
         """
         Busca membros que fazem aniversário em um mês específico.
@@ -417,6 +443,69 @@ class DatabaseManager:
             return cursor.rowcount > 0
         except Exception as e:
             print(f"Erro ao atualizar membro: {e}")
+            return False
+    
+    def update_member_from_dict(self, member_data: Dict[str, Any]) -> bool:
+        """
+        Atualiza os dados de um membro usando um dicionário.
+        
+        Args:
+            member_data: Dicionário com os dados do membro (deve incluir 'id')
+            
+        Returns:
+            True se a atualização foi bem-sucedida, False caso contrário
+        """
+        if not self.connection or 'id' not in member_data:
+            return False
+        
+        try:
+            cursor = self.connection.cursor()
+            
+            # Construir query dinamicamente com todos os campos fornecidos
+            updates = []
+            values = []
+            
+            # Mapeamento de campos do dicionário para colunas do banco
+            field_mapping = {
+                'nome': 'nome',
+                'plano': 'plano',
+                'vencimento_plano': 'vencimento_plano',
+                'estado_plano': 'estado_plano',
+                'data_nascimento': 'data_nascimento',
+                'whatsapp': 'whatsapp',
+                'genero': 'genero',
+                'frequencia': 'frequencia',
+                'calcado': 'calcado'
+            }
+            
+            # Adicionar campos que estão no dicionário
+            for field_key, column_name in field_mapping.items():
+                if field_key in member_data:
+                    value = member_data[field_key]
+                    # Permitir None ou string vazia para limpar campos
+                    updates.append(f"{column_name} = ?")
+                    values.append(value if value else None)
+            
+            # Sempre atualizar o timestamp
+            updates.append("updated_at = CURRENT_TIMESTAMP")
+            
+            # Se não há nada para atualizar, retornar True
+            if not values:
+                return True
+            
+            # Adicionar o member_id no final dos valores
+            values.append(member_data['id'])
+            
+            # Executar a query
+            query = f"UPDATE membros SET {', '.join(updates)} WHERE id = ?"
+            cursor.execute(query, values)
+            
+            self.connection.commit()
+            return cursor.rowcount > 0
+        except Exception as e:
+            print(f"Erro ao atualizar membro: {e}")
+            import traceback
+            traceback.print_exc()
             return False
     
     def get_member_checkin_history(self, member_id: int) -> List[Dict[str, Any]]:

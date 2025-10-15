@@ -106,6 +106,23 @@ class DataProvider:
             return self.db_manager.add_member(member_data)
         return None
 
+    def update_member(self, member_data: Dict[str, Any]) -> bool:
+        """
+        Atualiza os dados de um membro existente.
+        
+        Args:
+            member_data: Dicionário com os dados atualizados do membro (deve incluir 'id')
+            
+        Returns:
+            True se a atualização foi bem-sucedida, False caso contrário
+        """
+        if self.use_sqlite:
+            return self.db_manager.update_member_from_dict(member_data)
+        else:
+            # Funcionalidade não suportada para Google Sheets
+            print("Aviso: A funcionalidade de atualização não é suportada para Google Sheets.")
+            return False
+
     def add_checkin(self, member_id: int, checkin_datetime: datetime) -> Optional[int]:
         """
         Registra um check-in para um membro.
@@ -123,6 +140,23 @@ class DataProvider:
             # Funcionalidade não suportada para Google Sheets
             print("Aviso: A funcionalidade de check-in não é suportada para Google Sheets.")
             return None
+    
+    def delete_checkin(self, checkin_id: int) -> bool:
+        """
+        Remove um registro de check-in.
+        
+        Args:
+            checkin_id: ID do check-in a ser removido
+            
+        Returns:
+            True se a exclusão foi bem-sucedida, False caso contrário
+        """
+        if self.use_sqlite:
+            return self.db_manager.delete_checkin(checkin_id)
+        else:
+            # Funcionalidade não suportada para Google Sheets
+            print("Aviso: A funcionalidade de exclusão de check-in não é suportada para Google Sheets.")
+            return False
 
     def get_checkins_today(self) -> int:
         """Retorna o número de check-ins de hoje."""
@@ -356,3 +390,29 @@ def get_checkins_today_details() -> List[Dict[str, Any]]:
 def get_last_checkins(limit: int = 5) -> List[Dict[str, Any]]:
     """Retorna os últimos check-ins."""
     return get_provider().get_last_checkins(limit)
+
+
+def update_member(member_data: Dict[str, Any]) -> bool:
+    """
+    Atualiza os dados de um membro existente.
+    
+    Args:
+        member_data: Dicionário com os dados atualizados do membro (deve incluir 'id')
+        
+    Returns:
+        True se a atualização foi bem-sucedida, False caso contrário
+    """
+    return get_provider().update_member(member_data)
+
+
+def delete_checkin(checkin_id: int) -> bool:
+    """
+    Remove um registro de check-in.
+    
+    Args:
+        checkin_id: ID do check-in a ser removido
+        
+    Returns:
+        True se a exclusão foi bem-sucedida, False caso contrário
+    """
+    return get_provider().delete_checkin(checkin_id)
