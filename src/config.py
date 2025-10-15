@@ -29,15 +29,14 @@ USE_SQLITE = True
 # Lista de todos os planos disponíveis
 PLANOS = [
     "Mensal",
-    "Mens c/. Treino",
+    "Mens. c/ Treino",
     "Semestral",
     "Anual",
-    "Escolhinha",
-    "FitDance",
-    "Funcional",
-    "Luta",
-    "Pilates",
-    "Yoga"
+    "Trimestral",
+    "Diária",
+    "Gympass",
+    "Totalpass",
+    "Cortesia"
 ]
 
 # Planos que exigem uma data de vencimento

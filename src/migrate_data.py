@@ -6,17 +6,12 @@ validando corretamente as linhas de membros e consolidando os dados.
 from datetime import datetime, time, date
 from typing import Dict, List, Any
 import sys
-import os
 
-# Adiciona o diretório raiz do projeto ao sys.path
-project_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, project_dir)
-
-from src.data.google_sheets_service import GoogleSheetsService
-from src.data.database_manager import DatabaseManager
-from src.core.models import Pessoa
-from src.utils.utils import parse_date
-from src.config import (
+from google_sheets_service import GoogleSheetsService
+from database_manager import DatabaseManager
+from models import Pessoa
+from utils import parse_date
+from config import (
     SPREADSHEET_ID, 
     CREDENTIALS_PATH,
     COL_NOME,
@@ -142,24 +137,19 @@ def migrate_data():
     print("\n[5/6] Inserindo membros consolidados no banco de dados...")
     membros_migrados: Dict[str, int] = {}
     for nome, data_dict in consolidated_members.items():
-        # Prepara o dicionário de dados para inserção
-        member_data_to_insert = {
-            'nome': nome,
-            'plano': data_dict.get('plano', 'N/A'),
-            'vencimento_plano': data_dict.get('vencimento_plano', ''),
-            'estado_plano': data_dict.get('estado_plano', ''),
-            'data_nascimento': data_dict.get('data_nascimento', ''),
-            'whatsapp': data_dict.get('whatsapp', ''),
-            'genero': data_dict.get('genero', ''),
-            'frequencia': data_dict.get('frequencia', ''),
-            'calcado': data_dict.get('calcado', '')
-        }
+        pessoa = Pessoa(
+            nome=nome,
+            data_nascimento=parse_date(data_dict.get('data_nascimento')),
+            whatsapp=data_dict.get('whatsapp', ''),
+            plano=data_dict.get('plano', 'N/A'),
+            vencimento_plano=data_dict.get('vencimento_plano', ''),
+            estado_plano=data_dict.get('estado_plano', ''),
+            genero=data_dict.get('genero', ''),
+            frequencia=data_dict.get('frequencia', ''),
+            calcado=data_dict.get('calcado', '')
+        )
         
-        # Remove chaves com valores vazios, exceto para campos que podem ser vazios
-        final_member_data = {k: v for k, v in member_data_to_insert.items() if v}
-        final_member_data['nome'] = nome # Garante que o nome esteja sempre presente
-
-        member_id = db_manager.add_member(final_member_data)
+        member_id = db_manager.add_member(pessoa)
         if member_id:
             membros_migrados[nome] = member_id
     

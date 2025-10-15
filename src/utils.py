@@ -3,7 +3,6 @@ Funções utilitárias para o sistema.
 """
 from datetime import datetime
 from typing import Optional, Tuple
-from dateutil.relativedelta import relativedelta
 
 
 def parse_date(date_str: Optional[str]) -> Optional[datetime]:
@@ -166,41 +165,3 @@ def get_sheet_range(sheet_name: str, columns: str = 'A:BT') -> str:
         Range completo no formato: 'NomeAba!A:BT'
     """
     return f"'{sheet_name}'!{columns}"
-
-
-def calculate_new_due_date(plan_name: str) -> str:
-    """
-    Calcula a nova data de vencimento com base no nome do plano.
-
-    Args:
-        plan_name: O nome do plano.
-
-    Returns:
-        A nova data de vencimento como uma string no formato 'dd/mm/AAAA' ou 'N/A'.
-    """
-    hoje = datetime.now()
-    new_date = None
-
-    # Planos mensais (1 mês)
-    if plan_name in ["Mensal", "Mens. c/ Treino"]:
-        new_date = hoje + relativedelta(months=1)
-    # Plano trimestral (3 meses)
-    elif plan_name == "Trimestral":
-        new_date = hoje + relativedelta(months=3)
-    # Plano semestral (6 meses)
-    elif plan_name == "Semestral":
-        new_date = hoje + relativedelta(months=6)
-    # Plano anual (1 ano)
-    elif plan_name == "Anual":
-        new_date = hoje + relativedelta(years=1)
-    # Planos diários (1 dia)
-    elif plan_name in ["Diária", "Gympass", "Totalpass", "Cortesia"]:
-        new_date = hoje + relativedelta(days=1)
-    # Planos sem vencimento retornam N/A
-    else:
-        return "N/A"
-    
-    if new_date:
-        return new_date.strftime('%d/%m/%Y')
-    
-    return "N/A"
