@@ -153,6 +153,9 @@ class MainWindow(QMainWindow):
         self.member_search_screen.edit_button.clicked.connect(
             self._on_edit_member_clicked
         )
+        self.member_search_screen.renew_button.clicked.connect(
+            self._on_renew_plan_clicked
+        )
         self.member_search_screen.delete_button.clicked.connect(
             self._on_delete_member_clicked
         )
@@ -304,6 +307,7 @@ class MainWindow(QMainWindow):
         if member_data:
             self.member_search_screen.display_member_data(member_data)
             self._load_member_history(member_id, member_data.get('nome', 'Membro'))
+            self._load_member_financial_history(member_id, member_data.get('nome', 'Membro'))
         else:
             self.member_search_screen.show_error()
     
@@ -324,6 +328,37 @@ class MainWindow(QMainWindow):
                 </div>
             """)
     
+    def _load_member_financial_history(self, member_id: int, member_name: str):
+        """Carrega e exibe o histórico financeiro do membro."""
+        try:
+            from src.data.data_provider import get_provider
+            
+            # Buscar histórico de pagamentos do membro
+            db_manager = get_provider().db_manager
+            if db_manager and db_manager.connection:
+                payments = db_manager.get_member_payment_history(member_id)
+                self.member_search_screen.display_member_financial_history(
+                    member_id, member_name, payments
+                )
+            else:
+                self.member_search_screen.member_financial_browser.setHtml("""
+                    <div style="text-align: center; padding: 20px;">
+                        <h3 style="color: #FF6B6B;">Erro de Conexão</h3>
+                        <p style="color: #888;">Sem conexão com o banco de dados</p>
+                    </div>
+                """)
+            
+        except Exception as e:
+            print(f"Erro ao carregar histórico financeiro: {e}")
+            import traceback
+            traceback.print_exc()
+            self.member_search_screen.member_financial_browser.setHtml(f"""
+                <div style="text-align: center; padding: 20px;">
+                    <h3 style="color: #FF6B6B;">Erro ao carregar histórico financeiro</h3>
+                    <p style="color: #888;">{str(e)}</p>
+                </div>
+            """)
+    
     def _on_edit_member_clicked(self):
         """Abre o diálogo de edição do membro atual."""
         if not self.member_search_screen.current_member_data:
@@ -333,6 +368,17 @@ class MainWindow(QMainWindow):
         
         dialog = EditMemberDialog(self.member_search_screen.current_member_data, self)
         dialog.member_updated.connect(self._on_member_updated)
+        dialog.exec()
+    
+    def _on_renew_plan_clicked(self):
+        """Abre o diálogo de renovação de plano do membro atual."""
+        if not self.member_search_screen.current_member_data:
+            return
+        
+        from src.ui.dialogs.renew_plan_dialog import RenewPlanDialog
+        
+        dialog = RenewPlanDialog(self.member_search_screen.current_member_data, self)
+        dialog.plan_renewed.connect(self._on_plan_renewed)
         dialog.exec()
     
     def _on_delete_member_clicked(self):
@@ -411,7 +457,7 @@ class MainWindow(QMainWindow):
             if success:
                 mensagem = f"Membro '{updated_data['nome']}' atualizado com sucesso!"
                 if register_payment:
-                    mensagem += "\n\nPagamento registrado no sistema financeiro."
+                    mensagem += "\n\n💰 Pagamento registrado no sistema financeiro."
                 
                 QMessageBox.information(
                     self,
@@ -425,11 +471,87 @@ class MainWindow(QMainWindow):
                 
                 if updated_member:
                     self.member_search_screen.display_member_data(updated_member)
+                    
+                    # Se registrou pagamento, atualizar a aba financeira também
+                    if register_payment:
+                        from src.data.data_provider import get_provider
+                        provider = get_provider()
+                        payments = provider.db_manager.get_member_payment_history(member_id)
+                        self.member_search_screen.display_member_financial_history(
+                            member_id, 
+                            updated_data['nome'], 
+                            payments
+                        )
             else:
                 QMessageBox.warning(
                     self,
                     "Erro",
                     "Não foi possível atualizar o membro. Verifique o console."
+                )
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Erro Crítico",
+                f"Ocorreu um erro inesperado: {e}"
+            )
+    
+    def _on_plan_renewed(self, renewal_data: dict):
+        """Manipula a renovação do plano de um membro."""
+        try:
+            from src.data.data_provider import update_member
+            
+            # Extrair método de pagamento
+            metodo_pagamento = renewal_data.pop('metodo_pagamento', '')
+            
+            # Para renovação, sempre registrar pagamento
+            register_payment = True
+            
+            # Nome do membro (para mensagens)
+            current_data = self.member_search_screen.current_member_data
+            member_name = current_data.get('nome', '') if current_data else ''
+            
+            # Atualizar o membro (apenas vencimento - o plano continua o mesmo)
+            success = update_member(
+                renewal_data, 
+                register_payment=register_payment,
+                metodo_pagamento=metodo_pagamento
+            )
+            
+            if success:
+                from src.config import PLANOS_PRECOS
+                valor = PLANOS_PRECOS.get(renewal_data.get('plano', ''), 0.0)
+                
+                mensagem = f"Plano renovado com sucesso!"
+                mensagem += f"\n\n💰 Pagamento de R$ {valor:.2f} registrado no sistema financeiro."
+                mensagem += f"\n📅 Novo vencimento: {renewal_data.get('vencimento_plano', 'N/A')}"
+                
+                QMessageBox.information(
+                    self,
+                    "Sucesso",
+                    mensagem
+                )
+                
+                # Atualiza a exibição com os novos dados
+                member_id = renewal_data['id']
+                updated_member = self.search_service.get_member_by_id(member_id)
+                
+                if updated_member:
+                    self.member_search_screen.display_member_data(updated_member)
+                    
+                    # Atualizar a aba financeira
+                    from src.data.data_provider import get_provider
+                    provider = get_provider()
+                    payments = provider.db_manager.get_member_payment_history(member_id)
+                    self.member_search_screen.display_member_financial_history(
+                        member_id, 
+                        member_name, 
+                        payments
+                    )
+            else:
+                QMessageBox.warning(
+                    self,
+                    "Erro",
+                    "Não foi possível renovar o plano. Verifique o console."
                 )
         except Exception as e:
             QMessageBox.critical(
@@ -612,10 +734,10 @@ class MainWindow(QMainWindow):
             )
     
     def _show_plan_distribution_dialog(self):
-        """Abre o diálogo de distribuição de planos."""
-        from src.ui.dialogs.plan_distribution_dialog import PlanDistributionDialog
+        """Abre o diálogo de gráficos financeiros."""
+        from src.ui.dialogs.finance_graphs import FinancialGraphsDialog
         
-        dialog = PlanDistributionDialog(self)
+        dialog = FinancialGraphsDialog(self)
         dialog.exec()
 
 

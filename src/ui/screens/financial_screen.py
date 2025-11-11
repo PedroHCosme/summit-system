@@ -91,8 +91,8 @@ class FinancialScreen(QWidget):
         
         period_layout.addSpacing(10)
         
-        # Botão de gráfico de distribuição de check-ins por plano
-        self.plan_chart_button = QPushButton("📊 Check-ins por Plano")
+        # Botão de gráficos financeiros
+        self.plan_chart_button = QPushButton("📊 Gráficos Financeiros")
         self.plan_chart_button.setStyleSheet("""
             QPushButton {
                 background-color: #28a745;

@@ -826,7 +826,7 @@ class DatabaseManager:
                 
                 if plano_changed or vencimento_changed:
                     # Importar config para buscar preços
-                    from src.config import PLANOS_PRECOS
+                    from src.config import PLANOS_PRECOS, PLANOS_PAGAMENTO_POR_CHECKIN
                     
                     # Determinar tipo de transação e descrição
                     if plano_changed and new_plano:
@@ -840,15 +840,24 @@ class DatabaseManager:
                     else:
                         return cursor.rowcount > 0
                     
-                    # Registrar o pagamento
-                    self.add_payment(
-                        member_id=member_id,
-                        valor=valor,
-                        tipo_transacao=tipo_transacao,
-                        descricao=descricao,
-                        metodo_pagamento=metodo_pagamento,
-                        nova_data_vencimento=new_vencimento
-                    )
+                    # Só registrar pagamento se valor > 0 OU se for explicitamente Cortesia
+                    # Planos como Gympass/Totalpass não geram receita na renovação (apenas por check-in)
+                    if valor > 0 or new_plano == "Cortesia":
+                        # Registrar o pagamento
+                        self.add_payment(
+                            member_id=member_id,
+                            valor=valor,
+                            tipo_transacao=tipo_transacao,
+                            descricao=descricao,
+                            metodo_pagamento=metodo_pagamento,
+                            nova_data_vencimento=new_vencimento
+                        )
+                        print(f"💰 Pagamento registrado: {tipo_transacao} - R$ {valor:.2f}")
+                        
+                        # Informar planos pagos por check-in
+                        if new_plano in PLANOS_PAGAMENTO_POR_CHECKIN and valor == 0:
+                            print(f"ℹ️  Plano '{new_plano}' registrado (receita gerada por check-in)")
+
             
             return cursor.rowcount > 0
         except Exception as e:

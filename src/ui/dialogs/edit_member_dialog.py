@@ -246,7 +246,7 @@ class EditMemberDialog(QDialog):
             return "ATIVO"
     
     def _on_save(self):
-        """Salva as alterações do membro."""
+        """Salva as alterações e fecha o diálogo."""
         if not self._validate_fields():
             return
         
@@ -268,6 +268,30 @@ class EditMemberDialog(QDialog):
             data_nasc_date = self.data_nascimento_input.date()
             data_nasc_str = data_nasc_date.toString("dd/MM/yyyy")
         
+        # Obtém o método de pagamento selecionado
+        metodo_pagamento = self.metodo_pagamento_combo.currentText()
+        
+        # Detecta mudança de plano
+        old_plano = self.member_data.get('plano', '')
+        plano_changed = plano != old_plano
+        
+        # Se mudou o plano E não selecionou método de pagamento, perguntar
+        if plano_changed and not metodo_pagamento:
+            from src.ui.dialogs.payment_method_dialog import PaymentMethodDialog
+            from src.config import PLANOS_PRECOS
+            
+            valor = PLANOS_PRECOS.get(plano, 0.0)
+            
+            # Só pede método se o plano tem valor (não é Gympass/Totalpass na renovação)
+            if valor > 0 or plano == "Cortesia":
+                dialog = PaymentMethodDialog(old_plano, plano, valor, self)
+                
+                if dialog.exec() == QDialog.DialogCode.Accepted:
+                    metodo_pagamento = dialog.get_payment_method()
+                else:
+                    # Usuário cancelou - não salvar as alterações
+                    return
+        
         # Monta o dicionário com os dados atualizados
         updated_data = {
             'id': self.member_id,
@@ -280,7 +304,7 @@ class EditMemberDialog(QDialog):
             'genero': self.genero_combo.currentText(),
             'calcado': self.calcado_input.text().strip(),
             'email': self.email_input.text().strip(),
-            'metodo_pagamento': self.metodo_pagamento_combo.currentText()
+            'metodo_pagamento': metodo_pagamento
         }
         
         # Emite o sinal com os dados atualizados

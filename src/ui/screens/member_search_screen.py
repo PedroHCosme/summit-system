@@ -159,6 +159,31 @@ class MemberSearchScreen(QWidget):
         self.delete_button.setVisible(False)  # Escondido até que um membro seja selecionado
         button_layout.addWidget(self.delete_button)
         
+        # Botão Renovar Plano
+        self.renew_button = QPushButton("🔄 Renovar Plano")
+        self.renew_button.setFixedWidth(150)
+        self.renew_button.setFixedHeight(35)
+        self.renew_button.setStyleSheet("""
+            QPushButton {
+                background-color: #28A745;
+                color: white;
+                font-weight: bold;
+                border: none;
+                border-radius: 4px;
+                padding: 8px;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #218838;
+            }
+            QPushButton:disabled {
+                background-color: #CCCCCC;
+                color: #666666;
+            }
+        """)
+        self.renew_button.setVisible(False)  # Escondido até que um membro seja selecionado
+        button_layout.addWidget(self.renew_button)
+        
         # Botão Editar
         self.edit_button = QPushButton("✏️ Editar")
         self.edit_button.setFixedWidth(120)
@@ -190,6 +215,12 @@ class MemberSearchScreen(QWidget):
         self.member_history_browser.setHtml("<p style='color: #888888;'>Selecione um membro para ver o histórico.</p>")
         self.member_history_browser.anchorClicked.connect(self._on_history_link_clicked)
         self.member_tabs.addTab(self.member_history_browser, "Histórico de Frequência")
+        
+        # Aba 3: Histórico Financeiro
+        self.member_financial_browser = QTextBrowser()
+        self.member_financial_browser.setOpenExternalLinks(False)
+        self.member_financial_browser.setHtml("<p style='color: #888888;'>Selecione um membro para ver o histórico financeiro.</p>")
+        self.member_tabs.addTab(self.member_financial_browser, "Histórico Financeiro")
         
         right_layout.addWidget(self.member_tabs)
         
@@ -266,11 +297,22 @@ class MemberSearchScreen(QWidget):
         self.member_result_browser.setHtml(html)
         self.edit_button.setVisible(True)  # Mostra os botões de ação
         self.delete_button.setVisible(True)
+        
+        # Mostrar botão de renovar apenas para planos renováveis
+        plano = member_data.get('plano', '')
+        planos_nao_renovaveis = ["Diária", "Diária Boulder", "Gympass", "Totalpass", "Cortesia"]
+        is_renewable = plano not in planos_nao_renovaveis and plano in PLANOS_COM_VENCIMENTO
+        self.renew_button.setVisible(is_renewable)
     
     def display_member_history(self, member_id: int, member_name: str, history: list):
         """Exibe o histórico do membro."""
         html = self._format_member_history(member_name, history)
         self.member_history_browser.setHtml(html)
+    
+    def display_member_financial_history(self, member_id: int, member_name: str, payments: list):
+        """Exibe o histórico financeiro do membro."""
+        html = self._format_member_financial_history(member_name, payments)
+        self.member_financial_browser.setHtml(html)
     
     def show_error(self):
         """Mostra mensagem de erro."""
@@ -286,6 +328,7 @@ class MemberSearchScreen(QWidget):
         """)
         self.edit_button.setVisible(False)
         self.delete_button.setVisible(False)
+        self.renew_button.setVisible(False)
     
     def open_edit_dialog(self):
         """Abre o diálogo de edição do membro atual."""
@@ -297,6 +340,20 @@ class MemberSearchScreen(QWidget):
         dialog = EditMemberDialog(self.current_member_data, self)
         
         # Quando o membro for atualizado, o sinal será emitido
+        # A conexão desse sinal será feita no controller
+        
+        dialog.exec()
+    
+    def open_renew_dialog(self):
+        """Abre o diálogo de renovação do plano."""
+        if not self.current_member_data:
+            return
+        
+        from src.ui.dialogs.renew_plan_dialog import RenewPlanDialog
+        
+        dialog = RenewPlanDialog(self.current_member_data, self)
+        
+        # Quando o plano for renovado, o sinal será emitido
         # A conexão desse sinal será feita no controller
         
         dialog.exec()
@@ -544,3 +601,160 @@ class MemberSearchScreen(QWidget):
         except Exception as e:
             print(f"Erro ao calcular frequência mensal: {e}")
             return 0
+    
+    def _format_member_financial_history(self, member_name: str, payments: list) -> str:
+        """Formata o histórico financeiro do membro em HTML."""
+        if not payments:
+            return f"""
+                <div style="padding: 20px;">
+                    <h3 style="color: #007ACC;">Histórico Financeiro: {member_name}</h3>
+                    <p style="color: #888888; font-style: italic;">
+                        Nenhum pagamento registrado ainda.
+                    </p>
+                </div>
+            """
+        
+        # Calcular estatísticas
+        total_pago = sum(p.get('valor', 0) for p in payments)
+        num_transacoes = len(payments)
+        ticket_medio = total_pago / num_transacoes if num_transacoes > 0 else 0
+        
+        # Agrupar por tipo de transação
+        tipos_count = {}
+        tipos_total = {}
+        for p in payments:
+            tipo = p.get('tipo_transacao', 'Não especificado')
+            tipos_count[tipo] = tipos_count.get(tipo, 0) + 1
+            tipos_total[tipo] = tipos_total.get(tipo, 0) + p.get('valor', 0)
+        
+        html = f"""
+            <div style="padding: 20px; font-family: 'Segoe UI', Arial, sans-serif;">
+                <h3 style="color: #007ACC; margin-bottom: 15px;">
+                    Histórico Financeiro: {member_name}
+                </h3>
+                
+                <!-- Resumo Financeiro -->
+                <div style="background: #F0F8FF; border-left: 4px solid #007ACC; padding: 15px; margin-bottom: 20px; border-radius: 4px;">
+                    <h4 style="margin: 0 0 10px 0; color: #007ACC;">Resumo Geral</h4>
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px;">
+                        <div>
+                            <div style="font-size: 12px; color: #666;">Total Pago</div>
+                            <div style="font-size: 20px; font-weight: bold; color: #28a745;">
+                                R$ {total_pago:,.2f}
+                            </div>
+                        </div>
+                        <div>
+                            <div style="font-size: 12px; color: #666;">Transações</div>
+                            <div style="font-size: 20px; font-weight: bold; color: #007ACC;">
+                                {num_transacoes}
+                            </div>
+                        </div>
+                        <div>
+                            <div style="font-size: 12px; color: #666;">Ticket Médio</div>
+                            <div style="font-size: 20px; font-weight: bold; color: #FFA500;">
+                                R$ {ticket_medio:,.2f}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Breakdown por Tipo -->
+                <div style="background: #FFF9E6; border-left: 4px solid #FFA500; padding: 15px; margin-bottom: 20px; border-radius: 4px;">
+                    <h4 style="margin: 0 0 10px 0; color: #FFA500;">Por Tipo de Transação</h4>
+                    <table style="width: 100%; border-collapse: collapse;">
+        """
+        
+        for tipo in sorted(tipos_count.keys()):
+            count = tipos_count[tipo]
+            total = tipos_total[tipo]
+            perc = (total / total_pago * 100) if total_pago > 0 else 0
+            
+            html += f"""
+                        <tr style="border-bottom: 1px solid #EEEEEE;">
+                            <td style="padding: 8px; color: #333;">{tipo}</td>
+                            <td style="padding: 8px; text-align: center; color: #666;">{count}x</td>
+                            <td style="padding: 8px; text-align: right; font-weight: bold; color: #28a745;">
+                                R$ {total:,.2f}
+                            </td>
+                            <td style="padding: 8px; text-align: right; color: #007ACC;">
+                                {perc:.1f}%
+                            </td>
+                        </tr>
+            """
+        
+        html += """
+                    </table>
+                </div>
+                
+                <!-- Lista de Transações -->
+                <h4 style="color: #007ACC; margin-bottom: 10px;">Histórico de Transações</h4>
+                <div style="max-height: 400px; overflow-y: auto;">
+        """
+        
+        # Ordenar pagamentos por data (mais recente primeiro)
+        sorted_payments = sorted(
+            payments, 
+            key=lambda x: x.get('data_pagamento', ''), 
+            reverse=True
+        )
+        
+        for payment in sorted_payments:
+            tipo = payment.get('tipo_transacao', 'N/A')
+            descricao = payment.get('descricao', '')
+            valor = payment.get('valor', 0)
+            metodo = payment.get('metodo_pagamento', 'N/A')
+            data = payment.get('data_pagamento', '')
+            nova_data_vencimento = payment.get('nova_data_vencimento', '')
+            
+            # Formatar data
+            try:
+                data_dt = datetime.fromisoformat(data)
+                data_str = data_dt.strftime('%d/%m/%Y às %H:%M')
+            except:
+                data_str = data
+            
+            # Cor do tipo
+            if 'Renovação' in tipo or 'Plano' in tipo:
+                tipo_color = '#28a745'
+                tipo_icon = '🔄'
+            elif 'Diária' in tipo or 'Gympass' in tipo or 'Totalpass' in tipo:
+                tipo_color = '#007ACC'
+                tipo_icon = '✓'
+            else:
+                tipo_color = '#FFA500'
+                tipo_icon = '💰'
+            
+            html += f"""
+                    <div style="margin-bottom: 12px; padding: 12px; background: #FAFAFA; 
+                                border-left: 4px solid {tipo_color}; border-radius: 4px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                            <div>
+                                <span style="font-size: 16px;">{tipo_icon}</span>
+                                <strong style="color: {tipo_color}; font-size: 15px;">{tipo}</strong>
+                                {f" - {descricao}" if descricao else ""}
+                            </div>
+                            <div style="font-size: 18px; font-weight: bold; color: #28a745;">
+                                R$ {valor:,.2f}
+                            </div>
+                        </div>
+                        <div style="font-size: 12px; color: #666;">
+                            <span>📅 {data_str}</span>
+                            <span style="margin-left: 15px;">💳 {metodo}</span>
+            """
+            
+            if nova_data_vencimento:
+                html += f"""
+                            <span style="margin-left: 15px;">⏰ Novo vencimento: {nova_data_vencimento}</span>
+                """
+            
+            html += """
+                        </div>
+                    </div>
+            """
+        
+        html += """
+                </div>
+            </div>
+        """
+        
+        return html

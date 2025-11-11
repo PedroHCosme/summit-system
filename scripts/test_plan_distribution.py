@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Script para testar o diálogo de distribuição de check-ins por plano.
+Script para testar o diálogo de gráficos financeiros.
 """
 
 import sys
@@ -11,19 +11,19 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root / "src"))
 
 from PyQt6.QtWidgets import QApplication
-from src.ui.dialogs.plan_distribution_dialog import PlanDistributionDialog
+from src.ui.dialogs.finance_graphs import FinancialGraphsDialog
 
 
 def main():
-    """Testa o diálogo de distribuição de check-ins por plano."""
+    """Testa o diálogo de gráficos financeiros."""
     print("="*50)
-    print("Teste do Diálogo de Check-ins por Plano")
+    print("Teste do Diálogo de Gráficos Financeiros")
     print("="*50)
     
     app = QApplication(sys.argv)
     
     try:
-        dialog = PlanDistributionDialog()
+        dialog = FinancialGraphsDialog()
         dialog.exec()
         
         print("\n✓ Diálogo testado com sucesso!")
