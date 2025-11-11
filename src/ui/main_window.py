@@ -26,7 +26,7 @@ from src.ui.screens import (
     CheckinScreen,
     FinancialScreen
 )
-from src.ui.dialogs import AddMemberDialog, SyncDialog
+from src.ui.dialogs import AddMemberDialog, SyncDialog, ManagePlansDialog
 
 
 class MainWindow(QMainWindow):
@@ -95,21 +95,95 @@ class MainWindow(QMainWindow):
             return
 
         # Menu Gestão
-        self.gestao_menu = self.menubar.addMenu("Gestão")
+        self.gestao_menu = self.menubar.addMenu("📋 Gestão")
         if self.gestao_menu:
             self.gestao_menu.setEnabled(False)
 
-            add_member_action = QAction("Adicionar Membro", self)
+            # === SUBMENU: Membros ===
+            membros_menu = self.gestao_menu.addMenu("👥 Membros")
+            
+            add_member_action = QAction("➕ Adicionar Membro", self)
+            add_member_action.setShortcut("Ctrl+N")
             add_member_action.triggered.connect(self._show_add_member_dialog)
-            self.gestao_menu.addAction(add_member_action)
+            membros_menu.addAction(add_member_action)
 
-            buscar_action = QAction("Buscar Membro", self)
+            buscar_action = QAction("🔍 Buscar Membro", self)
+            buscar_action.setShortcut("Ctrl+F")
             buscar_action.triggered.connect(self._show_member_search)
-            self.gestao_menu.addAction(buscar_action)
+            membros_menu.addAction(buscar_action)
 
-            aniversariantes_action = QAction("Aniversariantes", self)
+            aniversariantes_action = QAction("🎂 Aniversariantes do Mês", self)
             aniversariantes_action.triggered.connect(self._show_aniversariantes)
-            self.gestao_menu.addAction(aniversariantes_action)
+            membros_menu.addAction(aniversariantes_action)
+            
+            membros_menu.addSeparator()
+            
+            # Placeholder para ações em lote (futuro)
+            bulk_action = QAction("⚡ Ações em Lote...", self)
+            bulk_action.setEnabled(False)  # Desabilitado por enquanto
+            bulk_action.setToolTip("Em breve: renovação em lote, mudança de status, etc.")
+            membros_menu.addAction(bulk_action)
+            
+            # === SUBMENU: Planos ===
+            planos_menu = self.gestao_menu.addMenu("💳 Planos")
+            
+            manage_plans_action = QAction("⚙️ Gerenciar Planos e Preços", self)
+            manage_plans_action.triggered.connect(self._show_manage_plans_dialog)
+            planos_menu.addAction(manage_plans_action)
+            
+            plan_distribution_action = QAction("📊 Distribuição de Planos", self)
+            plan_distribution_action.triggered.connect(self._show_plan_distribution_dialog)
+            planos_menu.addAction(plan_distribution_action)
+            
+            # === SUBMENU: Pagamentos ===
+            pagamentos_menu = self.gestao_menu.addMenu("💰 Pagamentos")
+            
+            financial_action = QAction("📈 Visão Financeira", self)
+            financial_action.setShortcut("Ctrl+$")
+            financial_action.triggered.connect(self._show_financial_screen)
+            pagamentos_menu.addAction(financial_action)
+            
+            pagamentos_menu.addSeparator()
+            
+            # Placeholder para relatórios (futuro)
+            export_financial_action = QAction("📄 Exportar Relatório Financeiro", self)
+            export_financial_action.setEnabled(False)  # Será implementado na etapa 5
+            export_financial_action.setToolTip("Em breve: exportar CSV/PDF")
+            pagamentos_menu.addAction(export_financial_action)
+            
+            # === SUBMENU: Relatórios ===
+            relatorios_menu = self.gestao_menu.addMenu("📊 Relatórios")
+            
+            freq_report_action = QAction("📅 Relatório de Frequência", self)
+            freq_report_action.setEnabled(False)  # Será implementado na etapa 5
+            freq_report_action.setToolTip("Em breve: relatório detalhado de frequência")
+            relatorios_menu.addAction(freq_report_action)
+            
+            member_report_action = QAction("👤 Relatório de Membros", self)
+            member_report_action.setEnabled(False)  # Será implementado na etapa 5
+            member_report_action.setToolTip("Em breve: listagem completa de membros")
+            relatorios_menu.addAction(member_report_action)
+            
+            # === SEPARADOR ===
+            self.gestao_menu.addSeparator()
+            
+            # === SUBMENU: Banco de Dados ===
+            database_menu = self.gestao_menu.addMenu("🗄️ Banco de Dados")
+            
+            backup_action = QAction("💾 Backup do Banco", self)
+            backup_action.triggered.connect(self._create_database_backup)
+            database_menu.addAction(backup_action)
+            
+            optimize_action = QAction("⚡ Otimizar e Reindexar", self)
+            optimize_action.triggered.connect(self._optimize_database)
+            database_menu.addAction(optimize_action)
+            
+            database_menu.addSeparator()
+            
+            migrate_action = QAction("🔧 Migrar Banco (Correções Críticas)", self)
+            migrate_action.triggered.connect(self._run_database_migration)
+            migrate_action.setToolTip("Executa migração crítica: foreign keys, datas, índices")
+            database_menu.addAction(migrate_action)
 
         # Menu Atividade
         self.atividade_menu = self.menubar.addMenu("Atividade")
@@ -751,6 +825,19 @@ class MainWindow(QMainWindow):
         dialog = FinancialGraphsDialog(self)
         dialog.exec()
     
+    def _show_manage_plans_dialog(self):
+        """Abre o diálogo de gerenciamento de planos."""
+        if not self.is_connected:
+            QMessageBox.warning(
+                self,
+                "Não Conectado",
+                "Conecte-se ao banco de dados primeiro."
+            )
+            return
+        
+        dialog = ManagePlansDialog(self)
+        dialog.exec()
+    
     # === Sincronização ===
     
     def _show_sync_dialog(self):
@@ -771,6 +858,202 @@ class MainWindow(QMainWindow):
             # Atualiza automaticamente o dashboard
             if self.is_connected:
                 self._update_dashboard()
+    
+    # === Gerenciamento de Banco de Dados ===
+    
+    def _create_database_backup(self):
+        """Cria um backup do banco de dados."""
+        reply = QMessageBox.question(
+            self,
+            "Criar Backup",
+            "Deseja criar um backup do banco de dados?\n\n"
+            "O backup será salvo na pasta 'backups/' do projeto.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.Yes
+        )
+        
+        if reply == QMessageBox.StandardButton.Yes:
+            try:
+                import os
+                import shutil
+                from datetime import datetime
+                from pathlib import Path
+                
+                # Caminho do banco de dados
+                project_root = Path(__file__).parent.parent.parent
+                db_path = os.path.join(project_root, "gym_database.db")
+                backup_dir = os.path.join(project_root, "backups")
+                
+                # Criar diretório de backup se não existir
+                if not os.path.exists(backup_dir):
+                    os.makedirs(backup_dir)
+                
+                # Nome do backup com timestamp
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                backup_path = os.path.join(backup_dir, f"gym_database_backup_{timestamp}.db")
+                
+                # Copiar arquivo
+                shutil.copy2(db_path, backup_path)
+                
+                QMessageBox.information(
+                    self,
+                    "Backup Criado",
+                    f"Backup criado com sucesso!\n\n"
+                    f"Arquivo: gym_database_backup_{timestamp}.db\n"
+                    f"Localização: backups/"
+                )
+                
+            except Exception as e:
+                QMessageBox.critical(
+                    self,
+                    "Erro no Backup",
+                    f"Erro ao criar backup do banco de dados:\n\n{str(e)}"
+                )
+    
+    def _optimize_database(self):
+        """Otimiza o banco de dados criando índices e executando VACUUM."""
+        reply = QMessageBox.question(
+            self,
+            "Otimizar Banco de Dados",
+            "Esta operação irá:\n"
+            "• Criar índices para melhorar a performance\n"
+            "• Executar VACUUM para compactar o banco\n"
+            "• Atualizar estatísticas\n\n"
+            "Deseja continuar?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.Yes
+        )
+        
+        if reply == QMessageBox.StandardButton.Yes:
+            try:
+                from src.data.database_manager import DatabaseManager
+                
+                db = DatabaseManager()
+                if not db.connect():
+                    raise Exception("Não foi possível conectar ao banco de dados")
+                
+                cursor = db.connection.cursor()
+                
+                # Criar índices
+                indices_created = 0
+                indices = [
+                    ("idx_membros_nome", "CREATE INDEX IF NOT EXISTS idx_membros_nome ON membros(nome)"),
+                    ("idx_membros_plano", "CREATE INDEX IF NOT EXISTS idx_membros_plano ON membros(plano)"),
+                    ("idx_membros_estado", "CREATE INDEX IF NOT EXISTS idx_membros_estado_plano ON membros(estado_plano)"),
+                    ("idx_membros_vencimento", "CREATE INDEX IF NOT EXISTS idx_membros_vencimento ON membros(vencimento_plano)"),
+                    ("idx_frequencia_member", "CREATE INDEX IF NOT EXISTS idx_frequencia_member_id ON frequencia(member_id)"),
+                    ("idx_frequencia_datetime", "CREATE INDEX IF NOT EXISTS idx_frequencia_datetime ON frequencia(checkin_datetime)"),
+                    ("idx_pagamentos_member", "CREATE INDEX IF NOT EXISTS idx_pagamentos_member_id ON pagamentos(member_id)"),
+                    ("idx_pagamentos_data", "CREATE INDEX IF NOT EXISTS idx_pagamentos_data ON pagamentos(data_pagamento)"),
+                    ("idx_pagamentos_tipo", "CREATE INDEX IF NOT EXISTS idx_pagamentos_tipo ON pagamentos(tipo_transacao)"),
+                ]
+                
+                for idx_name, sql in indices:
+                    try:
+                        cursor.execute(sql)
+                        indices_created += 1
+                    except Exception as e:
+                        print(f"Aviso: Erro ao criar índice {idx_name}: {e}")
+                
+                # VACUUM e ANALYZE
+                cursor.execute("VACUUM")
+                cursor.execute("ANALYZE")
+                
+                db.connection.commit()
+                db.close()
+                
+                QMessageBox.information(
+                    self,
+                    "Otimização Concluída",
+                    f"Banco de dados otimizado com sucesso!\n\n"
+                    f"• {indices_created} índices criados/verificados\n"
+                    f"• VACUUM executado\n"
+                    f"• Estatísticas atualizadas\n\n"
+                    f"As buscas devem estar significativamente mais rápidas agora."
+                )
+                
+            except Exception as e:
+                QMessageBox.critical(
+                    self,
+                    "Erro na Otimização",
+                    f"Erro ao otimizar banco de dados:\n\n{str(e)}"
+                )
+    
+    def _run_database_migration(self):
+        """Executa o script de migração crítica do banco de dados."""
+        reply = QMessageBox.warning(
+            self,
+            "Migração Crítica do Banco",
+            "⚠️  ATENÇÃO: Esta operação irá modificar a estrutura do banco!\n\n"
+            "Mudanças aplicadas:\n"
+            "• Foreign keys com ON DELETE CASCADE\n"
+            "• Conversão de datas de TEXT para DATE/DATETIME\n"
+            "• Criação de índices para performance\n"
+            "• Triggers e constraints de validação\n\n"
+            "Um backup automático será criado antes da migração.\n\n"
+            "Deseja continuar?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+        
+        if reply == QMessageBox.StandardButton.Yes:
+            try:
+                import subprocess
+                import sys
+                from pathlib import Path
+                
+                # Caminho do script de migração
+                project_root = Path(__file__).parent.parent.parent
+                script_path = project_root / "scripts" / "fix_database_critical.py"
+                
+                if not script_path.exists():
+                    raise FileNotFoundError(f"Script de migração não encontrado: {script_path}")
+                
+                # Executar script em processo separado
+                result = subprocess.run(
+                    [sys.executable, str(script_path)],
+                    cwd=str(project_root),
+                    input="sim\n",
+                    capture_output=True,
+                    text=True
+                )
+                
+                if result.returncode == 0:
+                    QMessageBox.information(
+                        self,
+                        "Migração Concluída",
+                        "✅ Migração executada com sucesso!\n\n"
+                        "O banco de dados foi atualizado com:\n"
+                        "• Foreign keys CASCADE\n"
+                        "• Tipos de dados corretos\n"
+                        "• Índices de performance\n\n"
+                        "Verifique o console para detalhes."
+                    )
+                else:
+                    QMessageBox.warning(
+                        self,
+                        "Migração com Avisos",
+                        f"A migração foi executada mas reportou avisos.\n\n"
+                        f"Código de saída: {result.returncode}\n\n"
+                        f"Verifique o console para detalhes."
+                    )
+                
+                # Mostrar output no console
+                if result.stdout:
+                    print("\n=== OUTPUT DA MIGRAÇÃO ===")
+                    print(result.stdout)
+                if result.stderr:
+                    print("\n=== ERROS DA MIGRAÇÃO ===")
+                    print(result.stderr)
+                    
+            except Exception as e:
+                QMessageBox.critical(
+                    self,
+                    "Erro na Migração",
+                    f"Erro ao executar migração:\n\n{str(e)}\n\n"
+                    f"Você pode executar manualmente:\n"
+                    f"python scripts/fix_database_critical.py"
+                )
 
 
 def main():
