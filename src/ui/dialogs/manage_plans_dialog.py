@@ -397,12 +397,52 @@ class ManagePlansDialog(QDialog):
             price_spin.setPrefix("R$ ")
             price_spin.setValue(self.planos_precos.get(plano, 0))
             price_spin.setMinimumHeight(40)
+            price_spin.setButtonSymbols(QDoubleSpinBox.ButtonSymbols.UpDownArrows)
             price_spin.setStyleSheet("""
                 QDoubleSpinBox {
                     font-size: 14px;
-                    padding: 8px;
+                    padding: 8px 35px 8px 8px;
                     border: 1px solid #CCCCCC;
                     border-radius: 4px;
+                }
+                QDoubleSpinBox::up-button {
+                    subcontrol-origin: border;
+                    subcontrol-position: top right;
+                    width: 30px;
+                    height: 19px;
+                    border-left: 1px solid #CCCCCC;
+                    border-bottom: 1px solid #CCCCCC;
+                    background-color: #F5F5F5;
+                }
+                QDoubleSpinBox::up-button:hover {
+                    background-color: #E0E0E0;
+                }
+                QDoubleSpinBox::up-arrow {
+                    image: none;
+                    width: 0px;
+                    height: 0px;
+                    border-left: 6px solid transparent;
+                    border-right: 6px solid transparent;
+                    border-bottom: 8px solid #333333;
+                }
+                QDoubleSpinBox::down-button {
+                    subcontrol-origin: border;
+                    subcontrol-position: bottom right;
+                    width: 30px;
+                    height: 19px;
+                    border-left: 1px solid #CCCCCC;
+                    background-color: #F5F5F5;
+                }
+                QDoubleSpinBox::down-button:hover {
+                    background-color: #E0E0E0;
+                }
+                QDoubleSpinBox::down-arrow {
+                    image: none;
+                    width: 0px;
+                    height: 0px;
+                    border-left: 6px solid transparent;
+                    border-right: 6px solid transparent;
+                    border-top: 8px solid #333333;
                 }
             """)
             price_spin.valueChanged.connect(self._mark_as_changed)
@@ -416,12 +456,52 @@ class ManagePlansDialog(QDialog):
             checkin_spin.setPrefix("R$ ")
             checkin_spin.setValue(self.planos_pagamento_checkin.get(plano, 0))
             checkin_spin.setMinimumHeight(40)
+            checkin_spin.setButtonSymbols(QDoubleSpinBox.ButtonSymbols.UpDownArrows)
             checkin_spin.setStyleSheet("""
                 QDoubleSpinBox {
                     font-size: 14px;
-                    padding: 8px;
+                    padding: 8px 35px 8px 8px;
                     border: 1px solid #CCCCCC;
                     border-radius: 4px;
+                }
+                QDoubleSpinBox::up-button {
+                    subcontrol-origin: border;
+                    subcontrol-position: top right;
+                    width: 30px;
+                    height: 19px;
+                    border-left: 1px solid #CCCCCC;
+                    border-bottom: 1px solid #CCCCCC;
+                    background-color: #F5F5F5;
+                }
+                QDoubleSpinBox::up-button:hover {
+                    background-color: #E0E0E0;
+                }
+                QDoubleSpinBox::up-arrow {
+                    image: none;
+                    width: 0px;
+                    height: 0px;
+                    border-left: 6px solid transparent;
+                    border-right: 6px solid transparent;
+                    border-bottom: 8px solid #333333;
+                }
+                QDoubleSpinBox::down-button {
+                    subcontrol-origin: border;
+                    subcontrol-position: bottom right;
+                    width: 30px;
+                    height: 19px;
+                    border-left: 1px solid #CCCCCC;
+                    background-color: #F5F5F5;
+                }
+                QDoubleSpinBox::down-button:hover {
+                    background-color: #E0E0E0;
+                }
+                QDoubleSpinBox::down-arrow {
+                    image: none;
+                    width: 0px;
+                    height: 0px;
+                    border-left: 6px solid transparent;
+                    border-right: 6px solid transparent;
+                    border-top: 8px solid #333333;
                 }
             """)
             checkin_spin.valueChanged.connect(self._mark_as_changed)

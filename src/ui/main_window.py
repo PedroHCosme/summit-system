@@ -26,7 +26,7 @@ from src.ui.screens import (
     CheckinScreen,
     FinancialScreen
 )
-from src.ui.dialogs import AddMemberDialog, SyncDialog, ManagePlansDialog
+from src.ui.dialogs import AddMemberDialog, SyncDialog, ManagePlansDialog, ExpiringPlansDialog
 
 
 class MainWindow(QMainWindow):
@@ -134,6 +134,13 @@ class MainWindow(QMainWindow):
             plan_distribution_action = QAction("📊 Distribuição de Planos", self)
             plan_distribution_action.triggered.connect(self._show_plan_distribution_dialog)
             planos_menu.addAction(plan_distribution_action)
+            
+            planos_menu.addSeparator()
+            
+            expiring_plans_action = QAction("⏰ Planos a Vencer", self)
+            expiring_plans_action.triggered.connect(self._show_expiring_plans_dialog)
+            expiring_plans_action.setToolTip("Visualizar planos com vencimento próximo")
+            planos_menu.addAction(expiring_plans_action)
             
             # === SUBMENU: Pagamentos ===
             pagamentos_menu = self.gestao_menu.addMenu("💰 Pagamentos")
@@ -826,16 +833,18 @@ class MainWindow(QMainWindow):
         dialog.exec()
     
     def _show_manage_plans_dialog(self):
-        """Abre o diálogo de gerenciamento de planos."""
-        if not self.is_connected:
-            QMessageBox.warning(
-                self,
-                "Não Conectado",
-                "Conecte-se ao banco de dados primeiro."
-            )
-            return
+        """Exibe o diálogo de gerenciamento de planos."""
+        from src.ui.dialogs.manage_plans_dialog import ManagePlansDialog
         
         dialog = ManagePlansDialog(self)
+        dialog.exec()
+    
+    def _show_expiring_plans_dialog(self):
+        """Exibe o diálogo de planos a vencer."""
+        db = self.manager.data_provider.db_manager
+        if db and not db.connection:
+            db.connect()
+        dialog = ExpiringPlansDialog(db, self)
         dialog.exec()
     
     # === Sincronização ===

@@ -176,6 +176,9 @@ class FinancialScreen(QWidget):
         
         # Conectar sinais
         self.period_combo.currentTextChanged.connect(self._on_period_changed)
+        
+        # Inicializar datas baseado no período padrão
+        self._on_period_changed(self.period_combo.currentText())
     
     def _create_summary_card(self, title: str, value: str, color: str) -> tuple[QGroupBox, QLabel]:
         """Cria um card de resumo."""

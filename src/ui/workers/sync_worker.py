@@ -44,6 +44,85 @@ class SyncWorker(QThread):
         self.sheets_service = None
         self.db_manager = None
     
+    def _calculate_estado_from_vencimento(self, vencimento_str: str) -> str:
+        """
+        Calcula o estado do plano baseado na data de vencimento.
+        
+        Args:
+            vencimento_str: Data no formato DD/MM/YYYY, DD/MM/YY, DD-MM-YY, YY-MM-DD ou YYYY-MM-DD
+            
+        Returns:
+            'ATIVO' se não venceu, 'INATIVO' se já venceu
+        """
+        if not vencimento_str or not vencimento_str.strip():
+            return 'ATIVO'
+        
+        try:
+            vencimento_dt = None
+            
+            # Formato com barra (/)
+            if '/' in vencimento_str:
+                parts = vencimento_str.split('/')
+                if len(parts[2]) == 4:
+                    # DD/MM/YYYY (ano com 4 dígitos)
+                    vencimento_dt = datetime.strptime(vencimento_str, '%d/%m/%Y')
+                else:
+                    # DD/MM/YY (ano com 2 dígitos)
+                    vencimento_dt = datetime.strptime(vencimento_str, '%d/%m/%y')
+            elif '-' in vencimento_str:
+                parts = vencimento_str.split('-')
+                
+                # Detectar formato baseado no primeiro número
+                # Se primeiro número > 31, é ano (YY-MM-DD ou YYYY-MM-DD)
+                # Se primeiro número <= 31, é dia (DD-MM-YY ou DD-MM-YYYY)
+                first_num = int(parts[0])
+                
+                if first_num > 31:
+                    # Formato YYYY-MM-DD (ano com 4 dígitos)
+                    vencimento_dt = datetime.strptime(vencimento_str, '%Y-%m-%d')
+                elif len(parts[2]) == 4:
+                    # Formato DD-MM-YYYY (ano com 4 dígitos no final)
+                    vencimento_dt = datetime.strptime(vencimento_str, '%d-%m-%Y')
+                else:
+                    # Ambos com 2 dígitos: precisa decidir entre DD-MM-YY e YY-MM-DD
+                    # Se segundo número > 12, é dia (YY-MM-DD invertido seria inválido)
+                    # Se segundo número <= 12, verificar o terceiro
+                    second_num = int(parts[1])
+                    third_num = int(parts[2])
+                    
+                    if second_num > 12:
+                        # Não pode ser mês, então é DD-MM-YY
+                        vencimento_dt = datetime.strptime(vencimento_str, '%d-%m-%y')
+                    elif third_num > 31:
+                        # Terceiro não pode ser dia, então é YY-MM-DD
+                        vencimento_dt = datetime.strptime(vencimento_str, '%y-%m-%d')
+                    else:
+                        # Ambíguo: assumir YY-MM-DD (formato mais comum em dados importados)
+                        # Se der data no passado distante (< 2020), tentar DD-MM-YY
+                        try:
+                            temp_dt = datetime.strptime(vencimento_str, '%y-%m-%d')
+                            if temp_dt.year < 2020:
+                                vencimento_dt = datetime.strptime(vencimento_str, '%d-%m-%y')
+                            else:
+                                vencimento_dt = temp_dt
+                        except ValueError:
+                            vencimento_dt = datetime.strptime(vencimento_str, '%d-%m-%y')
+            else:
+                # Sem separador, tentar YYYYMMDD
+                vencimento_dt = datetime.strptime(vencimento_str, '%Y%m%d')
+            
+            hoje = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+            vencimento_dt = vencimento_dt.replace(hour=0, minute=0, second=0, microsecond=0)
+            
+            # Se a data de vencimento já passou, está INATIVO
+            if vencimento_dt < hoje:
+                return 'INATIVO'
+            else:
+                return 'ATIVO'
+        except (ValueError, AttributeError):
+            # Se não conseguir parsear a data, considera ATIVO
+            return 'ATIVO'
+    
     def run(self):
         """Executa a sincronização."""
         try:
@@ -118,7 +197,13 @@ class SyncWorker(QThread):
     def _get_safe_value(self, row: List, col_index: int) -> str:
         """Obtém valor de uma coluna de forma segura."""
         if col_index < len(row) and row[col_index]:
-            return str(row[col_index]).strip()
+            value = str(row[col_index]).strip()
+            
+            # Filtrar valores inválidos/placeholder
+            if value in ['----------', '---', '--', 'N/A', 'n/a', '#N/A']:
+                return ""
+            
+            return value
         return ""
     
     def _consolidate_members(self) -> Dict[str, Dict[str, Any]]:
@@ -173,11 +258,17 @@ class SyncWorker(QThread):
         # Usa transação para garantir atomicidade
         with self.db_manager.transaction():
             for nome, data_dict in consolidated_members.items():
+                vencimento = data_dict.get('vencimento_plano', '')
+                
+                # CORREÇÃO: Calcular estado automaticamente baseado no vencimento
+                # Ignora o estado vindo do Sheets e calcula baseado na data
+                estado_calculado = self._calculate_estado_from_vencimento(vencimento)
+                
                 member_data = {
                     'nome': nome,
                     'plano': data_dict.get('plano', 'N/A'),
-                    'vencimento_plano': data_dict.get('vencimento_plano', ''),
-                    'estado_plano': data_dict.get('estado_plano', ''),
+                    'vencimento_plano': vencimento,
+                    'estado_plano': estado_calculado,  # Usar o estado calculado, não o do Sheets
                     'data_nascimento': data_dict.get('data_nascimento', ''),
                     'whatsapp': data_dict.get('whatsapp', ''),
                     'genero': data_dict.get('genero', ''),
@@ -185,16 +276,17 @@ class SyncWorker(QThread):
                     'calcado': data_dict.get('calcado', '')
                 }
                 
-                final_data = {k: v for k, v in member_data.items() if v}
-                final_data['nome'] = nome
-                
                 if nome in existing_map:
-                    # Membro já existe
+                    # Membro já existe - ATUALIZAR com novos dados
                     member_id = existing_map[nome]
+                    member_data['id'] = member_id
+                    self.db_manager.update_member_from_dict(member_data, register_payment=False)
                     membros_migrados[nome] = member_id
                     existentes += 1
                 else:
-                    # Novo membro
+                    # Novo membro - remover campos vazios antes de inserir
+                    final_data = {k: v for k, v in member_data.items() if v}
+                    final_data['nome'] = nome
                     member_id = self.db_manager.add_member(final_data)
                     if member_id:
                         membros_migrados[nome] = member_id
@@ -273,8 +365,15 @@ class SyncWorker(QThread):
                                     total_duplicados += 1
                                     continue
                                 
-                                self.db_manager.add_checkin(member_id, full_datetime)
-                                total_novos += 1
+                                try:
+                                    self.db_manager.add_checkin(member_id, full_datetime)
+                                    total_novos += 1
+                                except ValueError as e:
+                                    # Check-in duplicado (mesma data)
+                                    if "duplicado" in str(e).lower():
+                                        total_duplicados += 1
+                                    else:
+                                        raise
         
         return {
             'novos': total_novos,

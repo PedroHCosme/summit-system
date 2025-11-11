@@ -26,6 +26,77 @@ class DatabaseManager:
         
         self.connection = None
     
+    def _parse_date_multi_format(self, date_str: str) -> Optional[datetime]:
+        """
+        Parse data com suporte a múltiplos formatos.
+        
+        Args:
+            date_str: String de data em vários formatos possíveis
+            
+        Returns:
+            datetime object ou None se não conseguir parsear
+            
+        Formatos suportados:
+        - DD/MM/YYYY (ex: 25/11/2025)
+        - DD/MM/YY (ex: 18/11/25)
+        - DD-MM-YYYY (ex: 25-11-2025)
+        - DD-MM-YY (ex: 25-11-25)
+        - YY-MM-DD (ex: 25-11-18) -> 2025-11-18
+        - YYYY-MM-DD (ex: 2025-11-18)
+        - YYYYMMDD (ex: 20251118)
+        """
+        if not date_str or not date_str.strip():
+            return None
+        
+        try:
+            # Formato com barra (/)
+            if '/' in date_str:
+                parts = date_str.split('/')
+                if len(parts[2]) == 4:
+                    # DD/MM/YYYY (ano com 4 dígitos)
+                    return datetime.strptime(date_str, '%d/%m/%Y')
+                else:
+                    # DD/MM/YY (ano com 2 dígitos)
+                    return datetime.strptime(date_str, '%d/%m/%y')
+            elif '-' in date_str:
+                parts = date_str.split('-')
+                
+                # Detectar formato baseado no primeiro número
+                first_num = int(parts[0])
+                
+                if first_num > 31:
+                    # Formato YYYY-MM-DD (ano com 4 dígitos)
+                    return datetime.strptime(date_str, '%Y-%m-%d')
+                elif len(parts[2]) == 4:
+                    # Formato DD-MM-YYYY (ano com 4 dígitos no final)
+                    return datetime.strptime(date_str, '%d-%m-%Y')
+                else:
+                    # Ambos com 2 dígitos: decidir entre DD-MM-YY e YY-MM-DD
+                    second_num = int(parts[1])
+                    third_num = int(parts[2])
+                    
+                    if second_num > 12:
+                        # Não pode ser mês, então é DD-MM-YY
+                        return datetime.strptime(date_str, '%d-%m-%y')
+                    elif third_num > 31:
+                        # Terceiro não pode ser dia, então é YY-MM-DD
+                        return datetime.strptime(date_str, '%y-%m-%d')
+                    else:
+                        # Ambíguo: assumir YY-MM-DD, mas verificar se faz sentido
+                        try:
+                            temp_dt = datetime.strptime(date_str, '%y-%m-%d')
+                            if temp_dt.year < 2020:
+                                return datetime.strptime(date_str, '%d-%m-%y')
+                            else:
+                                return temp_dt
+                        except ValueError:
+                            return datetime.strptime(date_str, '%d-%m-%y')
+            else:
+                # Sem separador, tentar YYYYMMDD
+                return datetime.strptime(date_str, '%Y%m%d')
+        except (ValueError, AttributeError, IndexError):
+            return None
+    
     def connect(self) -> bool:
         """
         Cria a conexão com o banco de dados.
@@ -1087,36 +1158,56 @@ class DatabaseManager:
         """
         Atualiza o estado do plano para 'INATIVO' para membros cujo plano expirou.
         A verificação é feita com base na data atual.
+        Suporta múltiplos formatos de data: DD/MM/YYYY, DD-MM-YY, YY-MM-DD, YYYY-MM-DD
         """
         if not self.connection:
             print("Erro: Conexão com o banco de dados não estabelecida.")
             return 0
 
         cursor = None
+        original_row_factory = self.connection.row_factory
         try:
+            self.connection.row_factory = sqlite3.Row
             cursor = self.connection.cursor()
             
-            # A data no banco está como 'DD/MM/AAAA', precisamos converter para 'AAAA-MM-DD' para comparar
-            # Usamos substr para reordenar a data para o formato YYYY-MM-DD
-            # A data de hoje já está em 'YYYY-MM-DD'
-            today_str = datetime.now().strftime('%Y-%m-%d')
-            
-            query = """
-                UPDATE membros
-                SET estado_plano = 'INATIVO'
+            # Buscar todos os membros com plano ativo e data de vencimento
+            cursor.execute("""
+                SELECT id, vencimento_plano
+                FROM membros
                 WHERE vencimento_plano IS NOT NULL 
                   AND vencimento_plano != ''
-                  AND substr(vencimento_plano, 7, 4) || '-' || substr(vencimento_plano, 4, 2) || '-' || substr(vencimento_plano, 1, 2) < ?
-                  AND estado_plano = 'ATIVO';
-            """
+                  AND estado_plano = 'ATIVO'
+            """)
             
-            cursor.execute(query, (today_str,))
-            self.connection.commit()
+            members = cursor.fetchall()
+            hoje = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
             
-            updated_rows = cursor.rowcount
-            if updated_rows > 0:
-                print(f"Planos de {updated_rows} membro(s) foram atualizados para 'INATIVO'.")
-            return updated_rows
+            updates = []
+            
+            for member in members:
+                member_id = member['id']
+                vencimento_str = member['vencimento_plano']
+                
+                # Parse da data com suporte a múltiplos formatos
+                vencimento_dt = self._parse_date_multi_format(vencimento_str)
+                
+                if vencimento_dt and vencimento_dt < hoje:
+                    updates.append(member_id)
+            
+            # Atualizar todos os membros expirados
+            if updates:
+                placeholders = ','.join('?' * len(updates))
+                cursor.execute(f"""
+                    UPDATE membros
+                    SET estado_plano = 'INATIVO'
+                    WHERE id IN ({placeholders})
+                """, updates)
+                
+                self.connection.commit()
+                print(f"Planos de {len(updates)} membro(s) foram atualizados para 'INATIVO'.")
+                return len(updates)
+            
+            return 0
 
         except sqlite3.Error as e:
             print(f"Erro ao atualizar planos expirados no banco de dados: {e}")
@@ -1124,3 +1215,5 @@ class DatabaseManager:
         finally:
             if cursor:
                 cursor.close()
+            # Restaurar row_factory original
+            self.connection.row_factory = original_row_factory
