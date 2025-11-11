@@ -49,17 +49,17 @@ PLANOS_COM_VENCIMENTO = [
 ]
 
 # Preços dos planos (em R$)
-# Nota: Gympass e Totalpass têm valor 0 para renovação (empresa paga)
-# mas têm valores por check-in definidos em PLANOS_PAGAMENTO_POR_CHECKIN
+# Nota: Diária, Gympass e Totalpass têm valor 0 para renovação
+# pois cobram apenas por check-in (ver PLANOS_PAGAMENTO_POR_CHECKIN)
 PLANOS_PRECOS = {
     "Mensal": 190.0,
     "Mens. c/ Treino": 280.0,
     "Trimestral": 500.0,
     "Semestral": 950.0,
     "Anual": 1900.0,
-    "Diária": 35.0,      # Renovação/ativação inicial
+    "Diária": 0.0,       # CORRIGIDO: Diária cobra apenas no check-in, não na renovação
     "Gympass": 0.0,      # Gympass: renovação não gera receita (pago por check-in)
-    "Totalpass": 00.0,    # Totalpass: renovação não gera receita (pago por check-in)
+    "Totalpass": 0.0,    # CORRIGIDO: era 00.0 (typo), agora 0.0
     "Cortesia": 0.0      # Cortesia não tem custo
 }
 

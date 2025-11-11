@@ -257,17 +257,44 @@ class DatabaseManager:
         Adiciona um registro de check-in na tabela de frequência.
         Para planos Diária, Gympass e Totalpass, registra pagamento automaticamente.
         
+        REGRA: Apenas 1 check-in por membro por dia é permitido.
+        
         Args:
             member_id: ID do membro
             checkin_datetime: Data e hora do check-in
             
         Returns:
             ID do registro de check-in ou None se houver erro
+            
+        Raises:
+            ValueError: Se já existe check-in no mesmo dia para este membro
         """
         if not self.connection:
             return None
         try:
             cursor = self.connection.cursor()
+            
+            # PROTEÇÃO: Verificar se já existe check-in no mesmo dia
+            checkin_date = checkin_datetime.date()
+            cursor.execute("""
+                SELECT id, checkin_datetime 
+                FROM frequencia
+                WHERE member_id = ?
+                AND DATE(checkin_datetime) = ?
+            """, (member_id, checkin_date.isoformat()))
+            
+            existing_checkin = cursor.fetchone()
+            if existing_checkin:
+                # Buscar nome do membro para mensagem de erro
+                cursor.execute("SELECT nome FROM membros WHERE id = ?", (member_id,))
+                member_result = cursor.fetchone()
+                member_name = member_result[0] if member_result else f"ID {member_id}"
+                
+                raise ValueError(
+                    f"Check-in duplicado detectado!\n"
+                    f"Membro '{member_name}' já fez check-in hoje ({checkin_date.strftime('%d/%m/%Y')}).\n"
+                    f"Apenas 1 check-in por dia é permitido."
+                )
             
             # Inserir check-in
             cursor.execute("""
@@ -306,6 +333,9 @@ class DatabaseManager:
             
             self.connection.commit()
             return checkin_id
+        except ValueError:
+            # Re-raise ValueError (validações de negócio como check-in duplicado)
+            raise
         except Exception as e:
             print(f"Erro ao adicionar check-in: {e}")
             import traceback
@@ -873,10 +903,10 @@ class DatabaseManager:
             cursor = self.connection.cursor()
             
             # Primeiro, deletar todos os check-ins do membro
-            cursor.execute("DELETE FROM checkins WHERE member_id = ?", (member_id,))
+            cursor.execute("DELETE FROM frequencia WHERE member_id = ?", (member_id,))
             
             # Deletar todos os pagamentos do membro
-            cursor.execute("DELETE FROM pagamentos WHERE membro_id = ?", (member_id,))
+            cursor.execute("DELETE FROM pagamentos WHERE member_id = ?", (member_id,))
             
             # Finalmente, deletar o membro
             cursor.execute("DELETE FROM membros WHERE id = ?", (member_id,))
