@@ -26,7 +26,7 @@ from src.ui.screens import (
     CheckinScreen,
     FinancialScreen
 )
-from src.ui.dialogs import AddMemberDialog
+from src.ui.dialogs import AddMemberDialog, SyncDialog
 
 
 class MainWindow(QMainWindow):
@@ -127,6 +127,15 @@ class MainWindow(QMainWindow):
             financeiro_action = QAction("Financeiro", self)
             financeiro_action.triggered.connect(self._show_financial_screen)
             self.atividade_menu.addAction(financeiro_action)
+        
+        # Menu Ferramentas
+        self.tools_menu = self.menubar.addMenu("Ferramentas")
+        if self.tools_menu:
+            self.tools_menu.setEnabled(False)
+            
+            sync_action = QAction("🔄 Sincronizar com Google Sheets", self)
+            sync_action.triggered.connect(self._show_sync_dialog)
+            self.tools_menu.addAction(sync_action)
     
     def _connect_screen_signals(self):
         """Conecta sinais das telas."""
@@ -230,6 +239,8 @@ class MainWindow(QMainWindow):
                 self.gestao_menu.setEnabled(True)
             if hasattr(self, 'atividade_menu') and self.atividade_menu:
                 self.atividade_menu.setEnabled(True)
+            if hasattr(self, 'tools_menu') and self.tools_menu:
+                self.tools_menu.setEnabled(True)
             
             self._show_dashboard()
         else:
@@ -739,6 +750,27 @@ class MainWindow(QMainWindow):
         
         dialog = FinancialGraphsDialog(self)
         dialog.exec()
+    
+    # === Sincronização ===
+    
+    def _show_sync_dialog(self):
+        """Abre o diálogo de sincronização com Google Sheets."""
+        dialog = SyncDialog(self)
+        result = dialog.exec()
+        
+        # Se a sincronização foi bem-sucedida, atualiza o dashboard
+        if result == QDialog.DialogCode.Accepted and dialog.get_result():
+            QMessageBox.information(
+                self,
+                "Atualização Recomendada",
+                "Sincronização concluída!\n\n"
+                "Recomenda-se atualizar o dashboard para visualizar\n"
+                "os novos dados sincronizados."
+            )
+            
+            # Atualiza automaticamente o dashboard
+            if self.is_connected:
+                self._update_dashboard()
 
 
 def main():

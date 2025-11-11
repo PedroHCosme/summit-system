@@ -2,9 +2,21 @@
 
 ## Visão Geral
 
-O script de migração (`scripts/migrate_data.py`) permite importar dados do Google Sheets para o banco de dados SQLite local. Ele suporta dois modos de operação:
+Existem **duas formas** de sincronizar dados do Google Sheets para o banco de dados SQLite local:
 
-### 1. Modo Completo (Padrão)
+### 🖥️ Via Interface Gráfica (Recomendado para usuários)
+Execute a sincronização diretamente pela aplicação:
+1. Abra a aplicação
+2. Menu **Ferramentas → 🔄 Sincronizar com Google Sheets**
+3. Acompanhe o progresso em tempo real
+4. Visualize relatório completo ao final
+
+📖 **[Veja o guia completo da UI](SYNC_UI_GUIDE.md)**
+
+### ⌨️ Via Linha de Comando (Recomendado para automação)
+Execute o script de migração (`scripts/migrate_data.py`) que suporta dois modos:
+
+#### 1. Modo Completo (Padrão)
 Recria todas as tabelas do zero, apagando dados existentes.
 
 ```bash
@@ -18,7 +30,7 @@ python scripts/migrate_data.py
 
 ⚠️ **Atenção:** Este modo apaga TODOS os dados existentes!
 
-### 2. Modo Incremental (--append)
+#### 2. Modo Incremental (--append)
 Preserva dados existentes e adiciona apenas novos registros.
 
 ```bash
@@ -29,6 +41,7 @@ python scripts/migrate_data.py --append
 - Para atualizar o banco com novos check-ins
 - Quando não quiser perder dados locais
 - Para sincronizações periódicas
+- **Mesma funcionalidade da sincronização via UI**
 
 ✅ **Vantagens:**
 - Preserva histórico existente
