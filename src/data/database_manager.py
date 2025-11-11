@@ -6,6 +6,7 @@ import sqlite3
 import os
 from typing import Optional, List, Dict, Any
 from datetime import datetime
+from contextlib import contextmanager
 from src.core.models import Pessoa
 
 
@@ -140,45 +141,6 @@ class DatabaseManager:
             print(f"Erro ao recriar tabelas: {e}")
             return False
 
-    
-    def add_member(self, pessoa_obj: Pessoa) -> Optional[int]:
-        """
-        Adiciona um novo membro ao banco de dados.
-        
-        Args:
-            pessoa_obj: Objeto Pessoa a ser inserido
-            
-        Returns:
-            ID do novo membro ou None se houver erro
-        """
-        if not self.connection:
-            return None
-        try:
-            cursor = self.connection.cursor()
-            
-            cursor.execute("""
-                INSERT INTO membros (
-                    nome, plano, vencimento_plano, estado_plano,
-                    data_nascimento, whatsapp, genero, frequencia, calcado
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                pessoa_obj.nome,
-                pessoa_obj.plano,
-                pessoa_obj.vencimento_plano,
-                pessoa_obj.estado_plano,
-                pessoa_obj.data_nascimento.strftime('%d/%m/%Y') if pessoa_obj.data_nascimento else None,
-                pessoa_obj.whatsapp,
-                pessoa_obj.genero,
-                pessoa_obj.frequencia,
-                pessoa_obj.calcado
-            ))
-            
-            self.connection.commit()
-            return cursor.lastrowid
-        except Exception as e:
-            print(f"Erro ao adicionar membro: {e}")
-            return None
-    
     def add_member(self, member_data: Dict[str, Any]) -> Optional[int]:
         """
         Adiciona um novo membro ao banco de dados.
@@ -349,6 +311,33 @@ class DatabaseManager:
             import traceback
             traceback.print_exc()
             return None
+    
+    def checkin_exists(self, member_id: int, checkin_datetime: datetime) -> bool:
+        """
+        Verifica se já existe um check-in para o membro em uma data/hora específica.
+        
+        Args:
+            member_id: ID do membro
+            checkin_datetime: Data e hora do check-in
+            
+        Returns:
+            True se o check-in já existe, False caso contrário
+        """
+        if not self.connection:
+            return False
+        try:
+            cursor = self.connection.cursor()
+            cursor.execute("""
+                SELECT COUNT(*) as count
+                FROM frequencia
+                WHERE member_id = ? AND checkin_datetime = ?
+            """, (member_id, checkin_datetime.strftime('%Y-%m-%d %H:%M:%S')))
+            
+            result = cursor.fetchone()
+            return result['count'] > 0 if result else False
+        except Exception as e:
+            print(f"Erro ao verificar check-in existente: {e}")
+            return False
     
     def delete_checkin(self, checkin_id: int) -> bool:
         """
@@ -1033,6 +1022,36 @@ class DatabaseManager:
         if self.connection:
             self.connection.close()
             self.connection = None
+    
+    @contextmanager
+    def transaction(self):
+        """
+        Context manager para gerenciar transações de forma atômica.
+        
+        Uso:
+            with db_manager.transaction():
+                db_manager.add_member(...)
+                db_manager.add_checkin(...)
+        
+        Se ocorrer uma exceção, a transação é revertida (rollback).
+        Caso contrário, é confirmada (commit) automaticamente.
+        
+        Yields:
+            DatabaseManager: A própria instância do gerenciador
+        """
+        if not self.connection:
+            raise RuntimeError("Conexão com o banco de dados não estabelecida")
+        
+        try:
+            # Inicia transação implicitamente
+            yield self
+            # Se chegou aqui, commit
+            self.connection.commit()
+        except Exception as e:
+            # Em caso de erro, rollback
+            self.connection.rollback()
+            print(f"Transação revertida devido a erro: {e}")
+            raise  # Re-lança a exceção para o código chamador tratar
 
     def update_expired_plans(self):
         """
