@@ -13,6 +13,7 @@ import sqlite3
 from datetime import datetime
 from typing import Dict, List, Tuple
 from src.data.database_manager import DatabaseManager
+from src.data.migration_tasks.backfill_payments import backfill_plan_payments
 
 
 class DatabaseMigrator:
@@ -38,6 +39,7 @@ class DatabaseMigrator:
             ("Recalculando estados de planos", self.recalculate_plan_states),
             ("Removendo check-ins duplicados", self.remove_duplicate_checkins),
             ("Criando índices de performance", self.ensure_indexes),
+            ("Reprocessando pagamentos recorrentes históricos", self.backfill_plan_payments),
         ]
 
         for description, func in steps:
@@ -338,3 +340,15 @@ class DatabaseMigrator:
             "CREATE INDEX IF NOT EXISTS idx_pagamentos_tipo ON pagamentos(tipo_transacao)",
         ]
         self._execute_many(statements)
+
+    def backfill_plan_payments(self) -> None:
+        result = backfill_plan_payments(self.db)
+        created = result.get("pagamentos_registrados", 0)
+        processed = result.get("membros_processados", 0)
+        if created:
+            print(
+                f"[migrations] Pagamentos retroativos criados: {created} (membros processados: {processed})"
+            )
+
+
+__all__ = ["DatabaseMigrator"]

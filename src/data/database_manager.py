@@ -38,6 +38,12 @@ class DatabaseManager:
         
         self.connection = None
     
+    @staticmethod
+    def get_plan_duration(plan_name: Optional[str]) -> Optional[relativedelta]:
+        if not plan_name:
+            return None
+        return _PLAN_DURATION_MAP.get(plan_name)
+
     def _parse_date_multi_format(self, date_str: str) -> Optional[datetime]:
         """
         Parse data com suporte a múltiplos formatos.
@@ -62,9 +68,7 @@ class DatabaseManager:
         return parse_flexible_date(date_str)
 
     def _get_plan_duration(self, plan_name: Optional[str]) -> Optional[relativedelta]:
-        if not plan_name:
-            return None
-        return _PLAN_DURATION_MAP.get(plan_name)
+        return self.get_plan_duration(plan_name)
 
     def _calculate_payment_reference_date(
         self,
@@ -118,7 +122,8 @@ class DatabaseManager:
         tipo_transacao: str,
         descricao: str,
         metodo_pagamento: str,
-        vencimento: Optional[str]
+        vencimento: Optional[str],
+        payment_date_override: Optional[datetime] = None
     ) -> Optional[int]:
         if not self.connection or not plan_name:
             return None
@@ -142,7 +147,10 @@ class DatabaseManager:
         if self._payment_exists_for_vencimento(member_id, vencimentos_candidatos):
             return None
 
-        payment_date = self._calculate_payment_reference_date(plan_name, normalized_vencimento or vencimento)
+        payment_date = payment_date_override or self._calculate_payment_reference_date(
+            plan_name,
+            normalized_vencimento or vencimento
+        )
         if not payment_date:
             payment_date = datetime.now().replace(hour=12, minute=0, second=0, microsecond=0)
 
@@ -163,7 +171,8 @@ class DatabaseManager:
         vencimento: Optional[str],
         metodo_pagamento: str = "Sincronização (Sheets)",
         tipo_transacao: str = "Renovação Plano",
-        descricao: Optional[str] = None
+        descricao: Optional[str] = None,
+        payment_date: Optional[datetime] = None
     ) -> Optional[int]:
         if not plan_name:
             return None
@@ -175,7 +184,8 @@ class DatabaseManager:
             tipo_transacao=tipo_transacao,
             descricao=descricao_final,
             metodo_pagamento=metodo_pagamento,
-            vencimento=vencimento
+            vencimento=vencimento,
+            payment_date_override=payment_date
         )
     
     def connect(self) -> bool:
