@@ -7,7 +7,19 @@ import os
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from contextlib import contextmanager
+from dateutil.relativedelta import relativedelta
+
 from src.core.models import Pessoa
+from src.utils.date_utils import parse_date as parse_flexible_date, normalize_date_string
+
+
+_PLAN_DURATION_MAP = {
+    "Mensal": relativedelta(months=1),
+    "Mens. c/ Treino": relativedelta(months=1),
+    "Trimestral": relativedelta(months=3),
+    "Semestral": relativedelta(months=6),
+    "Anual": relativedelta(years=1),
+}
 
 
 class DatabaseManager:
@@ -47,55 +59,124 @@ class DatabaseManager:
         """
         if not date_str or not date_str.strip():
             return None
-        
-        try:
-            # Formato com barra (/)
-            if '/' in date_str:
-                parts = date_str.split('/')
-                if len(parts[2]) == 4:
-                    # DD/MM/YYYY (ano com 4 dígitos)
-                    return datetime.strptime(date_str, '%d/%m/%Y')
-                else:
-                    # DD/MM/YY (ano com 2 dígitos)
-                    return datetime.strptime(date_str, '%d/%m/%y')
-            elif '-' in date_str:
-                parts = date_str.split('-')
-                
-                # Detectar formato baseado no primeiro número
-                first_num = int(parts[0])
-                
-                if first_num > 31:
-                    # Formato YYYY-MM-DD (ano com 4 dígitos)
-                    return datetime.strptime(date_str, '%Y-%m-%d')
-                elif len(parts[2]) == 4:
-                    # Formato DD-MM-YYYY (ano com 4 dígitos no final)
-                    return datetime.strptime(date_str, '%d-%m-%Y')
-                else:
-                    # Ambos com 2 dígitos: decidir entre DD-MM-YY e YY-MM-DD
-                    second_num = int(parts[1])
-                    third_num = int(parts[2])
-                    
-                    if second_num > 12:
-                        # Não pode ser mês, então é DD-MM-YY
-                        return datetime.strptime(date_str, '%d-%m-%y')
-                    elif third_num > 31:
-                        # Terceiro não pode ser dia, então é YY-MM-DD
-                        return datetime.strptime(date_str, '%y-%m-%d')
-                    else:
-                        # Ambíguo: assumir YY-MM-DD, mas verificar se faz sentido
-                        try:
-                            temp_dt = datetime.strptime(date_str, '%y-%m-%d')
-                            if temp_dt.year < 2020:
-                                return datetime.strptime(date_str, '%d-%m-%y')
-                            else:
-                                return temp_dt
-                        except ValueError:
-                            return datetime.strptime(date_str, '%d-%m-%y')
-            else:
-                # Sem separador, tentar YYYYMMDD
-                return datetime.strptime(date_str, '%Y%m%d')
-        except (ValueError, AttributeError, IndexError):
+        return parse_flexible_date(date_str)
+
+    def _get_plan_duration(self, plan_name: Optional[str]) -> Optional[relativedelta]:
+        if not plan_name:
             return None
+        return _PLAN_DURATION_MAP.get(plan_name)
+
+    def _calculate_payment_reference_date(
+        self,
+        plan_name: Optional[str],
+        vencimento: Optional[str]
+    ) -> Optional[datetime]:
+        if not plan_name or not vencimento:
+            return None
+
+        vencimento_dt = self._parse_date_multi_format(vencimento)
+        if not vencimento_dt:
+            return None
+
+        duration = self._get_plan_duration(plan_name)
+        if duration:
+            reference = vencimento_dt - duration
+        else:
+            reference = vencimento_dt
+
+        return reference.replace(hour=12, minute=0, second=0, microsecond=0)
+
+    def _payment_exists_for_vencimento(
+        self,
+        member_id: int,
+        vencimentos: List[str]
+    ) -> bool:
+        if not self.connection or not vencimentos:
+            return False
+
+        cursor = self.connection.cursor()
+        try:
+            placeholders = ",".join("?" for _ in vencimentos)
+            cursor.execute(
+                f"""
+                SELECT 1
+                FROM pagamentos
+                WHERE member_id = ?
+                  AND nova_data_vencimento IN ({placeholders})
+                LIMIT 1
+                """,
+                (member_id, *vencimentos)
+            )
+            return cursor.fetchone() is not None
+        finally:
+            cursor.close()
+
+    def _register_plan_payment(
+        self,
+        member_id: int,
+        plan_name: Optional[str],
+        tipo_transacao: str,
+        descricao: str,
+        metodo_pagamento: str,
+        vencimento: Optional[str]
+    ) -> Optional[int]:
+        if not self.connection or not plan_name:
+            return None
+
+        from src.config import PLANOS_PRECOS
+
+        valor = PLANOS_PRECOS.get(plan_name, 0.0)
+        if valor <= 0 and plan_name != "Cortesia":
+            return None
+
+        normalized_vencimento = normalize_date_string(vencimento)
+        vencimentos_candidatos: List[str] = []
+        if normalized_vencimento:
+            vencimentos_candidatos.append(normalized_vencimento)
+        if vencimento and vencimento != normalized_vencimento:
+            vencimentos_candidatos.append(vencimento)
+
+        if not vencimentos_candidatos:
+            return None
+
+        if self._payment_exists_for_vencimento(member_id, vencimentos_candidatos):
+            return None
+
+        payment_date = self._calculate_payment_reference_date(plan_name, normalized_vencimento or vencimento)
+        if not payment_date:
+            payment_date = datetime.now().replace(hour=12, minute=0, second=0, microsecond=0)
+
+        return self.add_payment(
+            member_id=member_id,
+            valor=valor,
+            tipo_transacao=tipo_transacao,
+            descricao=descricao,
+            metodo_pagamento=metodo_pagamento or "Sincronização (Sheets)",
+            nova_data_vencimento=normalized_vencimento or vencimento,
+            data_pagamento=payment_date
+        )
+
+    def auto_register_plan_payment(
+        self,
+        member_id: int,
+        plan_name: Optional[str],
+        vencimento: Optional[str],
+        metodo_pagamento: str = "Sincronização (Sheets)",
+        tipo_transacao: str = "Renovação Plano",
+        descricao: Optional[str] = None
+    ) -> Optional[int]:
+        if not plan_name:
+            return None
+
+        descricao_final = descricao or f"Plano: {plan_name}"
+        return self._register_plan_payment(
+            member_id=member_id,
+            plan_name=plan_name,
+            tipo_transacao=tipo_transacao,
+            descricao=descricao_final,
+            metodo_pagamento=metodo_pagamento,
+            vencimento=vencimento
+        )
     
     def connect(self) -> bool:
         """
@@ -323,7 +404,88 @@ class DatabaseManager:
             print(f"Erro ao buscar todos os membros: {e}")
             return []
     
-    def add_checkin(self, member_id: int, checkin_datetime: datetime) -> Optional[int]:
+    def _normalize_plan_for_checkin(self, plan_name: Optional[str]) -> Optional[str]:
+        """Normaliza o nome do plano para fins de cobrança por check-in."""
+        if not plan_name:
+            return None
+        plan_name = plan_name.strip()
+        if not plan_name:
+            return None
+        from src.config import PLANOS_PAGAMENTO_POR_CHECKIN
+
+        if plan_name in PLANOS_PAGAMENTO_POR_CHECKIN:
+            return plan_name
+
+        # Normalização por palavras-chave
+        lowered = plan_name.lower()
+        if 'diária' in lowered:
+            return 'Diária'
+        if 'gympass' in lowered:
+            return 'Gympass'
+        if 'totalpass' in lowered:
+            return 'Totalpass'
+
+        return None
+
+    def _create_checkin_payment_if_missing(
+        self,
+        member_id: int,
+        checkin_datetime: datetime,
+        plan_for_payment: Optional[str],
+        member_name: str = ""
+    ) -> None:
+        """Garante que exista um pagamento para o check-in informado."""
+        if not plan_for_payment or not self.connection:
+            return
+
+        from src.config import PLANOS_PAGAMENTO_POR_CHECKIN
+
+        valor = PLANOS_PAGAMENTO_POR_CHECKIN.get(plan_for_payment)
+        if valor is None:
+            return
+
+        cursor = self.connection.cursor()
+        try:
+            cursor.execute(
+                """
+                SELECT id
+                FROM pagamentos
+                WHERE member_id = ?
+                  AND DATE(data_pagamento) = DATE(?)
+                  AND tipo_transacao = ?
+                """,
+                (
+                    member_id,
+                    checkin_datetime.strftime('%Y-%m-%d %H:%M:%S'),
+                    plan_for_payment
+                )
+            )
+            exists = cursor.fetchone()
+        finally:
+            cursor.close()
+
+        if exists:
+            return
+
+        descricao = f"Check-in - {plan_for_payment}"
+        if member_name:
+            descricao += f" ({member_name})"
+
+        self.add_payment(
+            member_id=member_id,
+            data_pagamento=checkin_datetime,
+            tipo_transacao=plan_for_payment,
+            descricao=descricao,
+            valor=valor,
+            metodo_pagamento="Check-in"
+        )
+
+    def add_checkin(
+        self,
+        member_id: int,
+        checkin_datetime: datetime,
+        plan_context: Optional[str] = None
+    ) -> Optional[int]:
         """
         Adiciona um registro de check-in na tabela de frequência.
         Para planos Diária, Gympass e Totalpass, registra pagamento automaticamente.
@@ -381,26 +543,20 @@ class DatabaseManager:
             
             if result:
                 member_data = dict(result)
-                plano = member_data.get('plano', '')
+                plano_atual = member_data.get('plano', '')
                 nome = member_data.get('nome', '')
-                
-                # Verificar se é um plano que gera pagamento por check-in
-                from src.config import PLANOS_PAGAMENTO_POR_CHECKIN
-                
-                if plano in PLANOS_PAGAMENTO_POR_CHECKIN:
-                    valor = PLANOS_PAGAMENTO_POR_CHECKIN[plano]
-                    
-                    # Registrar pagamento automaticamente
-                    self.add_payment(
-                        member_id=member_id,
-                        data_pagamento=checkin_datetime,
-                        tipo_transacao=plano,
-                        descricao=f"Check-in - {plano}",
-                        valor=valor,
-                        metodo_pagamento="Check-in"
-                    )
-                    
-                    print(f"💰 Pagamento registrado: {nome} - {plano} - R$ {valor:.2f}")
+
+                plano_normalizado = (
+                    self._normalize_plan_for_checkin(plan_context)
+                    or self._normalize_plan_for_checkin(plano_atual)
+                )
+
+                self._create_checkin_payment_if_missing(
+                    member_id,
+                    checkin_datetime,
+                    plano_normalizado,
+                    member_name=nome
+                )
             
             self.connection.commit()
             return checkin_id
@@ -412,6 +568,42 @@ class DatabaseManager:
             import traceback
             traceback.print_exc()
             return None
+
+    def ensure_payment_for_checkin(
+        self,
+        member_id: int,
+        checkin_datetime: datetime,
+        plan_context: Optional[str] = None
+    ) -> None:
+        """Garante que existe um pagamento registrado para o check-in informado."""
+        if not self.connection:
+            return
+
+        cursor = self.connection.cursor()
+        try:
+            cursor.execute("SELECT plano, nome FROM membros WHERE id = ?", (member_id,))
+            result = cursor.fetchone()
+        finally:
+            cursor.close()
+
+        if not result:
+            return
+
+        member_data = dict(result)
+        plano_atual = member_data.get('plano', '')
+        nome = member_data.get('nome', '')
+
+        plano_normalizado = (
+            self._normalize_plan_for_checkin(plan_context)
+            or self._normalize_plan_for_checkin(plano_atual)
+        )
+
+        self._create_checkin_payment_if_missing(
+            member_id,
+            checkin_datetime,
+            plano_normalizado,
+            member_name=nome
+        )
     
     def checkin_exists(self, member_id: int, checkin_datetime: datetime) -> bool:
         """
@@ -903,52 +1095,48 @@ class DatabaseManager:
             
             self.connection.commit()
             
-            # Registrar pagamento se solicitado e houver mudança de plano/vencimento
-            if register_payment and old_data:
+            # Registrar pagamento automático se aplicável
+            if register_payment:
                 new_plano = member_data.get('plano')
                 new_vencimento = member_data.get('vencimento_plano')
-                old_plano = old_data.get('plano')
-                old_vencimento = old_data.get('vencimento_plano')
-                
-                # Detectar se houve mudança significativa
-                plano_changed = new_plano and new_plano != old_plano
-                vencimento_changed = new_vencimento and new_vencimento != old_vencimento
-                
-                if plano_changed or vencimento_changed:
-                    # Importar config para buscar preços
-                    from src.config import PLANOS_PRECOS, PLANOS_PAGAMENTO_POR_CHECKIN
-                    
-                    # Determinar tipo de transação e descrição
-                    if plano_changed and new_plano:
-                        tipo_transacao = f"Mudança de Plano"
-                        descricao = f"De '{old_plano}' para '{new_plano}'"
-                        valor = PLANOS_PRECOS.get(new_plano, 0.0)
-                    elif new_plano:
-                        tipo_transacao = f"Renovação Plano"
-                        descricao = f"Plano: {new_plano}"
-                        valor = PLANOS_PRECOS.get(new_plano, 0.0)
-                    else:
-                        return cursor.rowcount > 0
-                    
-                    # Só registrar pagamento se valor > 0 OU se for explicitamente Cortesia
-                    # Planos como Gympass/Totalpass não geram receita na renovação (apenas por check-in)
-                    if valor > 0 or new_plano == "Cortesia":
-                        # Registrar o pagamento
-                        self.add_payment(
-                            member_id=member_id,
-                            valor=valor,
-                            tipo_transacao=tipo_transacao,
-                            descricao=descricao,
-                            metodo_pagamento=metodo_pagamento,
-                            nova_data_vencimento=new_vencimento
-                        )
-                        print(f"💰 Pagamento registrado: {tipo_transacao} - R$ {valor:.2f}")
-                        
-                        # Informar planos pagos por check-in
-                        if new_plano in PLANOS_PAGAMENTO_POR_CHECKIN and valor == 0:
-                            print(f"ℹ️  Plano '{new_plano}' registrado (receita gerada por check-in)")
+                payment_registered = False
 
-            
+                if old_data:
+                    old_plano = old_data.get('plano')
+                    old_vencimento = old_data.get('vencimento_plano')
+
+                    plano_changed = bool(new_plano and new_plano != old_plano)
+                    vencimento_changed = bool(new_vencimento and new_vencimento != old_vencimento)
+
+                    if plano_changed or vencimento_changed:
+                        if plano_changed and new_plano:
+                            tipo_transacao = "Mudança de Plano"
+                            descricao = f"De '{old_plano}' para '{new_plano}'"
+                        else:
+                            tipo_transacao = "Renovação Plano"
+                            descricao = f"Plano: {new_plano}" if new_plano else "Renovação de Plano"
+
+                        payment_registered = bool(
+                            self._register_plan_payment(
+                                member_id=member_id,
+                                plan_name=new_plano,
+                                tipo_transacao=tipo_transacao,
+                                descricao=descricao,
+                                metodo_pagamento=metodo_pagamento,
+                                vencimento=new_vencimento
+                            )
+                        )
+
+                if not payment_registered and new_plano:
+                    self._register_plan_payment(
+                        member_id=member_id,
+                        plan_name=new_plano,
+                        tipo_transacao="Renovação Plano",
+                        descricao=f"Plano: {new_plano}",
+                        metodo_pagamento=metodo_pagamento,
+                        vencimento=new_vencimento
+                    )
+
             return cursor.rowcount > 0
         except Exception as e:
             print(f"Erro ao atualizar membro: {e}")
@@ -1118,6 +1306,66 @@ class DatabaseManager:
             print(f"Erro ao buscar últimos check-ins: {e}")
             return []
     
+    def optimize_and_reindex(self) -> Dict[str, Any]:
+        """Cria índices principais e executa VACUUM/ANALYZE/PRAGMA optimize."""
+        if not self.connection and not self.connect():
+            raise RuntimeError("Não foi possível conectar ao banco de dados para otimização")
+
+        if not self.connection:
+            raise RuntimeError("Conexão com o banco de dados não está disponível para otimização")
+
+        cursor = self.connection.cursor()
+        stats = {
+            "indices_processed": 0,
+            "vacuum_executed": False,
+            "analyze_executed": False,
+            "pragma_optimize_executed": False,
+        }
+
+        try:
+            index_statements = [
+                "CREATE INDEX IF NOT EXISTS idx_membros_nome ON membros(nome)",
+                "CREATE INDEX IF NOT EXISTS idx_membros_plano ON membros(plano)",
+                "CREATE INDEX IF NOT EXISTS idx_membros_estado_plano ON membros(estado_plano)",
+                "CREATE INDEX IF NOT EXISTS idx_membros_vencimento ON membros(vencimento_plano)",
+                "CREATE INDEX IF NOT EXISTS idx_frequencia_member_id ON frequencia(member_id)",
+                "CREATE INDEX IF NOT EXISTS idx_frequencia_datetime ON frequencia(checkin_datetime)",
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_frequencia_unique ON frequencia(member_id, DATE(checkin_datetime))",
+                "CREATE INDEX IF NOT EXISTS idx_pagamentos_member_id ON pagamentos(member_id)",
+                "CREATE INDEX IF NOT EXISTS idx_pagamentos_data ON pagamentos(data_pagamento)",
+                "CREATE INDEX IF NOT EXISTS idx_pagamentos_tipo ON pagamentos(tipo_transacao)",
+            ]
+
+            for statement in index_statements:
+                cursor.execute(statement)
+                stats["indices_processed"] += 1
+        finally:
+            cursor.close()
+
+        # Garante que VACUUM/ANALYZE rodem fora de uma transação ativa
+        self.connection.commit()
+
+        try:
+            self.connection.execute("VACUUM")
+            stats["vacuum_executed"] = True
+        except sqlite3.Error as exc:
+            print(f"Aviso: VACUUM falhou: {exc}")
+
+        try:
+            self.connection.execute("ANALYZE")
+            stats["analyze_executed"] = True
+        except sqlite3.Error as exc:
+            print(f"Aviso: ANALYZE falhou: {exc}")
+
+        try:
+            self.connection.execute("PRAGMA optimize")
+            stats["pragma_optimize_executed"] = True
+        except sqlite3.Error as exc:
+            print(f"Aviso: PRAGMA optimize falhou: {exc}")
+
+        self.connection.commit()
+        return stats
+
     def close(self):
         """Fecha a conexão com o banco de dados."""
         if self.connection:

@@ -1,40 +1,16 @@
-"""
-Funções utilitárias para o sistema.
-"""
+"""Funções utilitárias para o sistema."""
+
 from datetime import datetime
 from typing import Optional, Tuple
+
 from dateutil.relativedelta import relativedelta
 
-
-def parse_date(date_str: Optional[str]) -> Optional[datetime]:
-    """
-    Converte uma string de data para datetime.
-    Tenta múltiplos formatos de data.
-    
-    Args:
-        date_str: String com a data
-        
-    Returns:
-        Objeto datetime ou None se não conseguir fazer o parse
-    """
-    if not date_str:
-        return None
-    
-    # Formatos de data suportados
-    date_formats = (
-        '%d/%m/%Y',   # Formato brasileiro: 25/12/2023
-        '%d-%m-%Y',   # Formato alternativo: 25-12-2023
-        '%Y-%m-%d',   # Formato ISO: 2023-12-25
-    )
-    
-    for fmt in date_formats:
-        try:
-            return datetime.strptime(date_str, fmt)
-        except ValueError:
-            continue
-    
-    # Se nenhum formato funcionou
-    return None
+from .date_utils import (  # noqa: F401 re-export common helpers
+    format_display_date,
+    normalize_date_string,
+    parse_date,
+    parse_date_to_date,
+)
 
 
 def get_current_month_name() -> str:

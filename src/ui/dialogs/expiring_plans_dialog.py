@@ -5,10 +5,10 @@ from PyQt6.QtWidgets import (
     QTableWidget, QTableWidgetItem, QHeaderView, QMessageBox,
     QSpinBox, QGroupBox
 )
-from PyQt6.QtCore import Qt, QDate
+from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont, QColor
 from datetime import datetime, timedelta
-from src.utils.utils import format_whatsapp_link
+from src.utils.utils import format_whatsapp_link, parse_date_to_date
 
 
 class ExpiringPlansDialog(QDialog):
@@ -213,67 +213,18 @@ class ExpiringPlansDialog(QDialog):
                 vencimento_str = member.get('vencimento_plano', '')
                 if not vencimento_str:
                     continue
-                
-                try:
-                    # Tentar múltiplos formatos de data
-                    vencimento = None
-                    
-                    if '/' in vencimento_str:
-                        # Detectar DD/MM/YYYY vs DD/MM/YY
-                        parts = vencimento_str.split('/')
-                        if len(parts[2]) == 4:
-                            # Formato DD/MM/YYYY (ano com 4 dígitos)
-                            vencimento = datetime.strptime(vencimento_str, '%d/%m/%Y').date()
-                        else:
-                            # Formato DD/MM/YY (ano com 2 dígitos)
-                            vencimento = datetime.strptime(vencimento_str, '%d/%m/%y').date()
-                    elif '-' in vencimento_str:
-                        parts = vencimento_str.split('-')
-                        
-                        # Detectar formato baseado no primeiro número
-                        first_num = int(parts[0])
-                        
-                        if first_num > 31:
-                            # Formato YYYY-MM-DD (ano com 4 dígitos)
-                            vencimento = datetime.strptime(vencimento_str, '%Y-%m-%d').date()
-                        elif len(parts[2]) == 4:
-                            # Formato DD-MM-YYYY (ano com 4 dígitos no final)
-                            vencimento = datetime.strptime(vencimento_str, '%d-%m-%Y').date()
-                        else:
-                            # Ambos com 2 dígitos: decidir entre DD-MM-YY e YY-MM-DD
-                            second_num = int(parts[1])
-                            third_num = int(parts[2])
-                            
-                            if second_num > 12:
-                                # Não pode ser mês, então é DD-MM-YY
-                                vencimento = datetime.strptime(vencimento_str, '%d-%m-%y').date()
-                            elif third_num > 31:
-                                # Terceiro não pode ser dia, então é YY-MM-DD
-                                vencimento = datetime.strptime(vencimento_str, '%y-%m-%d').date()
-                            else:
-                                # Ambíguo: assumir YY-MM-DD, mas verificar se faz sentido
-                                try:
-                                    temp_dt = datetime.strptime(vencimento_str, '%y-%m-%d').date()
-                                    if temp_dt.year < 2020:
-                                        vencimento = datetime.strptime(vencimento_str, '%d-%m-%y').date()
-                                    else:
-                                        vencimento = temp_dt
-                                except ValueError:
-                                    vencimento = datetime.strptime(vencimento_str, '%d-%m-%y').date()
-                    else:
-                        # Sem separador
-                        vencimento = datetime.strptime(vencimento_str, '%Y%m%d').date()
-                    
-                    # Verificar se está no período
-                    if today <= vencimento <= limit_date:
-                        days_remaining = (vencimento - today).days
-                        expiring_members.append({
-                            'member': member,
-                            'vencimento_date': vencimento,
-                            'days_remaining': days_remaining
-                        })
-                except ValueError:
-                    continue  # Ignorar datas inválidas
+
+                vencimento = parse_date_to_date(vencimento_str)
+                if not vencimento:
+                    continue
+
+                if today <= vencimento <= limit_date:
+                    days_remaining = (vencimento - today).days
+                    expiring_members.append({
+                        'member': member,
+                        'vencimento_date': vencimento,
+                        'days_remaining': days_remaining
+                    })
             
             # Ordenar por dias restantes (mais urgente primeiro)
             expiring_members.sort(key=lambda x: x['days_remaining'])

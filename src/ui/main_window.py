@@ -938,47 +938,23 @@ class MainWindow(QMainWindow):
                 from src.data.database_manager import DatabaseManager
                 
                 db = DatabaseManager()
-                if not db.connect():
-                    raise Exception("Não foi possível conectar ao banco de dados")
-                
-                cursor = db.connection.cursor()
-                
-                # Criar índices
-                indices_created = 0
-                indices = [
-                    ("idx_membros_nome", "CREATE INDEX IF NOT EXISTS idx_membros_nome ON membros(nome)"),
-                    ("idx_membros_plano", "CREATE INDEX IF NOT EXISTS idx_membros_plano ON membros(plano)"),
-                    ("idx_membros_estado", "CREATE INDEX IF NOT EXISTS idx_membros_estado_plano ON membros(estado_plano)"),
-                    ("idx_membros_vencimento", "CREATE INDEX IF NOT EXISTS idx_membros_vencimento ON membros(vencimento_plano)"),
-                    ("idx_frequencia_member", "CREATE INDEX IF NOT EXISTS idx_frequencia_member_id ON frequencia(member_id)"),
-                    ("idx_frequencia_datetime", "CREATE INDEX IF NOT EXISTS idx_frequencia_datetime ON frequencia(checkin_datetime)"),
-                    ("idx_pagamentos_member", "CREATE INDEX IF NOT EXISTS idx_pagamentos_member_id ON pagamentos(member_id)"),
-                    ("idx_pagamentos_data", "CREATE INDEX IF NOT EXISTS idx_pagamentos_data ON pagamentos(data_pagamento)"),
-                    ("idx_pagamentos_tipo", "CREATE INDEX IF NOT EXISTS idx_pagamentos_tipo ON pagamentos(tipo_transacao)"),
-                ]
-                
-                for idx_name, sql in indices:
-                    try:
-                        cursor.execute(sql)
-                        indices_created += 1
-                    except Exception as e:
-                        print(f"Aviso: Erro ao criar índice {idx_name}: {e}")
-                
-                # VACUUM e ANALYZE
-                cursor.execute("VACUUM")
-                cursor.execute("ANALYZE")
-                
-                db.connection.commit()
+                stats = db.optimize_and_reindex()
                 db.close()
-                
+
+                indices_checked = stats.get("indices_processed", 0)
+                vacuum_status = "Sim" if stats.get("vacuum_executed") else "Não"
+                analyze_status = "Sim" if stats.get("analyze_executed") else "Não"
+                pragma_status = "Sim" if stats.get("pragma_optimize_executed") else "Não"
+
                 QMessageBox.information(
                     self,
                     "Otimização Concluída",
-                    f"Banco de dados otimizado com sucesso!\n\n"
-                    f"• {indices_created} índices criados/verificados\n"
-                    f"• VACUUM executado\n"
-                    f"• Estatísticas atualizadas\n\n"
-                    f"As buscas devem estar significativamente mais rápidas agora."
+                    "Banco de dados otimizado com sucesso!\n\n"
+                    f"• {indices_checked} índices verificados/recriados\n"
+                    f"• VACUUM executado: {vacuum_status}\n"
+                    f"• ANALYZE executado: {analyze_status}\n"
+                    f"• PRAGMA optimize executado: {pragma_status}\n\n"
+                    "As buscas devem estar significativamente mais rápidas agora."
                 )
                 
             except Exception as e:

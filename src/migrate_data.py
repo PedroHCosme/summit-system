@@ -181,6 +181,7 @@ def migrate_data():
         
         for row in data[3:]:
             nome = get_safe_value(row, COL_NOME)
+            plano_na_aba = get_safe_value(row, COL_PLANO)
             member_id = membros_migrados.get(nome)
             
             if member_id:
@@ -193,7 +194,11 @@ def migrate_data():
                         check_time = get_time_from_period(period_value)
                         full_checkin_datetime = datetime.combine(check_date, check_time)
                         
-                        db_manager.add_checkin(member_id, full_checkin_datetime)
+                        db_manager.add_checkin(
+                            member_id,
+                            full_checkin_datetime,
+                            plan_context=plano_na_aba
+                        )
                         total_checkins += 1
                         
     print(f"✓ {total_checkins} registros de check-in migrados.")

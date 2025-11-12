@@ -8,7 +8,7 @@ from src.data.google_sheets_service import GoogleSheetsService
 from src.data.database_manager import DatabaseManager
 from src.data.migrations import DatabaseMigrator
 from src.config import (
-    SPREADSHEET_ID, 
+    SPREADSHEET_ID,
     CREDENTIALS_PATH,
     COL_NOME,
     COL_PLANO,
@@ -18,8 +18,9 @@ from src.config import (
     COL_WHATSAPP,
     COL_GENERO,
     COL_FREQUENCIA,
-    COL_CALCADO
+    COL_CALCADO,
 )
+from src.utils.date_utils import parse_date as parse_flexible_date
 
 
 class SyncWorker(QThread):
@@ -57,72 +58,15 @@ class SyncWorker(QThread):
         """
         if not vencimento_str or not vencimento_str.strip():
             return 'ATIVO'
-        
-        try:
-            vencimento_dt = None
-            
-            # Formato com barra (/)
-            if '/' in vencimento_str:
-                parts = vencimento_str.split('/')
-                if len(parts[2]) == 4:
-                    # DD/MM/YYYY (ano com 4 dígitos)
-                    vencimento_dt = datetime.strptime(vencimento_str, '%d/%m/%Y')
-                else:
-                    # DD/MM/YY (ano com 2 dígitos)
-                    vencimento_dt = datetime.strptime(vencimento_str, '%d/%m/%y')
-            elif '-' in vencimento_str:
-                parts = vencimento_str.split('-')
-                
-                # Detectar formato baseado no primeiro número
-                # Se primeiro número > 31, é ano (YY-MM-DD ou YYYY-MM-DD)
-                # Se primeiro número <= 31, é dia (DD-MM-YY ou DD-MM-YYYY)
-                first_num = int(parts[0])
-                
-                if first_num > 31:
-                    # Formato YYYY-MM-DD (ano com 4 dígitos)
-                    vencimento_dt = datetime.strptime(vencimento_str, '%Y-%m-%d')
-                elif len(parts[2]) == 4:
-                    # Formato DD-MM-YYYY (ano com 4 dígitos no final)
-                    vencimento_dt = datetime.strptime(vencimento_str, '%d-%m-%Y')
-                else:
-                    # Ambos com 2 dígitos: precisa decidir entre DD-MM-YY e YY-MM-DD
-                    # Se segundo número > 12, é dia (YY-MM-DD invertido seria inválido)
-                    # Se segundo número <= 12, verificar o terceiro
-                    second_num = int(parts[1])
-                    third_num = int(parts[2])
-                    
-                    if second_num > 12:
-                        # Não pode ser mês, então é DD-MM-YY
-                        vencimento_dt = datetime.strptime(vencimento_str, '%d-%m-%y')
-                    elif third_num > 31:
-                        # Terceiro não pode ser dia, então é YY-MM-DD
-                        vencimento_dt = datetime.strptime(vencimento_str, '%y-%m-%d')
-                    else:
-                        # Ambíguo: assumir YY-MM-DD (formato mais comum em dados importados)
-                        # Se der data no passado distante (< 2020), tentar DD-MM-YY
-                        try:
-                            temp_dt = datetime.strptime(vencimento_str, '%y-%m-%d')
-                            if temp_dt.year < 2020:
-                                vencimento_dt = datetime.strptime(vencimento_str, '%d-%m-%y')
-                            else:
-                                vencimento_dt = temp_dt
-                        except ValueError:
-                            vencimento_dt = datetime.strptime(vencimento_str, '%d-%m-%y')
-            else:
-                # Sem separador, tentar YYYYMMDD
-                vencimento_dt = datetime.strptime(vencimento_str, '%Y%m%d')
-            
-            hoje = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-            vencimento_dt = vencimento_dt.replace(hour=0, minute=0, second=0, microsecond=0)
-            
-            # Se a data de vencimento já passou, está INATIVO
-            if vencimento_dt < hoje:
-                return 'INATIVO'
-            else:
-                return 'ATIVO'
-        except (ValueError, AttributeError):
-            # Se não conseguir parsear a data, considera ATIVO
+
+        parsed = parse_flexible_date(vencimento_str)
+        if not parsed:
             return 'ATIVO'
+
+        hoje = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        vencimento_dt = parsed.replace(hour=0, minute=0, second=0, microsecond=0)
+
+        return 'INATIVO' if vencimento_dt < hoje else 'ATIVO'
     
     def run(self):
         """Executa a sincronização."""
@@ -150,6 +94,22 @@ class SyncWorker(QThread):
             # Fase 4: Aplicar migrações automáticas
             self.progress_updated.emit("🛠 Aplicando migrações automáticas...", 22)
             DatabaseMigrator(self.db_manager).run_all()
+
+            # Fase 4.1: Otimizar banco após migrações
+            self.progress_updated.emit("⚙️ Otimizando banco de dados...", 26)
+            try:
+                optimize_stats = self.db_manager.optimize_and_reindex()
+                indices_checked = optimize_stats.get('indices_processed', 0)
+                self.progress_updated.emit(
+                    f"✓ Banco otimizado (índices verificados: {indices_checked})",
+                    28
+                )
+            except Exception as exc:
+                self.progress_updated.emit(
+                    "⚠️ Otimização automática falhou; prosseguindo com a sincronização",
+                    28
+                )
+                print(f"[SyncWorker] Aviso: falha ao otimizar banco automaticamente: {exc}")
             
             # Fase 5: Consolidar membros
             self.progress_updated.emit("📊 Lendo dados do Google Sheets...", 30)
@@ -286,10 +246,13 @@ class SyncWorker(QThread):
                 }
                 
                 if nome in existing_map:
-                    # Membro já existe - ATUALIZAR com novos dados
                     member_id = existing_map[nome]
                     member_data['id'] = member_id
-                    self.db_manager.update_member_from_dict(member_data, register_payment=False)
+                    self.db_manager.update_member_from_dict(
+                        member_data,
+                        register_payment=True,
+                        metodo_pagamento="Sincronização (Sheets)"
+                    )
                     membros_migrados[nome] = member_id
                     existentes += 1
                 else:
@@ -300,6 +263,12 @@ class SyncWorker(QThread):
                     if member_id:
                         membros_migrados[nome] = member_id
                         novos += 1
+                        self.db_manager.auto_register_plan_payment(
+                            member_id=member_id,
+                            plan_name=member_data.get('plano'),
+                            vencimento=member_data.get('vencimento_plano'),
+                            metodo_pagamento="Sincronização (Sheets)"
+                        )
         
         return {
             'mapeamento': membros_migrados,
@@ -361,6 +330,7 @@ class SyncWorker(QThread):
                 
                 for row in data[3:]:
                     nome = self._get_safe_value(row, COL_NOME)
+                    plano_na_aba = self._get_safe_value(row, COL_PLANO)
                     member_id = membros_migrados.get(nome)
                     
                     if member_id:
@@ -375,11 +345,20 @@ class SyncWorker(QThread):
                                 
                                 # Verifica duplicação
                                 if self.db_manager.checkin_exists(member_id, full_datetime):
+                                    self.db_manager.ensure_payment_for_checkin(
+                                        member_id,
+                                        full_datetime,
+                                        plan_context=plano_na_aba
+                                    )
                                     total_duplicados += 1
                                     continue
                                 
                                 try:
-                                    self.db_manager.add_checkin(member_id, full_datetime)
+                                    self.db_manager.add_checkin(
+                                        member_id,
+                                        full_datetime,
+                                        plan_context=plano_na_aba
+                                    )
                                     total_novos += 1
                                 except ValueError as e:
                                     # Check-in duplicado (mesma data)

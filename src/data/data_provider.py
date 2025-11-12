@@ -134,7 +134,12 @@ class DataProvider:
             print("Aviso: A funcionalidade de atualização não é suportada para Google Sheets.")
             return False
 
-    def add_checkin(self, member_id: int, checkin_datetime: datetime) -> Optional[int]:
+    def add_checkin(
+        self,
+        member_id: int,
+        checkin_datetime: datetime,
+        plan_context: Optional[str] = None
+    ) -> Optional[int]:
         """
         Registra um check-in para um membro.
         
@@ -146,7 +151,7 @@ class DataProvider:
             ID do novo registro de check-in ou None
         """
         if self.use_sqlite:
-            return self.db_manager.add_checkin(member_id, checkin_datetime)
+            return self.db_manager.add_checkin(member_id, checkin_datetime, plan_context)
         else:
             # Funcionalidade não suportada para Google Sheets
             print("Aviso: A funcionalidade de check-in não é suportada para Google Sheets.")
@@ -403,9 +408,13 @@ def add_member(member_data: Dict[str, Any]) -> Optional[int]:
     return get_provider().add_member(member_data)
 
 
-def add_checkin(member_id: int, checkin_datetime: datetime) -> Optional[int]:
+def add_checkin(
+    member_id: int,
+    checkin_datetime: datetime,
+    plan_context: Optional[str] = None
+) -> Optional[int]:
     """Registra um check-in para um membro."""
-    return get_provider().add_checkin(member_id, checkin_datetime)
+    return get_provider().add_checkin(member_id, checkin_datetime, plan_context)
 
 def get_checkins_today() -> int:
     """Retorna o número de check-ins de hoje."""
