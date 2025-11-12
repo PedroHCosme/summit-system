@@ -162,13 +162,11 @@ class MainWindow(QMainWindow):
             relatorios_menu = self.gestao_menu.addMenu("📊 Relatórios")
             
             freq_report_action = QAction("📅 Relatório de Frequência", self)
-            freq_report_action.setEnabled(False)  # Será implementado na etapa 5
-            freq_report_action.setToolTip("Em breve: relatório detalhado de frequência")
+            freq_report_action.triggered.connect(self._generate_frequency_report)
             relatorios_menu.addAction(freq_report_action)
             
             member_report_action = QAction("👤 Relatório de Membros", self)
-            member_report_action.setEnabled(False)  # Será implementado na etapa 5
-            member_report_action.setToolTip("Em breve: listagem completa de membros")
+            member_report_action.triggered.connect(self._generate_members_report)
             relatorios_menu.addAction(member_report_action)
             
             # === SEPARADOR ===
@@ -180,17 +178,6 @@ class MainWindow(QMainWindow):
             backup_action = QAction("💾 Backup do Banco", self)
             backup_action.triggered.connect(self._create_database_backup)
             database_menu.addAction(backup_action)
-            
-            optimize_action = QAction("⚡ Otimizar e Reindexar", self)
-            optimize_action.triggered.connect(self._optimize_database)
-            database_menu.addAction(optimize_action)
-            
-            database_menu.addSeparator()
-            
-            migrate_action = QAction("🔧 Migrar Banco (Correções Críticas)", self)
-            migrate_action.triggered.connect(self._run_database_migration)
-            migrate_action.setToolTip("Executa migração crítica: foreign keys, datas, índices")
-            database_menu.addAction(migrate_action)
 
         # Menu Atividade
         self.atividade_menu = self.menubar.addMenu("Atividade")
@@ -918,6 +905,76 @@ class MainWindow(QMainWindow):
                     "Erro no Backup",
                     f"Erro ao criar backup do banco de dados:\n\n{str(e)}"
                 )
+    
+    def _generate_frequency_report(self):
+        """Gera relatório de frequência em HTML."""
+        if not self.is_connected or not self.manager.data_provider or not self.manager.data_provider.db_manager:
+            QMessageBox.warning(
+                self,
+                "Banco Desconectado",
+                "Conecte-se ao banco de dados antes de gerar relatórios."
+            )
+            return
+        
+        try:
+            from src.reports.frequency_report import generate_frequency_report
+            import webbrowser
+            
+            # Gerar relatório (últimos 30 dias por padrão)
+            filepath = generate_frequency_report(self.manager.data_provider.db_manager, days=30)
+            
+            # Abrir no navegador
+            webbrowser.open(f'file://{filepath}')
+            
+            QMessageBox.information(
+                self,
+                "Relatório Gerado",
+                f"Relatório de frequência gerado com sucesso!\n\n"
+                f"O arquivo foi aberto no navegador e salvo em:\n"
+                f"relatorios/"
+            )
+            
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Erro ao Gerar Relatório",
+                f"Erro ao gerar relatório de frequência:\n\n{str(e)}"
+            )
+    
+    def _generate_members_report(self):
+        """Gera relatório de membros em HTML."""
+        if not self.is_connected or not self.manager.data_provider or not self.manager.data_provider.db_manager:
+            QMessageBox.warning(
+                self,
+                "Banco Desconectado",
+                "Conecte-se ao banco de dados antes de gerar relatórios."
+            )
+            return
+        
+        try:
+            from src.reports.members_report import generate_members_report
+            import webbrowser
+            
+            # Gerar relatório
+            filepath = generate_members_report(self.manager.data_provider.db_manager)
+            
+            # Abrir no navegador
+            webbrowser.open(f'file://{filepath}')
+            
+            QMessageBox.information(
+                self,
+                "Relatório Gerado",
+                f"Relatório de membros gerado com sucesso!\n\n"
+                f"O arquivo foi aberto no navegador e salvo em:\n"
+                f"relatorios/"
+            )
+            
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Erro ao Gerar Relatório",
+                f"Erro ao gerar relatório de membros:\n\n{str(e)}"
+            )
     
     def _optimize_database(self):
         """Otimiza o banco de dados criando índices e executando VACUUM."""
