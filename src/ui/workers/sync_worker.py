@@ -2,10 +2,11 @@
 
 from PyQt6.QtCore import QThread, pyqtSignal
 from datetime import datetime
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 
 from src.data.google_sheets_service import GoogleSheetsService
 from src.data.database_manager import DatabaseManager
+from src.data.migrations import DatabaseMigrator
 from src.config import (
     SPREADSHEET_ID, 
     CREDENTIALS_PATH,
@@ -41,8 +42,8 @@ class SyncWorker(QThread):
     
     def __init__(self):
         super().__init__()
-        self.sheets_service = None
-        self.db_manager = None
+        self.sheets_service: Optional[GoogleSheetsService] = None
+        self.db_manager: Optional[DatabaseManager] = None
     
     def _calculate_estado_from_vencimento(self, vencimento_str: str) -> str:
         """
@@ -145,32 +146,36 @@ class SyncWorker(QThread):
             if not self.db_manager.create_tables():
                 self.sync_failed.emit("❌ Erro ao criar/verificar tabelas")
                 return
+
+            # Fase 4: Aplicar migrações automáticas
+            self.progress_updated.emit("🛠 Aplicando migrações automáticas...", 22)
+            DatabaseMigrator(self.db_manager).run_all()
             
-            # Fase 4: Consolidar membros
-            self.progress_updated.emit("📊 Lendo dados do Google Sheets...", 20)
+            # Fase 5: Consolidar membros
+            self.progress_updated.emit("📊 Lendo dados do Google Sheets...", 30)
             consolidated_members = self._consolidate_members()
             
             self.progress_updated.emit(
                 f"✓ {len(consolidated_members)} membros únicos encontrados", 
-                40
+                45
             )
             
-            # Fase 5: Sincronizar membros
-            self.progress_updated.emit("👥 Sincronizando membros...", 45)
+            # Fase 6: Sincronizar membros
+            self.progress_updated.emit("👥 Sincronizando membros...", 55)
             sync_result = self._sync_members(consolidated_members)
             
             self.progress_updated.emit(
                 f"✓ {sync_result['novos']} novos, {sync_result['existentes']} existentes",
-                70
+                75
             )
             
-            # Fase 6: Sincronizar check-ins
-            self.progress_updated.emit("📋 Sincronizando check-ins...", 75)
+            # Fase 7: Sincronizar check-ins
+            self.progress_updated.emit("📋 Sincronizando check-ins...", 82)
             checkin_result = self._sync_checkins(sync_result['mapeamento'])
             
             self.progress_updated.emit(
                 f"✓ {checkin_result['novos']} novos check-ins",
-                95
+                96
             )
             
             # Resultado final
@@ -208,6 +213,8 @@ class SyncWorker(QThread):
     
     def _consolidate_members(self) -> Dict[str, Dict[str, Any]]:
         """Consolida dados de membros de todas as abas."""
+        if not self.sheets_service:
+            raise RuntimeError("Serviço do Google Sheets não inicializado")
         consolidated = {}
         
         for sheet_name in self.SHEET_NAMES:
@@ -247,6 +254,8 @@ class SyncWorker(QThread):
     
     def _sync_members(self, consolidated_members: Dict[str, Dict[str, Any]]) -> Dict:
         """Sincroniza membros no banco de dados."""
+        if not self.db_manager:
+            raise RuntimeError("Banco de dados não inicializado")
         # Carrega membros existentes
         existing_members = self.db_manager.get_all_members()
         existing_map = {m['nome']: m['id'] for m in existing_members}
@@ -300,6 +309,10 @@ class SyncWorker(QThread):
     
     def _sync_checkins(self, membros_migrados: Dict[str, int]) -> Dict:
         """Sincroniza check-ins no banco de dados."""
+        if not self.db_manager:
+            raise RuntimeError("Banco de dados não inicializado")
+        if not self.sheets_service:
+            raise RuntimeError("Serviço do Google Sheets não inicializado")
         from datetime import datetime, time, date
         
         total_novos = 0
@@ -323,7 +336,7 @@ class SyncWorker(QThread):
             if period == 'N':
                 return time(19, 0)
             return time(9, 0)
-        
+
         with self.db_manager.transaction():
             for sheet_name in self.SHEET_NAMES:
                 data = self.sheets_service.read_spreadsheet(
