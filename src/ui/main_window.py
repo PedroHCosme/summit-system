@@ -3,11 +3,12 @@
 import sys
 import webbrowser
 from datetime import datetime
+import os
 
 from PyQt6.QtWidgets import (
     QMainWindow, QStackedWidget, QMessageBox, QDialog, QInputDialog, QApplication
 )
-from PyQt6.QtGui import QAction
+from PyQt6.QtGui import QAction, QIcon
 
 from src.core.aniversariantes_manager import AniversariantesManager
 from src.ui.html_formatter import HTMLFormatter
@@ -61,6 +62,12 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Sistema de Gestão de Membros")
         self.setGeometry(100, 100, 800, 650)
         self.setStyleSheet(STYLESHEET)
+        
+        # Define o ícone da janela
+        base_path = os.path.dirname(__file__)
+        icon_path = os.path.join(base_path, "assets", "summit.png")
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
         
         # Cria o menu
         self._create_menu()
