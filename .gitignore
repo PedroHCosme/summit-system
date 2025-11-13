@@ -29,4 +29,6 @@ env/
 .DS_Store
 Thumbs.db
 *.db
-relatorios/
+
+# Relatórios gerados automaticamente
+relatorios/*.html

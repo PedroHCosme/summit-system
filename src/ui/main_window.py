@@ -1,15 +1,18 @@
 """Janela principal da aplicação."""
 
 import sys
+import webbrowser
+from datetime import datetime
 
 from PyQt6.QtWidgets import (
-    QMainWindow, QStackedWidget, QMessageBox, QDialog
+    QMainWindow, QStackedWidget, QMessageBox, QDialog, QInputDialog, QApplication
 )
 from PyQt6.QtGui import QAction
 
 from src.core.aniversariantes_manager import AniversariantesManager
 from src.ui.html_formatter import HTMLFormatter
 from src.core.member_search_service import MemberSearchService
+from src.reports.finance_report import generate_finance_report
 from src.ui.styles import STYLESHEET
 
 from src.ui.workers import (
@@ -154,8 +157,8 @@ class MainWindow(QMainWindow):
             
             # Placeholder para relatórios (futuro)
             export_financial_action = QAction("📄 Exportar Relatório Financeiro", self)
-            export_financial_action.setEnabled(False)  # Será implementado na etapa 5
-            export_financial_action.setToolTip("Em breve: exportar CSV/PDF")
+            export_financial_action.triggered.connect(self._generate_financial_report)
+            export_financial_action.setToolTip("Gera um relatório financeiro detalhado em HTML")
             pagamentos_menu.addAction(export_financial_action)
             
             # === SUBMENU: Relatórios ===
@@ -554,7 +557,6 @@ class MainWindow(QMainWindow):
                     # Se registrou pagamento, atualizar a aba financeira também
                     if register_payment:
                         from src.data.data_provider import get_provider
-                        provider = get_provider()
                         payments = provider.db_manager.get_member_payment_history(member_id)
                         self.member_search_screen.display_member_financial_history(
                             member_id, 
@@ -975,6 +977,49 @@ class MainWindow(QMainWindow):
                 "Erro ao Gerar Relatório",
                 f"Erro ao gerar relatório de membros:\n\n{str(e)}"
             )
+    
+    def _generate_financial_report(self):
+        """Gera o relatório financeiro em HTML."""
+        if not self.is_connected or not self.manager.data_provider or not self.manager.data_provider.db_manager:
+            QMessageBox.warning(
+                self,
+                "Banco Desconectado",
+                "Conecte-se ao banco de dados antes de gerar relatórios."
+            )
+            return
+
+        # Solicitar o período ao usuário
+        period, ok = QInputDialog.getText(
+            self, 
+            "Período do Relatório", 
+            "Digite o período (ex: '10/2025' para mensal ou 'T4/2025' para trimestral):"
+        )
+
+        if ok and period:
+            try:
+                # Gerar o relatório
+                filepath = generate_finance_report(
+                    db_manager=self.manager.data_provider.db_manager,
+                    period=period
+                )
+                
+                # Abrir no navegador
+                webbrowser.open(f'file://{filepath}')
+                
+                QMessageBox.information(
+                    self,
+                    "Relatório Gerado",
+                    f"Relatório financeiro para o período '{period}' gerado com sucesso!\n\n"
+                    f"O arquivo foi aberto no navegador e salvo em:\n"
+                    f"relatorios/"
+                )
+                
+            except Exception as e:
+                QMessageBox.critical(
+                    self,
+                    "Erro ao Gerar Relatório",
+                    f"Erro ao gerar relatório financeiro:\n\n{str(e)}"
+                )
     
     def _optimize_database(self):
         """Otimiza o banco de dados criando índices e executando VACUUM."""

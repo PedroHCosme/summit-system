@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, date
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Union
+from html import escape
 
 from src.data.database_manager import DatabaseManager
 from src.utils.date_utils import parse_date_to_date
@@ -82,6 +83,8 @@ def _generate_html_header(title: str) -> str:
             padding: 25px;
             border-radius: 10px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
         }}
         
         .stat-card.blue {{
@@ -100,6 +103,11 @@ def _generate_html_header(title: str) -> str:
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         }}
         
+        .stat-card:hover {{
+            transform: translateY(-5px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+        }}
+        
         .stat-card .label {{
             font-size: 0.9em;
             opacity: 0.9;
@@ -109,6 +117,12 @@ def _generate_html_header(title: str) -> str:
         .stat-card .value {{
             font-size: 2.5em;
             font-weight: bold;
+        }}
+        
+        .stat-card .hint {{
+            font-size: 0.75em;
+            opacity: 0.8;
+            margin-top: 5px;
         }}
         
         .section {{
@@ -209,23 +223,6 @@ def _generate_html_header(title: str) -> str:
             font-weight: 600;
         }}
         
-        /* Interatividade */
-        .stat-card {{
-            cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
-        }}
-        
-        .stat-card:hover {{
-            transform: translateY(-5px);
-            box-shadow: 0 6px 20px rgba(0,0,0,0.2);
-        }}
-        
-        .stat-card .hint {{
-            font-size: 0.75em;
-            opacity: 0.8;
-            margin-top: 5px;
-        }}
-        
         .filter-buttons {{
             display: flex;
             gap: 10px;
@@ -271,6 +268,27 @@ def _generate_html_header(title: str) -> str:
         .filter-btn.inactive-filter {{
             background: linear-gradient(135deg, #ff9a56 0%, #ff6a88 100%);
             color: white;
+        }}
+        
+        .plan-filter {{
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }}
+        
+        .plan-filter label {{
+            font-weight: 600;
+            color: #667eea;
+        }}
+        
+        .plan-filter select {{
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: 1px solid #d0d0d0;
+            font-size: 0.9em;
+            min-width: 220px;
         }}
         
         .hidden {{
@@ -454,6 +472,15 @@ def generate_members_report(db_manager: DatabaseManager) -> str:
         ORDER BY total DESC
     """)
     plan_distribution = cursor.fetchall()
+
+    plan_value_order: List[str] = []
+    seen_plan_values: set[str] = set()
+    for plan_name, _ in plan_distribution:
+        plan_value = plan_name or "Sem Plano"
+        if plan_value in seen_plan_values:
+            continue
+        seen_plan_values.add(plan_value)
+        plan_value_order.append(plan_value)
     
     # Distribuição por gênero
     cursor.execute("""
@@ -534,6 +561,18 @@ def generate_members_report(db_manager: DatabaseManager) -> str:
 
     # Ordenar membros inativos por data da última visita (mais recente primeiro)
     inactive_members.sort(key=lambda item: item[-1], reverse=True)
+
+    plan_options_html = "".join(
+        f'<option value="{escape(plan_value, quote=True)}">{escape(plan_value)}</option>'
+        for plan_value in plan_value_order
+    )
+
+    inactive_plan_labels = {member[2] or "Sem Plano" for member in inactive_members}
+    inactive_plan_options_html = "".join(
+        f'<option value="{escape(plan_value, quote=True)}">{escape(plan_value)}</option>'
+        for plan_value in plan_value_order
+        if plan_value in inactive_plan_labels
+    )
 
     # Membros que vencem nos próximos 7 dias (detalhados)
     expiring_members_details = []
@@ -640,12 +679,19 @@ def generate_members_report(db_manager: DatabaseManager) -> str:
             
             <!-- Seção de Membros Inativos -->
             <div class="section" id="inactive-section" {"" if len(inactive_members) > 0 else 'style="display:none;"'}>
-                <h2>🔴 Membros em Risco de Cancelamento ({len(inactive_members)})</h2>
+                <h2>🔴 Membros em Risco de Cancelamento (<span id="inactive-count">{len(inactive_members)}</span>)</h2>
                 <p style="margin-bottom: 15px; color: #856404;">
                     <strong>Estratégia de Retenção:</strong> Estes membros estavam ativos mas pararam de frequentar. 
                     Entre em contato oferecendo: desconto na renovação, sessão gratuita com instrutor, ou novos horários/atividades.
                 </p>
-                <table>
+                <div class="plan-filter">
+                    <label for="inactive-plan-filter">Filtrar por plano:</label>
+                    <select id="inactive-plan-filter">
+                        <option value="all">Todos os planos</option>
+                        {inactive_plan_options_html}
+                    </select>
+                </div>
+                <table id="inactive-members-table">
                     <thead>
                         <tr>
                             <th>Nome</th>
@@ -663,6 +709,9 @@ def generate_members_report(db_manager: DatabaseManager) -> str:
         
         ultimo_checkin_display = ultimo_checkin_dt.strftime('%d/%m/%Y')
         days_inactive = (datetime.now() - ultimo_checkin_dt).days
+
+        plan_display = plano or 'Sem Plano'
+        plan_attr_value = escape(plan_display, quote=True)
         
         vencimento_parsed = parse_date_to_date(vencimento_str) if vencimento_str else None
         status_plano = "Ativo" if vencimento_parsed and vencimento_parsed >= today else "Vencido"
@@ -670,15 +719,21 @@ def generate_members_report(db_manager: DatabaseManager) -> str:
         
         contact_info = []
         if email:
-            contact_info.append(f"✉️ {email}")
+            contact_info.append(f"✉️ {escape(email)}")
         if whatsapp:
-            contact_info.append(f"📱 {whatsapp}")
+            whatsapp_clean = ''.join(filter(str.isdigit, whatsapp))
+            whatsapp_link = f"https://wa.me/{whatsapp_clean}" if whatsapp_clean else None
+            whatsapp_display = escape(whatsapp)
+            if whatsapp_link:
+                contact_info.append(f"📱 <a href=\"{whatsapp_link}\" target=\"_blank\" rel=\"noopener\">{whatsapp_display}</a>")
+            else:
+                contact_info.append(f"📱 {whatsapp_display}")
         contact_display = "<br>".join(contact_info) if contact_info else "Sem contato"
         
         html += f"""
-                        <tr>
+                        <tr data-plan="{plan_attr_value}">
                             <td><strong>{nome}</strong></td>
-                            <td><span class="plan-badge">{plano}</span></td>
+                            <td><span class="plan-badge">{plan_display}</span></td>
                             <td>{ultimo_checkin_display} <span style="color: #dc3545;">({days_inactive}d atrás)</span></td>
                             <td><span class="status-badge {status_class}">{status_plano}</span></td>
                             <td class="contact">{contact_display}</td>
@@ -806,6 +861,14 @@ def generate_members_report(db_manager: DatabaseManager) -> str:
                         🔴 Inativos ({len(inactive_members)})
                     </button>
                 </div>
+
+                <div class="plan-filter">
+                    <label for="plan-filter">Filtrar por plano:</label>
+                    <select id="plan-filter">
+                        <option value="all">Todos os planos</option>
+                        {plan_options_html}
+                    </select>
+                </div>
                 
                 <div id="filter-info" style="margin-bottom: 15px; padding: 10px; background: #f8f9fa; border-radius: 8px; display: none;">
                     <strong>Filtro ativo:</strong> <span id="filter-description"></span>
@@ -861,6 +924,9 @@ def generate_members_report(db_manager: DatabaseManager) -> str:
         
         categories_str = ' '.join(categories)
         
+        plan_display = plano or 'Sem Plano'
+        plan_attr_value = escape(plan_display, quote=True)
+
         vencimento_dt = _parse_date(vencimento) if vencimento else None
         vencimento_display = vencimento_dt.strftime('%d/%m/%Y') if vencimento_dt else 'N/A'
 
@@ -876,15 +942,21 @@ def generate_members_report(db_manager: DatabaseManager) -> str:
         
         contact_info = []
         if email:
-            contact_info.append(f"✉️ {email}")
+            contact_info.append(f"✉️ {escape(email)}")
         if whatsapp:
-            contact_info.append(f"📱 {whatsapp}")
+            whatsapp_clean = ''.join(filter(str.isdigit, whatsapp))
+            whatsapp_link = f"https://wa.me/{whatsapp_clean}" if whatsapp_clean else None
+            whatsapp_display = escape(whatsapp)
+            if whatsapp_link:
+                contact_info.append(f"📱 <a href=\"{whatsapp_link}\" target=\"_blank\" rel=\"noopener\">{whatsapp_display}</a>")
+            else:
+                contact_info.append(f"📱 {whatsapp_display}")
         contact_display = "<br>".join(contact_info) if contact_info else "Sem contato"
         
         html += f"""
-                        <tr class="member-row" data-categories="{categories_str}">
+                        <tr class="member-row" data-categories="{categories_str}" data-plan="{plan_attr_value}">
                             <td><strong>{nome}</strong></td>
-                            <td><span class="plan-badge">{plano}</span></td>
+                            <td><span class="plan-badge">{plan_display}</span></td>
                             <td><span class="status-badge {status_class}">{status_text}</span></td>
                             <td>{vencimento_display}</td>
                             <td>{last_visit_display}</td>
@@ -906,85 +978,162 @@ def generate_members_report(db_manager: DatabaseManager) -> str:
     
     <script>
         let currentFilter = 'all';
-        
+        let currentPlan = 'all';
+        const planLabels = { all: 'Todos os planos' };
+
         function showAllMembers() {
             currentFilter = 'all';
-            const rows = document.querySelectorAll('.member-row');
-            rows.forEach(row => row.style.display = '');
-            
             updateFilterButtons('all');
-            hideFilterInfo();
-            updateMemberCount(rows.length);
+            applyFilters();
         }
-        
+
         function filterMembers(category) {
             currentFilter = category;
+            updateFilterButtons(category);
+            applyFilters();
+        }
+
+        function applyFilters() {
             const rows = document.querySelectorAll('.member-row');
             let visibleCount = 0;
-            
+
             rows.forEach(row => {
-                const categories = row.dataset.categories.split(' ');
-                if (categories.includes(category)) {
+                const categories = (row.dataset.categories || '').split(' ').filter(Boolean);
+                const planValue = row.dataset.plan || '';
+                const matchesCategory = currentFilter === 'all' || categories.includes(currentFilter);
+                const matchesPlan = currentPlan === 'all' || planValue === currentPlan;
+
+                if (matchesCategory && matchesPlan) {
                     row.style.display = '';
                     visibleCount++;
                 } else {
                     row.style.display = 'none';
                 }
             });
-            
-            updateFilterButtons(category);
-            showFilterInfo(category, visibleCount);
+
             updateMemberCount(visibleCount);
-        }
-        
-        function updateFilterButtons(activeCategory) {
-            const buttons = document.querySelectorAll('.filter-btn');
-            buttons.forEach(btn => {
-                btn.classList.remove('active');
-            });
-            
-            if (activeCategory === 'all') {
-                document.querySelector('.filter-btn.all').classList.add('active');
+
+            if (currentFilter === 'all' && currentPlan === 'all') {
+                hideFilterInfo();
             } else {
-                document.querySelector(`.filter-btn.${activeCategory}-filter`).classList.add('active');
+                showFilterInfo(currentFilter, currentPlan, visibleCount);
             }
         }
-        
-        function showFilterInfo(category, count) {
+
+        function updateFilterButtons(activeCategory) {
+            const buttons = document.querySelectorAll('.filter-btn');
+            buttons.forEach(btn => btn.classList.remove('active'));
+
+            if (activeCategory === 'all') {
+                const allButton = document.querySelector('.filter-btn.all');
+                if (allButton) {
+                    allButton.classList.add('active');
+                }
+            } else {
+                const targetButton = document.querySelector(`.filter-btn.${activeCategory}-filter`);
+                if (targetButton) {
+                    targetButton.classList.add('active');
+                }
+            }
+        }
+
+        function showFilterInfo(category, planValue, count) {
             const info = document.getElementById('filter-info');
             const description = document.getElementById('filter-description');
-            
+
             const descriptions = {
-                'active': `Mostrando ${count} membro(s) com planos ativos (vencimento futuro)`,
-                'expiring': `Mostrando ${count} membro(s) com planos vencendo nos próximos 7 dias - CONTATE URGENTE para renovação!`,
-                'expired': `Mostrando ${count} membro(s) com planos vencidos - Oportunidade de reengajamento`,
-                'inactive': `Mostrando ${count} membro(s) em risco - Frequentaram nos últimos 3 meses mas não voltam há 1 mês`
+                all: qty => `Mostrando ${qty} membro(s)`,
+                active: qty => `Mostrando ${qty} membro(s) com planos ativos (vencimento futuro)`,
+                expiring: qty => `Mostrando ${qty} membro(s) com planos vencendo nos próximos 7 dias - CONTATE URGENTE para renovação!`,
+                expired: qty => `Mostrando ${qty} membro(s) com planos vencidos - Oportunidade de reengajamento`,
+                inactive: qty => `Mostrando ${qty} membro(s) em risco - Frequentaram nos últimos 3 meses mas não voltam há 1 mês`
             };
-            
-            description.textContent = descriptions[category];
+
+            const statusMessage = (descriptions[category] || descriptions.all)(count);
+            let message = statusMessage;
+
+            if (planValue !== 'all') {
+                const planLabel = planLabels[planValue] || planValue;
+                message += ` | Plano filtrado: ${planLabel}`;
+            }
+
+            description.textContent = message;
             info.style.display = 'block';
         }
-        
+
         function hideFilterInfo() {
-            document.getElementById('filter-info').style.display = 'none';
+            const info = document.getElementById('filter-info');
+            if (info) {
+                info.style.display = 'none';
+            }
         }
-        
+
         function updateMemberCount(count) {
-            // Atualizar contador na seção se necessário
             console.log(`Exibindo ${count} membro(s)`);
         }
-        
-        // Scroll suave para a tabela quando clicar nos cards
+
+        function applyInactivePlanFilter() {
+            const select = document.getElementById('inactive-plan-filter');
+            if (!select) {
+                return;
+            }
+
+            const selected = select.value;
+            const rows = document.querySelectorAll('#inactive-members-table tbody tr');
+            let visible = 0;
+
+            rows.forEach(row => {
+                const planValue = row.dataset.plan || '';
+                if (selected === 'all' || planValue === selected) {
+                    row.style.display = '';
+                    visible++;
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+
+            const countElement = document.getElementById('inactive-count');
+            if (countElement) {
+                countElement.textContent = visible;
+            }
+        }
+
+        function setupPlanFilters() {
+            const planSelect = document.getElementById('plan-filter');
+            if (planSelect) {
+                Array.from(planSelect.options).forEach(option => {
+                    planLabels[option.value] = option.textContent;
+                });
+
+                planSelect.addEventListener('change', () => {
+                    currentPlan = planSelect.value;
+                    applyFilters();
+                });
+            }
+
+            const inactivePlanSelect = document.getElementById('inactive-plan-filter');
+            if (inactivePlanSelect) {
+                inactivePlanSelect.addEventListener('change', applyInactivePlanFilter);
+                applyInactivePlanFilter();
+            }
+        }
+
         document.querySelectorAll('.stat-card').forEach(card => {
-            card.addEventListener('click', function() {
+            card.addEventListener('click', () => {
                 setTimeout(() => {
-                    document.getElementById('members-table').scrollIntoView({ 
-                        behavior: 'smooth',
-                        block: 'start'
-                    });
+                    const membersTable = document.getElementById('members-table');
+                    if (membersTable) {
+                        membersTable.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'start'
+                        });
+                    }
                 }, 100);
             });
         });
+
+        setupPlanFilters();
+        applyFilters();
     </script>
     """
     
