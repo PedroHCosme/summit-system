@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from pathlib import Path
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional, Union
 
 from src.data.database_manager import DatabaseManager
+from src.utils.date_utils import parse_date_to_date
 
 
 def _get_reports_dir() -> Path:
@@ -207,6 +208,123 @@ def _generate_html_header(title: str) -> str:
             font-size: 0.85em;
             font-weight: 600;
         }}
+        
+        /* Interatividade */
+        .stat-card {{
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }}
+        
+        .stat-card:hover {{
+            transform: translateY(-5px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+        }}
+        
+        .stat-card .hint {{
+            font-size: 0.75em;
+            opacity: 0.8;
+            margin-top: 5px;
+        }}
+        
+        .filter-buttons {{
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }}
+        
+        .filter-btn {{
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 0.9em;
+        }}
+        
+        .filter-btn.active {{
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }}
+        
+        .filter-btn.all {{
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }}
+        
+        .filter-btn.active-filter {{
+            background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+            color: white;
+        }}
+        
+        .filter-btn.expiring-filter {{
+            background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+            color: white;
+        }}
+        
+        .filter-btn.expired-filter {{
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+        }}
+        
+        .filter-btn.inactive-filter {{
+            background: linear-gradient(135deg, #ff9a56 0%, #ff6a88 100%);
+            color: white;
+        }}
+        
+        .hidden {{
+            display: none !important;
+        }}
+        
+        .info-box {{
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }}
+        
+        .info-box h3 {{
+            color: #667eea;
+            margin-bottom: 10px;
+        }}
+        
+        .info-box ul {{
+            margin-left: 20px;
+            line-height: 1.8;
+        }}
+        
+        .alert-box {{
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }}
+        
+        .alert-box h3 {{
+            color: #856404;
+            margin-bottom: 10px;
+        }}
+        
+        .success-box {{
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }}
+        
+        .success-box h3 {{
+            color: #155724;
+            margin-bottom: 10px;
+        }}
+        
+        .member-count {{
+            font-weight: bold;
+            color: #667eea;
+        }}
     </style>
 </head>
 <body>
@@ -224,19 +342,30 @@ def _generate_html_footer() -> str:
 """
 
 
-def _parse_date(date_str: str) -> datetime:
-    """Parse date from database format."""
+def _parse_date(date_str: Optional[Union[str, datetime, date]]) -> Optional[datetime]:
+    """Parse date from database format usando a mesma lógica do sistema."""
     if not date_str:
         return None
+
+    if isinstance(date_str, datetime):
+        return date_str
+
+    if isinstance(date_str, date):
+        return datetime.combine(date_str, datetime.min.time())
+
     try:
-        # Try various formats
-        for fmt in ['%Y-%m-%d', '%d/%m/%Y', '%Y-%m-%d %H:%M:%S']:
-            try:
-                return datetime.strptime(date_str, fmt)
-            except ValueError:
-                continue
-    except Exception:
+        # Tentar interpretar strings completas de datetime (ex: "2025-01-07 19:00:00")
+        # Isso preserva o horário para ordenação correta dos check-ins.
+        return datetime.fromisoformat(date_str)
+    except (TypeError, ValueError):
         pass
+    
+    # Usar a função parse_date_to_date do sistema que já funciona
+    date_obj = parse_date_to_date(date_str)
+    if date_obj:
+        # Converter date para datetime
+        return datetime.combine(date_obj, datetime.min.time())
+    
     return None
 
 
@@ -273,25 +402,49 @@ def generate_members_report(db_manager: DatabaseManager) -> str:
     if not db_manager.connection and not db_manager.connect():
         raise RuntimeError("Não foi possível conectar ao banco de dados")
     
+    assert db_manager.connection is not None, "Conexão com banco ausente após tentativa de conexão"
+
     cursor = db_manager.connection.cursor()
     
     # Estatísticas gerais
     cursor.execute("SELECT COUNT(*) FROM membros")
     total_members = cursor.fetchone()[0]
     
-    today = datetime.now().strftime('%Y-%m-%d')
-    cursor.execute("SELECT COUNT(*) FROM membros WHERE vencimento_plano >= ?", (today,))
-    active_members = cursor.fetchone()[0]
+    # Calcular contadores usando parse de datas (mesmo método do dialog)
+    today = datetime.now().date()
+    week_ahead = today + timedelta(days=7)
     
-    cursor.execute("SELECT COUNT(*) FROM membros WHERE vencimento_plano < ?", (today,))
-    expired_members = cursor.fetchone()[0]
+    # Planos que não têm conceito de vencimento (pagos por check-in)
+    per_checkin_plans = {'Gympass', 'Diária', 'Livre', 'Voucher', 'Diária Boulder', 'Totalpass'}
     
-    week_ahead = (datetime.now() + timedelta(days=7)).strftime('%Y-%m-%d')
-    cursor.execute("""
-        SELECT COUNT(*) FROM membros 
-        WHERE vencimento_plano >= ? AND vencimento_plano <= ?
-    """, (today, week_ahead))
-    expiring_soon = cursor.fetchone()[0]
+    # Buscar todos os membros com seus planos para calcular estatísticas
+    cursor.execute("SELECT vencimento_plano, plano FROM membros")
+    all_members_data = cursor.fetchall()
+    
+    active_members = 0
+    expired_members = 0
+    expiring_soon = 0
+    
+    for vencimento_str, plano in all_members_data:
+        # Planos por check-in não contam como vencidos
+        if plano in per_checkin_plans:
+            continue
+            
+        if not vencimento_str:
+            expired_members += 1
+            continue
+        
+        vencimento = parse_date_to_date(vencimento_str)
+        if not vencimento:
+            expired_members += 1
+            continue
+        
+        if vencimento >= today:
+            active_members += 1
+            if today <= vencimento <= week_ahead:
+                expiring_soon += 1
+        else:
+            expired_members += 1
     
     # Distribuição por plano
     cursor.execute("""
@@ -320,11 +473,102 @@ def generate_members_report(db_manager: DatabaseManager) -> str:
             plano,
             vencimento_plano,
             genero,
-            data_nascimento
+            data_nascimento,
+            id
         FROM membros
         ORDER BY nome
     """)
     members = cursor.fetchall()
+    
+    # Criar mapa de membros para acesso rápido por ID
+    members_by_id = {member[-1]: member for member in members}
+
+    # Mapear última visita de cada membro utilizando parse consistente
+    cursor.execute("""
+        SELECT member_id, checkin_datetime
+        FROM frequencia
+        WHERE checkin_datetime IS NOT NULL
+    """)
+    raw_checkins = cursor.fetchall()
+    print(f"[DEBUG] Total de check-ins retornados: {len(raw_checkins)}")
+    if raw_checkins:
+        print(f"[DEBUG] Primeiros check-ins recebidos: {raw_checkins[:5]}")
+
+    last_visits_map: Dict[int, datetime] = {}
+    debug_failures = 0
+    for member_id, checkin_str in raw_checkins:
+        visit_dt = _parse_date(checkin_str)
+        if not visit_dt:
+            if debug_failures < 10:
+                print(f"[DEBUG] Falha ao converter check-in. member_id={member_id}, valor='{checkin_str}'")
+                debug_failures += 1
+            continue
+        previous_visit = last_visits_map.get(member_id)
+        if not previous_visit or visit_dt > previous_visit:
+            last_visits_map[member_id] = visit_dt
+            print(f"[DEBUG] Atualizando última visita: member_id={member_id}, visita={visit_dt}")
+    print(f"[DEBUG] Membros com última visita registrada: {len(last_visits_map)}")
+
+    # Análise de retenção: membros que frequentaram nos últimos 3 meses mas não voltam há 1 mês
+    three_months_ago = datetime.now() - timedelta(days=90)
+    one_month_ago = datetime.now() - timedelta(days=30)
+
+    inactive_members = []
+    for member_id, last_visit_dt in last_visits_map.items():
+        if three_months_ago <= last_visit_dt < one_month_ago:
+            member_data = members_by_id.get(member_id)
+            if not member_data:
+                continue
+            nome, email, whatsapp, plano, vencimento_plano, genero, data_nascimento, _ = member_data
+            inactive_members.append(
+                (
+                    member_id,
+                    nome,
+                    plano,
+                    email,
+                    whatsapp,
+                    vencimento_plano,
+                    last_visit_dt,
+                )
+            )
+
+    # Ordenar membros inativos por data da última visita (mais recente primeiro)
+    inactive_members.sort(key=lambda item: item[-1], reverse=True)
+
+    # Membros que vencem nos próximos 7 dias (detalhados)
+    expiring_members_details = []
+    for vencimento_str, plano in all_members_data:
+        # Planos por check-in não têm vencimento
+        if plano in per_checkin_plans:
+            continue
+            
+        if not vencimento_str:
+            continue
+        vencimento = parse_date_to_date(vencimento_str)
+        if not vencimento:
+            continue
+        if today <= vencimento <= week_ahead:
+            # Buscar detalhes do membro
+            cursor.execute("""
+                SELECT nome, email, whatsapp, plano, vencimento_plano, id
+                FROM membros
+                WHERE vencimento_plano = ? AND plano = ?
+            """, (vencimento_str, plano))
+            member_detail = cursor.fetchone()
+            if member_detail:
+                days_remaining = (vencimento - today).days
+                expiring_members_details.append((*member_detail, days_remaining))
+    
+    # Análise de conversão por plano (últimos 30 dias)
+    thirty_days_ago = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
+    cursor.execute("""
+        SELECT plano, COUNT(*) as novos_membros
+        FROM membros
+        WHERE created_at >= ?
+        GROUP BY plano
+        ORDER BY novos_membros DESC
+    """, (thirty_days_ago,))
+    new_members_by_plan = cursor.fetchall()
     
     cursor.close()
     
@@ -339,27 +583,151 @@ def generate_members_report(db_manager: DatabaseManager) -> str:
         </div>
         
         <div class="content">
+            <div class="info-box">
+                <h3>📊 Como usar este relatório</h3>
+                <ul>
+                    <li><strong>Cards Clicáveis:</strong> Clique nos cards coloridos para filtrar membros por status</li>
+                    <li><strong>Membros Ativos:</strong> Planos com vencimento futuro (data de vencimento ≥ hoje)</li>
+                    <li><strong>Vencendo:</strong> Planos que expiram nos próximos 7 dias (oportunidade de renovação!)</li>
+                    <li><strong>Vencidos:</strong> Planos com data de vencimento no passado</li>
+                    <li><strong>Inativos:</strong> Membros que frequentaram nos últimos 3 meses mas não voltam há 1 mês (risco de cancelamento!)</li>
+                </ul>
+            </div>
+            
             <div class="stats-grid">
-                <div class="stat-card blue">
+                <div class="stat-card blue" onclick="showAllMembers()">
                     <div class="label">Total de Membros</div>
                     <div class="value">{total_members}</div>
+                    <div class="hint">👆 Clique para ver todos</div>
                 </div>
                 
-                <div class="stat-card green">
+                <div class="stat-card green" onclick="filterMembers('active')">
                     <div class="label">Ativos</div>
                     <div class="value">{active_members}</div>
+                    <div class="hint">👆 Clique para ver lista</div>
                 </div>
                 
-                <div class="stat-card orange">
+                <div class="stat-card orange" onclick="filterMembers('expiring')">
                     <div class="label">Vencendo (7 dias)</div>
                     <div class="value">{expiring_soon}</div>
+                    <div class="hint">👆 Clique para ver quem</div>
                 </div>
                 
-                <div class="stat-card">
+                <div class="stat-card" onclick="filterMembers('expired')">
                     <div class="label">Vencidos</div>
                     <div class="value">{expired_members}</div>
+                    <div class="hint">👆 Clique para ver lista</div>
                 </div>
             </div>
+            
+            <!-- Alerta de Retenção -->"""
+    
+    if len(inactive_members) > 0:
+        html += f"""
+            <div class="alert-box">
+                <h3>⚠️ Alerta de Retenção: {len(inactive_members)} membro(s) em risco!</h3>
+                <p>Estes membros frequentaram nos últimos 3 meses mas não aparecem há mais de 1 mês. 
+                   <strong>Ação recomendada:</strong> Entre em contato para reengajar antes do cancelamento!</p>
+            </div>"""
+    else:
+        html += """
+            <div class="success-box">
+                <h3>✅ Retenção Excelente!</h3>
+                <p>Nenhum membro ativo apresenta sinais de abandono. Continue com o excelente trabalho!</p>
+            </div>"""
+    
+    html += f"""
+            
+            <!-- Seção de Membros Inativos -->
+            <div class="section" id="inactive-section" {"" if len(inactive_members) > 0 else 'style="display:none;"'}>
+                <h2>🔴 Membros em Risco de Cancelamento ({len(inactive_members)})</h2>
+                <p style="margin-bottom: 15px; color: #856404;">
+                    <strong>Estratégia de Retenção:</strong> Estes membros estavam ativos mas pararam de frequentar. 
+                    Entre em contato oferecendo: desconto na renovação, sessão gratuita com instrutor, ou novos horários/atividades.
+                </p>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Nome</th>
+                            <th>Plano</th>
+                            <th>Último Check-in</th>
+                            <th>Status do Plano</th>
+                            <th>Contato</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+    """
+    
+    for member in inactive_members:
+        member_id, nome, plano, email, whatsapp, vencimento_str, ultimo_checkin_dt = member
+        
+        ultimo_checkin_display = ultimo_checkin_dt.strftime('%d/%m/%Y')
+        days_inactive = (datetime.now() - ultimo_checkin_dt).days
+        
+        vencimento_parsed = parse_date_to_date(vencimento_str) if vencimento_str else None
+        status_plano = "Ativo" if vencimento_parsed and vencimento_parsed >= today else "Vencido"
+        status_class = "active" if status_plano == "Ativo" else "expired"
+        
+        contact_info = []
+        if email:
+            contact_info.append(f"✉️ {email}")
+        if whatsapp:
+            contact_info.append(f"📱 {whatsapp}")
+        contact_display = "<br>".join(contact_info) if contact_info else "Sem contato"
+        
+        html += f"""
+                        <tr>
+                            <td><strong>{nome}</strong></td>
+                            <td><span class="plan-badge">{plano}</span></td>
+                            <td>{ultimo_checkin_display} <span style="color: #dc3545;">({days_inactive}d atrás)</span></td>
+                            <td><span class="status-badge {status_class}">{status_plano}</span></td>
+                            <td class="contact">{contact_display}</td>
+                        </tr>
+        """
+    
+    html += """
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Análise de Novos Membros (últimos 30 dias) -->"""
+    
+    total_new = sum(count for _, count in new_members_by_plan)
+    if total_new > 0:
+        html += f"""
+            <div class="section">
+                <h2>🎉 Novos Membros (últimos 30 dias): {total_new}</h2>
+                <p style="margin-bottom: 15px; color: #155724;">
+                    <strong>Análise de Conversão:</strong> Acompanhe quais planos estão vendendo mais para otimizar estratégias de marketing.
+                </p>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Plano</th>
+                            <th>Novos Membros</th>
+                            <th>% do Total de Novos</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        """
+        
+        for plano, count in new_members_by_plan:
+            percentage = (count / total_new * 100) if total_new > 0 else 0
+            html += f"""
+                        <tr>
+                            <td><strong>{plano}</strong></td>
+                            <td>{count}</td>
+                            <td>{percentage:.1f}%</td>
+                        </tr>
+            """
+        
+        html += """
+                    </tbody>
+                </table>
+            </div>
+        """
+    
+    html += """
             
             <div class="section">
                 <h2>📊 Distribuição por Plano</h2>
@@ -413,20 +781,44 @@ def generate_members_report(db_manager: DatabaseManager) -> str:
                         </tr>
         """
     
-    html += """
+    html += f"""
                     </tbody>
                 </table>
             </div>
             
             <div class="section">
                 <h2>📋 Lista Completa de Membros</h2>
-                <table>
+                
+                <div class="filter-buttons">
+                    <button class="filter-btn all active" onclick="showAllMembers()">
+                        👥 Todos ({total_members})
+                    </button>
+                    <button class="filter-btn active-filter" onclick="filterMembers('active')">
+                        ✅ Ativos ({active_members})
+                    </button>
+                    <button class="filter-btn expiring-filter" onclick="filterMembers('expiring')">
+                        ⚠️ Vencendo ({expiring_soon})
+                    </button>
+                    <button class="filter-btn expired-filter" onclick="filterMembers('expired')">
+                        ❌ Vencidos ({expired_members})
+                    </button>
+                    <button class="filter-btn inactive-filter" onclick="filterMembers('inactive')">
+                        🔴 Inativos ({len(inactive_members)})
+                    </button>
+                </div>
+                
+                <div id="filter-info" style="margin-bottom: 15px; padding: 10px; background: #f8f9fa; border-radius: 8px; display: none;">
+                    <strong>Filtro ativo:</strong> <span id="filter-description"></span>
+                </div>
+                
+                <table id="members-table">
                     <thead>
                         <tr>
                             <th>Nome</th>
                             <th>Plano</th>
                             <th>Status</th>
                             <th>Vencimento</th>
+                            <th>Última Visita</th>
                             <th>Contato</th>
                             <th>Gênero</th>
                             <th>Nascimento</th>
@@ -435,12 +827,52 @@ def generate_members_report(db_manager: DatabaseManager) -> str:
                     <tbody>
     """
     
+    # Mapa de últimas visitas calculado anteriormente
+    last_visits = last_visits_map
+    
     for member in members:
-        nome, email, whatsapp, plano, vencimento, genero, nascimento = member
+        nome, email, whatsapp, plano, vencimento, genero, nascimento, member_id = member
         status_text, status_class = _get_status_info(vencimento)
         
-        vencimento_display = _parse_date(vencimento).strftime('%d/%m/%Y') if vencimento and _parse_date(vencimento) else 'N/A'
-        nascimento_display = _parse_date(nascimento).strftime('%d/%m/%Y') if nascimento and _parse_date(nascimento) else 'N/A'
+        # Determinar categoria do membro
+        vencimento_parsed = parse_date_to_date(vencimento) if vencimento else None
+        is_active = vencimento_parsed and vencimento_parsed >= today
+        is_expiring = vencimento_parsed and today <= vencimento_parsed <= week_ahead
+        
+        # Para planos por check-in, não mostrar como "vencido"
+        # Eles não têm conceito de vencimento de plano
+        if plano in per_checkin_plans:
+            is_expired = False
+        else:
+            is_expired = not vencimento_parsed or vencimento_parsed < today
+        
+        # Verificar se está na lista de inativos
+        is_inactive = any(m[0] == member_id for m in inactive_members)
+        
+        categories = []
+        if is_active:
+            categories.append('active')
+        if is_expiring:
+            categories.append('expiring')
+        if is_expired:
+            categories.append('expired')
+        if is_inactive:
+            categories.append('inactive')
+        
+        categories_str = ' '.join(categories)
+        
+        vencimento_dt = _parse_date(vencimento) if vencimento else None
+        vencimento_display = vencimento_dt.strftime('%d/%m/%Y') if vencimento_dt else 'N/A'
+
+        nascimento_dt = _parse_date(nascimento) if nascimento else None
+        nascimento_display = nascimento_dt.strftime('%d/%m/%Y') if nascimento_dt else 'N/A'
+
+        # Última visita
+        last_visit_date = last_visits.get(member_id)
+        if last_visit_date:
+            last_visit_display = last_visit_date.strftime('%d/%m/%Y')
+        else:
+            last_visit_display = 'Nunca'
         
         contact_info = []
         if email:
@@ -450,11 +882,12 @@ def generate_members_report(db_manager: DatabaseManager) -> str:
         contact_display = "<br>".join(contact_info) if contact_info else "Sem contato"
         
         html += f"""
-                        <tr>
+                        <tr class="member-row" data-categories="{categories_str}">
                             <td><strong>{nome}</strong></td>
                             <td><span class="plan-badge">{plano}</span></td>
                             <td><span class="status-badge {status_class}">{status_text}</span></td>
                             <td>{vencimento_display}</td>
+                            <td>{last_visit_display}</td>
                             <td class="contact">{contact_display}</td>
                             <td>{genero or 'N/A'}</td>
                             <td>{nascimento_display}</td>
@@ -467,6 +900,92 @@ def generate_members_report(db_manager: DatabaseManager) -> str:
             </div>
         </div>
     </div>
+    """
+    
+    html += """
+    
+    <script>
+        let currentFilter = 'all';
+        
+        function showAllMembers() {
+            currentFilter = 'all';
+            const rows = document.querySelectorAll('.member-row');
+            rows.forEach(row => row.style.display = '');
+            
+            updateFilterButtons('all');
+            hideFilterInfo();
+            updateMemberCount(rows.length);
+        }
+        
+        function filterMembers(category) {
+            currentFilter = category;
+            const rows = document.querySelectorAll('.member-row');
+            let visibleCount = 0;
+            
+            rows.forEach(row => {
+                const categories = row.dataset.categories.split(' ');
+                if (categories.includes(category)) {
+                    row.style.display = '';
+                    visibleCount++;
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+            
+            updateFilterButtons(category);
+            showFilterInfo(category, visibleCount);
+            updateMemberCount(visibleCount);
+        }
+        
+        function updateFilterButtons(activeCategory) {
+            const buttons = document.querySelectorAll('.filter-btn');
+            buttons.forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            if (activeCategory === 'all') {
+                document.querySelector('.filter-btn.all').classList.add('active');
+            } else {
+                document.querySelector(`.filter-btn.${activeCategory}-filter`).classList.add('active');
+            }
+        }
+        
+        function showFilterInfo(category, count) {
+            const info = document.getElementById('filter-info');
+            const description = document.getElementById('filter-description');
+            
+            const descriptions = {
+                'active': `Mostrando ${count} membro(s) com planos ativos (vencimento futuro)`,
+                'expiring': `Mostrando ${count} membro(s) com planos vencendo nos próximos 7 dias - CONTATE URGENTE para renovação!`,
+                'expired': `Mostrando ${count} membro(s) com planos vencidos - Oportunidade de reengajamento`,
+                'inactive': `Mostrando ${count} membro(s) em risco - Frequentaram nos últimos 3 meses mas não voltam há 1 mês`
+            };
+            
+            description.textContent = descriptions[category];
+            info.style.display = 'block';
+        }
+        
+        function hideFilterInfo() {
+            document.getElementById('filter-info').style.display = 'none';
+        }
+        
+        function updateMemberCount(count) {
+            // Atualizar contador na seção se necessário
+            console.log(`Exibindo ${count} membro(s)`);
+        }
+        
+        // Scroll suave para a tabela quando clicar nos cards
+        document.querySelectorAll('.stat-card').forEach(card => {
+            card.addEventListener('click', function() {
+                setTimeout(() => {
+                    document.getElementById('members-table').scrollIntoView({ 
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }, 100);
+            });
+        });
+    </script>
     """
     
     html += _generate_html_footer()
