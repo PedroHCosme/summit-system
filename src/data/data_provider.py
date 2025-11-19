@@ -49,6 +49,62 @@ class DataProvider:
         else:
             return self._get_all_members_from_sheets()
     
+    def get_members_paginated(self, page: int = 1, page_size: int = 50,
+                              filter_text: str = "", filter_plan: str = "",
+                              filter_status: str = "") -> Dict[str, Any]:
+        """
+        Retorna membros com paginação e filtros.
+        
+        Args:
+            page: Número da página (começa em 1)
+            page_size: Quantidade de itens por página
+            filter_text: Texto para filtrar por nome
+            filter_plan: Filtrar por plano específico
+            filter_status: Filtrar por status (ATIVO/INATIVO)
+            
+        Returns:
+            Dicionário com dados paginados
+        """
+        if self.use_sqlite:
+            return self.db_manager.get_members_paginated(
+                page=page,
+                page_size=page_size,
+                filter_text=filter_text,
+                filter_plan=filter_plan,
+                filter_status=filter_status
+            )
+        else:
+            # Para Google Sheets, retornar todos e paginar em memória
+            all_members = self._get_all_members_from_sheets()
+            
+            # Aplicar filtros
+            filtered = all_members
+            if filter_text:
+                tokens = filter_text.lower().split()
+                filtered = [m for m in filtered if all(token in m.get('nome', '').lower() for token in tokens)]
+            if filter_plan:
+                filtered = [m for m in filtered if m.get('plano') == filter_plan]
+            if filter_status:
+                filtered = [m for m in filtered if m.get('estado_plano') == filter_status]
+            
+            # Ordenar por nome
+            filtered.sort(key=lambda x: x.get('nome', ''))
+            
+            # Paginar
+            total = len(filtered)
+            total_pages = (total + page_size - 1) // page_size if total > 0 else 0
+            page = max(1, min(page, total_pages)) if total_pages > 0 else 1
+            start = (page - 1) * page_size
+            end = start + page_size
+            
+            return {
+                'members': filtered[start:end],
+                'total': total,
+                'page': page,
+                'total_pages': total_pages,
+                'page_size': page_size
+            }
+    
     def find_members_by_name(self, name: str) -> List[Dict[str, Any]]:
         """
         Busca membros por nome (busca parcial).

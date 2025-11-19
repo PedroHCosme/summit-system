@@ -28,7 +28,8 @@ from src.ui.screens import (
     AniversariantesScreen,
     MemberSearchScreen,
     CheckinScreen,
-    FinancialScreen
+    FinancialScreen,
+    MembersListScreen
 )
 from src.ui.dialogs import AddMemberDialog, SyncDialog, ManagePlansDialog, ExpiringPlansDialog
 
@@ -83,6 +84,7 @@ class MainWindow(QMainWindow):
         self.member_search_screen = MemberSearchScreen()
         self.checkin_screen = CheckinScreen()
         self.financial_screen = FinancialScreen()
+        self.members_list_screen = MembersListScreen()
         
         # Adiciona ao stack
         self.stacked_widget.addWidget(self.home_screen)  # 0
@@ -91,6 +93,7 @@ class MainWindow(QMainWindow):
         self.stacked_widget.addWidget(self.member_search_screen)  # 3
         self.stacked_widget.addWidget(self.checkin_screen)  # 4
         self.stacked_widget.addWidget(self.financial_screen)  # 5
+        self.stacked_widget.addWidget(self.members_list_screen)  # 6
         
         # Conecta sinais das telas
         self._connect_screen_signals()
@@ -116,6 +119,11 @@ class MainWindow(QMainWindow):
             add_member_action.setShortcut("Ctrl+N")
             add_member_action.triggered.connect(self._show_add_member_dialog)
             membros_menu.addAction(add_member_action)
+
+            list_members_action = QAction("📋 Lista de Membros", self)
+            list_members_action.setShortcut("Ctrl+L")
+            list_members_action.triggered.connect(self._show_members_list)
+            membros_menu.addAction(list_members_action)
 
             buscar_action = QAction("🔍 Buscar Membro", self)
             buscar_action.setShortcut("Ctrl+F")
@@ -251,6 +259,10 @@ class MainWindow(QMainWindow):
         # Substituir o método request_edit_checkin por nossa implementação
         self.member_search_screen.request_edit_checkin = self._on_edit_checkin_requested
         
+        # Lista de Membros
+        self.members_list_screen.refresh_requested.connect(self._on_members_list_refresh)
+        self.members_list_screen.member_selected.connect(self._on_members_list_member_selected)
+        
         # Check-in
         self.checkin_screen.name_input.returnPressed.connect(
             self._on_checkin_search_by_name
@@ -291,6 +303,13 @@ class MainWindow(QMainWindow):
         if not self.is_connected:
             return
         self.stacked_widget.setCurrentIndex(3)
+    
+    def _show_members_list(self):
+        """Mostra a tela de lista de membros."""
+        if not self.is_connected:
+            return
+        self.stacked_widget.setCurrentIndex(6)
+        self._load_members_list()
     
     def _show_checkin_screen(self):
         """Mostra a tela de check-in."""
@@ -1231,6 +1250,42 @@ class MainWindow(QMainWindow):
                     f"Você pode executar manualmente:\n"
                     f"python scripts/fix_database_critical.py"
                 )
+    
+    # === Lista de Membros ===
+    
+    def _load_members_list(self):
+        """Carrega a lista de membros com paginação."""
+        from src.data.data_provider import get_provider
+        from src import config
+        
+        # Popula filtro de planos
+        self.members_list_screen.populate_plan_filter(config.PLANOS)
+        
+        # Carrega dados paginados
+        self._on_members_list_refresh()
+    
+    def _on_members_list_refresh(self):
+        """Atualiza a lista de membros."""
+        from src.data.data_provider import get_provider
+        
+        provider = get_provider()
+        filters = self.members_list_screen.get_filters()
+        
+        data = provider.get_members_paginated(
+            page=self.members_list_screen.current_page,
+            page_size=self.members_list_screen.page_size,
+            filter_text=filters['text'],
+            filter_plan=filters['plan'],
+            filter_status=filters['status']
+        )
+        
+        self.members_list_screen.update_data(data)
+    
+    def _on_members_list_member_selected(self, member_data: dict):
+        """Quando um membro é selecionado na lista."""
+        # Mostrar na tela de busca
+        self.member_search_screen.set_member_data(member_data)
+        self.stacked_widget.setCurrentIndex(3)
 
 
 def main():

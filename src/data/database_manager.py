@@ -469,6 +469,82 @@ class DatabaseManager:
             print(f"Erro ao buscar todos os membros: {e}")
             return []
     
+    def get_members_paginated(self, page: int = 1, page_size: int = 50, 
+                              filter_text: str = "", filter_plan: str = "",
+                              filter_status: str = "") -> Dict[str, Any]:
+        """
+        Retorna membros com paginação e filtros opcionais.
+        
+        Args:
+            page: Número da página (começa em 1)
+            page_size: Quantidade de itens por página
+            filter_text: Texto para filtrar por nome
+            filter_plan: Filtrar por plano específico
+            filter_status: Filtrar por status (ATIVO/INATIVO)
+            
+        Returns:
+            Dicionário com 'members' (lista de membros), 'total' (total de registros),
+            'page' (página atual), 'total_pages' (total de páginas)
+        """
+        if not self.connection:
+            return {'members': [], 'total': 0, 'page': 1, 'total_pages': 0}
+        
+        try:
+            cursor = self.connection.cursor()
+            
+            # Construir query com filtros
+            where_clauses = []
+            params = []
+            
+            if filter_text:
+                # Busca tokenizada por nome
+                tokens = filter_text.strip().split()
+                for token in tokens:
+                    where_clauses.append("nome LIKE ?")
+                    params.append(f"%{token}%")
+            
+            if filter_plan:
+                where_clauses.append("plano = ?")
+                params.append(filter_plan)
+            
+            if filter_status:
+                where_clauses.append("estado_plano = ?")
+                params.append(filter_status)
+            
+            where_sql = ""
+            if where_clauses:
+                where_sql = " WHERE " + " AND ".join(where_clauses)
+            
+            # Contar total de registros
+            count_query = f"SELECT COUNT(*) as total FROM membros{where_sql}"
+            cursor.execute(count_query, params)
+            total = cursor.fetchone()['total']
+            
+            # Calcular paginação
+            total_pages = (total + page_size - 1) // page_size  # Ceiling division
+            page = max(1, min(page, total_pages)) if total_pages > 0 else 1
+            offset = (page - 1) * page_size
+            
+            # Buscar membros da página atual
+            query = f"SELECT * FROM membros{where_sql} ORDER BY nome LIMIT ? OFFSET ?"
+            cursor.execute(query, params + [page_size, offset])
+            rows = cursor.fetchall()
+            
+            members = [dict(row) for row in rows]
+            
+            return {
+                'members': members,
+                'total': total,
+                'page': page,
+                'total_pages': total_pages,
+                'page_size': page_size
+            }
+        except Exception as e:
+            print(f"Erro ao buscar membros paginados: {e}")
+            import traceback
+            traceback.print_exc()
+            return {'members': [], 'total': 0, 'page': 1, 'total_pages': 0}
+    
     def _normalize_plan_for_checkin(self, plan_name: Optional[str]) -> Optional[str]:
         """Normaliza o nome do plano para fins de cobrança por check-in."""
         if not plan_name:

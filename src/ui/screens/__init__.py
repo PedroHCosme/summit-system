@@ -6,6 +6,7 @@ from .member_search_screen import MemberSearchScreen
 from .checkin_screen import CheckinScreen
 from .home_screen import HomeScreen
 from .financial_screen import FinancialScreen
+from .members_list_screen import MembersListScreen
 
 __all__ = [
     'DashboardScreen',
@@ -13,5 +14,6 @@ __all__ = [
     'MemberSearchScreen',
     'CheckinScreen',
     'HomeScreen',
-    'FinancialScreen'
+    'FinancialScreen',
+    'MembersListScreen'
 ]
