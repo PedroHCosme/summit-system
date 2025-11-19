@@ -1339,7 +1339,7 @@ class DatabaseManager:
         Busca os últimos check-ins realizados.
         
         Args:
-            limit: Número máximo de check-ins a retornar
+            limit: Número máximo de check-ins a retornar (0 = sem limite)
             
         Returns:
             Lista de dicionários com dados dos últimos check-ins (membro e data)
@@ -1351,20 +1351,62 @@ class DatabaseManager:
 
             cursor = self.connection.cursor()
             
+            if limit == 0:
+                # Sem limite - retorna todos
+                cursor.execute("""
+                    SELECT 
+                        m.nome,
+                        f.checkin_datetime
+                    FROM frequencia f
+                    JOIN membros m ON f.member_id = m.id
+                    ORDER BY f.checkin_datetime DESC
+                """)
+            else:
+                cursor.execute("""
+                    SELECT 
+                        m.nome,
+                        f.checkin_datetime
+                    FROM frequencia f
+                    JOIN membros m ON f.member_id = m.id
+                    ORDER BY f.checkin_datetime DESC
+                    LIMIT ?
+                """, (limit,))
+            
+            rows = cursor.fetchall()
+            return [dict(row) for row in rows]
+        except Exception as e:
+            print(f"Erro ao buscar últimos check-ins: {e}")
+            return []
+    
+    def get_checkins_today_list(self) -> List[Dict[str, Any]]:
+        """
+        Busca todos os check-ins realizados hoje.
+        
+        Returns:
+            Lista de dicionários com dados dos check-ins de hoje (membro e data)
+        """
+        try:
+            if not self.connection:
+                print("Erro: Conexão com o banco de dados não estabelecida.")
+                return []
+
+            cursor = self.connection.cursor()
+            
+            # Buscar check-ins de hoje
             cursor.execute("""
                 SELECT 
                     m.nome,
                     f.checkin_datetime
                 FROM frequencia f
                 JOIN membros m ON f.member_id = m.id
+                WHERE DATE(f.checkin_datetime) = DATE('now', 'localtime')
                 ORDER BY f.checkin_datetime DESC
-                LIMIT ?
-            """, (limit,))
+            """)
             
             rows = cursor.fetchall()
             return [dict(row) for row in rows]
         except Exception as e:
-            print(f"Erro ao buscar últimos check-ins: {e}")
+            print(f"Erro ao buscar check-ins de hoje: {e}")
             return []
     
     def optimize_and_reindex(self) -> Dict[str, Any]:

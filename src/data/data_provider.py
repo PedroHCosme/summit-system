@@ -226,6 +226,12 @@ class DataProvider:
         if self.use_sqlite:
             return self.db_manager.get_last_checkins(limit)
         return []
+    
+    def get_checkins_today_list(self) -> List[Dict[str, Any]]:
+        """Retorna todos os check-ins de hoje."""
+        if self.use_sqlite:
+            return self.db_manager.get_checkins_today_list()
+        return []
 
     def update_expired_plans(self):
         """Delega a atualização de planos expirados para o db_manager."""
@@ -445,6 +451,10 @@ def get_checkins_today_details() -> List[Dict[str, Any]]:
 def get_last_checkins(limit: int = 5) -> List[Dict[str, Any]]:
     """Retorna os últimos check-ins."""
     return get_provider().get_last_checkins(limit)
+
+def get_checkins_today_list() -> List[Dict[str, Any]]:
+    """Retorna todos os check-ins de hoje."""
+    return get_provider().get_checkins_today_list()
 
 
 def update_member(

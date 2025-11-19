@@ -59,13 +59,13 @@ class DashboardScreen(QWidget):
         stats_layout.addWidget(checkins_today_card)
         layout.addLayout(stats_layout)
 
-        # Lista de Últimos Check-ins
-        last_checkins_label = QLabel("Últimos Check-ins")
+        # Lista de Check-ins de Hoje
+        last_checkins_label = QLabel("Check-ins de Hoje")
         last_checkins_label.setStyleSheet("font-size: 18px; font-weight: bold; color: #333;")
         layout.addWidget(last_checkins_label)
         
         self.last_checkins_browser = QTextBrowser()
-        self.last_checkins_browser.setMinimumHeight(150)
+        self.last_checkins_browser.setMinimumHeight(250)  # Aumentado para acomodar mais check-ins
         layout.addWidget(self.last_checkins_browser)
 
         # Placeholder para o gráfico
@@ -109,16 +109,19 @@ class DashboardScreen(QWidget):
         last_checkins = data.get("last_checkins", [])
         html = ""
         if not last_checkins:
-            html = "<p style='color: #888;'>Nenhum check-in recente.</p>"
+            html = "<p style='color: #888; font-style: italic; text-align: center; padding: 20px;'>Nenhum check-in registrado hoje.</p>"
         else:
-            html = "<ul style='list-style-type: none; padding-left: 0;'>"
+            html = "<div style='padding: 10px;'>"
+            html += f"<p style='color: #555; margin-bottom: 10px;'><b>Total:</b> {len(last_checkins)} check-in(s)</p>"
+            html += "<ul style='list-style-type: none; padding-left: 0;'>"
             for checkin in last_checkins:
                 nome = checkin.get('nome')
                 dt_str = checkin.get('checkin_datetime')
                 dt_obj = datetime.fromisoformat(dt_str)
                 checkin_datetime_str = dt_obj.strftime('%d/%m/%Y às %H:%M')
-                html += f"<li style='margin-bottom: 5px;'><b>{nome}</b> - {checkin_datetime_str}</li>"
+                html += f"<li style='margin-bottom: 8px; padding: 8px; background: #F5F5F5; border-radius: 4px;'><b>{nome}</b> - {checkin_datetime_str}</li>"
             html += "</ul>"
+            html += "</div>"
         self.last_checkins_browser.setHtml(html)
 
     def show_error(self, error_message: str):
