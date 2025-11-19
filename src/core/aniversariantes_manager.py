@@ -25,9 +25,20 @@ class AniversariantesManager:
             Lista de objetos Pessoa ordenada por dia
         """
         mes_atual = datetime.now().month
+        return self.get_aniversariantes_mes(mes_atual)
+    
+    def get_aniversariantes_mes(self, mes: int) -> List[Pessoa]:
+        """
+        Busca os aniversariantes de um mês específico usando o DataProvider.
         
+        Args:
+            mes: Número do mês (1-12)
+        
+        Returns:
+            Lista de objetos Pessoa ordenada por dia
+        """
         # Busca aniversariantes do mês através do data_provider
-        members_data = self.data_provider.get_birthdays_for_month(mes_atual)
+        members_data = self.data_provider.get_birthdays_for_month(mes)
         
         # Converte dicionários em objetos Pessoa
         aniversariantes = []
@@ -75,3 +86,22 @@ class AniversariantesManager:
     def get_nome_mes_atual() -> str:
         """Retorna o nome do mês atual."""
         return get_current_month_name()
+    
+    @staticmethod
+    def get_nome_mes(mes: int) -> str:
+        """
+        Retorna o nome de um mês específico.
+        
+        Args:
+            mes: Número do mês (1-12)
+            
+        Returns:
+            Nome do mês em português
+        """
+        meses = [
+            "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+            "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+        ]
+        if 1 <= mes <= 12:
+            return meses[mes - 1]
+        return "Mês Inválido"

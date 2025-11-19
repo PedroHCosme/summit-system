@@ -364,7 +364,10 @@ class MainWindow(QMainWindow):
         """Manipula o clique no botão de busca de aniversariantes."""
         self.aniversariantes_screen.set_searching_state()
         
-        self.worker = DataFetchWorker(self.manager)
+        # Obtém o mês selecionado
+        mes_selecionado = self.aniversariantes_screen.get_selected_month()
+        
+        self.worker = DataFetchWorker(self.manager, mes_selecionado)
         self.worker.status_updated.connect(self.aniversariantes_screen.append_status)
         self.worker.fetch_completed.connect(self._on_aniversariantes_fetch_completed)
         self.worker.start()
