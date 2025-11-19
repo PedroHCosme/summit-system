@@ -397,44 +397,120 @@ class MemberSearchScreen(QWidget):
         member_id = member_data.get('id')
         frequencia_mes_atual = self._calculate_monthly_frequency(member_id) if member_id else 0
         
-        fields = [
-            ('nome', 'Nome'),
-            ('plano', 'Plano'),
-        ]
-        
-        plano = member_data.get('plano', '')
-        if plano in PLANOS_COM_VENCIMENTO:
-            fields.append(('vencimento_plano', 'Vencimento do Plano'))
-        
-        fields.extend([
-            ('estado_plano', 'Estado do Plano'),
-            ('data_nascimento', 'Data de Nascimento'),
-            ('whatsapp', 'WhatsApp'),
-            ('email', 'Email'),
-            ('genero', 'Gênero'),
-            ('calcado', 'Calçado')
-        ])
-        
-        # Adicionar campos de treino se o membro treina
-        treina = member_data.get('treina', 'Não')
-        if treina == 'Sim':
-            fields.append(('vencimento_treino', 'Vencimento do Treino'))
-        
         html = """
             <div style="padding: 20px;">
                 <h2 style="color: #007ACC; text-align: center; margin-bottom: 20px;">Dados do Membro</h2>
                 <div style="background-color: #F8F8F8; border: 1px solid #DDDDDD; border-radius: 8px; padding: 15px;">
         """
         
-        # Adicionar frequência do mês após os outros campos
+        # 1. Nome
+        nome = member_data.get('nome', '')
         html += f"""
             <div style="margin-bottom: 10px;">
-                <strong style="color: #333333;">Frequência (Este Mês):</strong>
-                <span style="color: #007ACC; font-weight: bold;"> {frequencia_mes_atual} check-ins</span>
+                <strong style="color: #333333;">Nome:</strong>
+                <span style="color: #555555;"> {nome if nome else '<span style="color: #888888; font-style: italic;">Não informado</span>'}</span>
             </div>
         """
         
-        # Adicionar informação de treino
+        # 2. Data de Nascimento
+        data_nascimento = member_data.get('data_nascimento', '')
+        html += f"""
+            <div style="margin-bottom: 10px;">
+                <strong style="color: #333333;">Data de Nascimento:</strong>
+                <span style="color: #555555;"> {data_nascimento if data_nascimento else '<span style="color: #888888; font-style: italic;">Não informado</span>'}</span>
+            </div>
+        """
+        
+        # 3. Gênero
+        genero = member_data.get('genero', '')
+        html += f"""
+            <div style="margin-bottom: 10px;">
+                <strong style="color: #333333;">Gênero:</strong>
+                <span style="color: #555555;"> {genero if genero else '<span style="color: #888888; font-style: italic;">Não informado</span>'}</span>
+            </div>
+        """
+        
+        # 4. WhatsApp
+        whatsapp = member_data.get('whatsapp', '')
+        if whatsapp:
+            digits = ''.join(filter(str.isdigit, whatsapp))
+            if len(digits) == 11:
+                whatsapp_link = f"https://wa.me/55{digits}"
+                html += f"""
+                    <div style="margin-bottom: 10px;">
+                        <strong style="color: #333333;">WhatsApp:</strong>
+                        <span style="color: #555555;"> {whatsapp}</span>
+                        <a href="{whatsapp_link}" style="color: #007ACC; margin-left: 10px;">[Abrir WhatsApp]</a>
+                    </div>
+                """
+            else:
+                html += f"""
+                    <div style="margin-bottom: 10px;">
+                        <strong style="color: #333333;">WhatsApp:</strong>
+                        <span style="color: #555555;"> {whatsapp}</span>
+                    </div>
+                """
+        else:
+            html += f"""
+                <div style="margin-bottom: 10px;">
+                    <strong style="color: #333333;">WhatsApp:</strong>
+                    <span style="color: #888888; font-style: italic;"> Não informado</span>
+                </div>
+            """
+        
+        # 5. Email
+        email = member_data.get('email', '')
+        html += f"""
+            <div style="margin-bottom: 10px;">
+                <strong style="color: #333333;">Email:</strong>
+                <span style="color: #555555;"> {email if email else '<span style="color: #888888; font-style: italic;">Não informado</span>'}</span>
+            </div>
+        """
+        
+        # 6. Calçado
+        calcado = member_data.get('calcado', '')
+        html += f"""
+            <div style="margin-bottom: 10px;">
+                <strong style="color: #333333;">Calçado:</strong>
+                <span style="color: #555555;"> {calcado if calcado else '<span style="color: #888888; font-style: italic;">Não informado</span>'}</span>
+            </div>
+        """
+        
+        # Separador visual
+        html += """
+            <hr style="border: none; border-top: 1px solid #DDDDDD; margin: 15px 0;">
+        """
+        
+        # 7. Plano
+        plano = member_data.get('plano', '')
+        html += f"""
+            <div style="margin-bottom: 10px;">
+                <strong style="color: #333333;">Plano:</strong>
+                <span style="color: #555555;"> {plano if plano else '<span style="color: #888888; font-style: italic;">Não informado</span>'}</span>
+            </div>
+        """
+        
+        # 8. Vencimento do Plano (se aplicável)
+        if plano in PLANOS_COM_VENCIMENTO:
+            vencimento_plano = member_data.get('vencimento_plano', '')
+            html += f"""
+                <div style="margin-bottom: 10px;">
+                    <strong style="color: #333333;">Vencimento do Plano:</strong>
+                    <span style="color: #555555;"> {vencimento_plano if vencimento_plano else '<span style="color: #888888; font-style: italic;">Não informado</span>'}</span>
+                </div>
+            """
+        
+        # 9. Estado do Plano
+        estado_plano = member_data.get('estado_plano', '')
+        estado_color = '#28a745' if estado_plano.upper() == 'ATIVO' else '#FF6B6B'
+        html += f"""
+            <div style="margin-bottom: 10px;">
+                <strong style="color: #333333;">Estado do Plano:</strong>
+                <span style="color: {estado_color}; font-weight: bold;"> {estado_plano if estado_plano else 'INATIVO'}</span>
+            </div>
+        """
+        
+        # 10. Treino
         treina = member_data.get('treina', 'Não')
         treina_color = '#28a745' if treina == 'Sim' else '#888888'
         html += f"""
@@ -444,49 +520,23 @@ class MemberSearchScreen(QWidget):
             </div>
         """
         
-        for field_key, field_label in fields:
-            value = member_data.get(field_key, '')
-            if value:
-                if field_key == 'whatsapp' and value:
-                    digits = ''.join(filter(str.isdigit, value))
-                    if len(digits) == 11:
-                        whatsapp_link = f"https://wa.me/55{digits}"
-                        html += f"""
-                            <div style="margin-bottom: 10px;">
-                                <strong style="color: #333333;">{field_label}:</strong>
-                                <span style="color: #555555;"> {value}</span>
-                                <a href="{whatsapp_link}" style="color: #007ACC; margin-left: 10px;">[Abrir WhatsApp]</a>
-                            </div>
-                        """
-                    else:
-                        html += f"""
-                            <div style="margin-bottom: 10px;">
-                                <strong style="color: #333333;">{field_label}:</strong>
-                                <span style="color: #555555;"> {value}</span>
-                            </div>
-                        """
-                elif field_key == 'estado_plano':
-                    color = '#28a745' if value.upper() == 'ATIVO' else '#FF6B6B'
-                    html += f"""
-                        <div style="margin-bottom: 10px;">
-                            <strong style="color: #333333;">{field_label}:</strong>
-                            <span style="color: {color}; font-weight: bold;"> {value}</span>
-                        </div>
-                    """
-                else:
-                    html += f"""
-                        <div style="margin-bottom: 10px;">
-                            <strong style="color: #333333;">{field_label}:</strong>
-                            <span style="color: #555555;"> {value}</span>
-                        </div>
-                    """
-            else:
-                html += f"""
-                    <div style="margin-bottom: 10px;">
-                        <strong style="color: #333333;">{field_label}:</strong>
-                        <span style="color: #888888; font-style: italic;"> Não informado</span>
-                    </div>
-                """
+        # 11. Vencimento do Treino (se treina)
+        if treina == 'Sim':
+            vencimento_treino = member_data.get('vencimento_treino', '')
+            html += f"""
+                <div style="margin-bottom: 10px;">
+                    <strong style="color: #333333;">Vencimento do Treino:</strong>
+                    <span style="color: #555555;"> {vencimento_treino if vencimento_treino else '<span style="color: #888888; font-style: italic;">Não informado</span>'}</span>
+                </div>
+            """
+        
+        # 12. Frequência do Mês
+        html += f"""
+            <div style="margin-bottom: 10px;">
+                <strong style="color: #333333;">Frequência (Este Mês):</strong>
+                <span style="color: #007ACC; font-weight: bold;"> {frequencia_mes_atual} check-ins</span>
+            </div>
+        """
         
         html += """
                 </div>
