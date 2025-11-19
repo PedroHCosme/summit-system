@@ -69,3 +69,41 @@ PLANOS_PAGAMENTO_POR_CHECKIN = {
     "Gympass": 15.0,     # Cada check-in = R$ 15,00
     "Totalpass": 15.0    # Cada check-in = R$ 15,00
 }
+
+# --- CONFIGURAÇÕES DE TREINO ---
+# Treino é um serviço adicional independente do plano
+TREINO_PRECO = 90.0  # R$ 90,00 por mês
+TREINO_VALIDADE_DIAS = 30  # 1 mês de validade
+
+
+# --- CARREGAR CONFIGURAÇÕES PERSONALIZADAS ---
+# Carrega configurações salvas pelo diálogo de gerenciar planos, se existirem
+def _load_custom_plans_config():
+    """Carrega configurações de planos do arquivo plans_config.json se existir."""
+    import json
+    from pathlib import Path
+    
+    # Caminho do arquivo de configuração
+    project_root = Path(__file__).parent.parent
+    config_file = project_root / "plans_config.json"
+    
+    if config_file.exists():
+        try:
+            with open(config_file, 'r', encoding='utf-8') as f:
+                config_data = json.load(f)
+            
+            # Atualizar variáveis globais com dados salvos
+            global PLANOS, PLANOS_PRECOS, PLANOS_PAGAMENTO_POR_CHECKIN, PLANOS_COM_VENCIMENTO
+            
+            PLANOS = config_data.get("PLANOS", PLANOS)
+            PLANOS_PRECOS = config_data.get("PLANOS_PRECOS", PLANOS_PRECOS)
+            PLANOS_PAGAMENTO_POR_CHECKIN = config_data.get("PLANOS_PAGAMENTO_POR_CHECKIN", PLANOS_PAGAMENTO_POR_CHECKIN)
+            PLANOS_COM_VENCIMENTO = config_data.get("PLANOS_COM_VENCIMENTO", PLANOS_COM_VENCIMENTO)
+            
+            print(f"✓ Configurações personalizadas de planos carregadas de {config_file.name}")
+        except Exception as e:
+            print(f"⚠ Aviso: Erro ao carregar plans_config.json: {e}")
+            print("  Usando configurações padrão.")
+
+# Carregar configurações personalizadas ao importar o módulo
+_load_custom_plans_config()

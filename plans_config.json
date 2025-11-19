@@ -1,0 +1,47 @@
+{
+    "PLANOS": [
+        "Mensal",
+        "Mens. c/ Treino",
+        "Semestral",
+        "Anual",
+        "Trimestral",
+        "Diária",
+        "Gympass",
+        "Totalpass",
+        "Cortesia",
+        "Escolinha 1x",
+        "Escolinha 2x"
+    ],
+    "PLANOS_PRECOS": {
+        "Mensal": 190.0,
+        "Mens. c/ Treino": 280.0,
+        "Semestral": 950.0,
+        "Anual": 1900.0,
+        "Trimestral": 500.0,
+        "Diária": 0.0,
+        "Gympass": 0.0,
+        "Totalpass": 0.0,
+        "Cortesia": 0.0,
+        "Escolinha 1x": 150.0,
+        "Escolinha 2x": 270.0
+    },
+    "PLANOS_PAGAMENTO_POR_CHECKIN": {
+        "Diária": 35.0,
+        "Gympass": 15.0,
+        "Totalpass": 15.0
+    },
+    "PLANOS_COM_VENCIMENTO": [
+        "Mensal",
+        "Mens. c/ Treino",
+        "Semestral",
+        "Anual",
+        "Trimestral",
+        "Escolinha 1x",
+        "Escolinha 2x"
+    ],
+    "_metadata": {
+        "version": "1.0",
+        "last_updated": "2025-11-18 23:43:14.622870",
+        "description": "Configuração de planos e preços editada via UI"
+    }
+}

@@ -9,7 +9,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont
 
-from src.config import PLANOS, PLANOS_PRECOS, PLANOS_PAGAMENTO_POR_CHECKIN, PLANOS_COM_VENCIMENTO
+from src.config import PLANOS_COM_VENCIMENTO  # Mantém apenas esta para verificação inicial
 
 
 class ManagePlansDialog(QDialog):
@@ -23,11 +23,14 @@ class ManagePlansDialog(QDialog):
         self.setMinimumSize(1000, 700)
         self.resize(1100, 750)
         
+        # Carregar dados dinamicamente do config para pegar atualizações
+        from src import config
+        
         # Cópias locais dos dados (editáveis)
-        self.planos = PLANOS.copy()
-        self.planos_precos = PLANOS_PRECOS.copy()
-        self.planos_pagamento_checkin = PLANOS_PAGAMENTO_POR_CHECKIN.copy()
-        self.planos_com_vencimento = PLANOS_COM_VENCIMENTO.copy()
+        self.planos = config.PLANOS.copy()
+        self.planos_precos = config.PLANOS_PRECOS.copy()
+        self.planos_pagamento_checkin = config.PLANOS_PAGAMENTO_POR_CHECKIN.copy()
+        self.planos_com_vencimento = config.PLANOS_COM_VENCIMENTO.copy()
         
         # Rastrear mudanças
         self.has_changes = False
@@ -682,8 +685,10 @@ class ManagePlansDialog(QDialog):
         import os
         from pathlib import Path
         
-        # Caminho do arquivo de configuração
-        project_root = Path(__file__).parent.parent.parent
+        # Caminho do arquivo de configuração (raiz do projeto)
+        # __file__ = .../src/ui/dialogs/manage_plans_dialog.py
+        # .parent.parent.parent.parent = raiz do projeto
+        project_root = Path(__file__).parent.parent.parent.parent
         config_file = project_root / "plans_config.json"
         
         # Preparar dados

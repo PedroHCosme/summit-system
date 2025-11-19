@@ -220,6 +220,12 @@ class DataProvider:
         if self.use_sqlite:
             return self.db_manager.get_checkins_today_details()
         return []
+    
+    def get_checkins_by_date(self, date_str: str) -> List[Dict[str, Any]]:
+        """Retorna os detalhes dos check-ins de uma data específica."""
+        if self.use_sqlite:
+            return self.db_manager.get_checkins_by_date(date_str)
+        return []
 
     def get_last_checkins(self, limit: int = 5) -> List[Dict[str, Any]]:
         """Retorna os últimos check-ins."""
@@ -447,6 +453,10 @@ def get_checkins_today() -> int:
 def get_checkins_today_details() -> List[Dict[str, Any]]:
     """Retorna os detalhes dos check-ins de hoje."""
     return get_provider().get_checkins_today_details()
+
+def get_checkins_by_date(date_str: str) -> List[Dict[str, Any]]:
+    """Retorna os detalhes dos check-ins de uma data específica."""
+    return get_provider().get_checkins_by_date(date_str)
 
 def get_last_checkins(limit: int = 5) -> List[Dict[str, Any]]:
     """Retorna os últimos check-ins."""

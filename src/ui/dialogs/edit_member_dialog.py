@@ -10,7 +10,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QDate, pyqtSignal
 
-from src.config import PLANOS, PLANOS_COM_VENCIMENTO
+from src.config import PLANOS_COM_VENCIMENTO
 from src.utils.utils import calculate_new_due_date, parse_date
 
 
@@ -54,7 +54,9 @@ class EditMemberDialog(QDialog):
         
         # Plano (obrigatório)
         self.plano_combo = QComboBox()
-        self.plano_combo.addItems(PLANOS)
+        # Importar PLANOS dinamicamente em tempo de execução para pegar atualizações
+        from src import config
+        self.plano_combo.addItems(config.PLANOS)
         form_layout.addRow("Plano *:", self.plano_combo)
         
         # Vencimento do Plano (condicional)
@@ -92,6 +94,19 @@ class EditMemberDialog(QDialog):
         self.email_input = QLineEdit()
         self.email_input.setPlaceholderText("exemplo@email.com")
         form_layout.addRow("Email:", self.email_input)
+        
+        # Treino
+        self.treina_combo = QComboBox()
+        self.treina_combo.addItems(["Não", "Sim"])
+        form_layout.addRow("Treina:", self.treina_combo)
+        
+        # Vencimento do Treino (condicional)
+        self.vencimento_treino_label = QLabel("Vencimento do Treino:")
+        self.vencimento_treino_input = QDateEdit()
+        self.vencimento_treino_input.setCalendarPopup(True)
+        self.vencimento_treino_input.setDisplayFormat("dd/MM/yyyy")
+        self.vencimento_treino_input.setDate(QDate.currentDate())
+        form_layout.addRow(self.vencimento_treino_label, self.vencimento_treino_input)
         
         # Método de Pagamento (para registrar transação)
         self.metodo_pagamento_combo = QComboBox()
@@ -138,8 +153,9 @@ class EditMemberDialog(QDialog):
         self.nome_input.setText(self.member_data.get('nome', ''))
         
         # Plano
+        from src import config
         plano = self.member_data.get('plano', '')
-        if plano in PLANOS:
+        if plano in config.PLANOS:
             self.plano_combo.setCurrentText(plano)
         
         # Vencimento do Plano
@@ -174,12 +190,27 @@ class EditMemberDialog(QDialog):
         # Email
         self.email_input.setText(self.member_data.get('email', ''))
         
+        # Treino
+        treina = self.member_data.get('treina', 'Não')
+        self.treina_combo.setCurrentText(treina)
+        
+        # Vencimento do Treino
+        vencimento_treino_str = self.member_data.get('vencimento_treino', '')
+        if vencimento_treino_str:
+            vencimento_treino_dt = parse_date(vencimento_treino_str)
+            if vencimento_treino_dt:
+                self.vencimento_treino_input.setDate(
+                    QDate(vencimento_treino_dt.year, vencimento_treino_dt.month, vencimento_treino_dt.day)
+                )
+        
         # Ajusta visibilidade do campo de vencimento
         self._toggle_vencimento_visibility()
+        self._toggle_treino_visibility()
     
     def _connect_signals(self):
         """Conecta os sinais."""
         self.plano_combo.currentTextChanged.connect(self._on_plano_changed)
+        self.treina_combo.currentTextChanged.connect(self._on_treina_changed)
         self.cancel_button.clicked.connect(self.reject)
         self.save_button.clicked.connect(self._on_save)
     
@@ -202,6 +233,29 @@ class EditMemberDialog(QDialog):
         
         self.vencimento_plano_label.setVisible(has_vencimento)
         self.vencimento_plano_input.setVisible(has_vencimento)
+    
+    def _on_treina_changed(self, treina: str):
+        """Atualiza a visibilidade e valor do campo de vencimento do treino quando muda."""
+        self._toggle_treino_visibility()
+        
+        # Calcula automaticamente a nova data de vencimento do treino
+        if treina == "Sim":
+            from datetime import timedelta
+            from src import config
+            
+            today = datetime.now()
+            vencimento = today + timedelta(days=config.TREINO_VALIDADE_DIAS)
+            self.vencimento_treino_input.setDate(
+                QDate(vencimento.year, vencimento.month, vencimento.day)
+            )
+    
+    def _toggle_treino_visibility(self):
+        """Mostra ou esconde o campo de vencimento do treino baseado na seleção."""
+        treina = self.treina_combo.currentText()
+        has_treino = treina == "Sim"
+        
+        self.vencimento_treino_label.setVisible(has_treino)
+        self.vencimento_treino_input.setVisible(has_treino)
     
     def _validate_fields(self) -> bool:
         """Valida os campos obrigatórios."""
@@ -275,6 +329,17 @@ class EditMemberDialog(QDialog):
         old_plano = self.member_data.get('plano', '')
         plano_changed = plano != old_plano
         
+        # Treino e vencimento do treino
+        treina = self.treina_combo.currentText()
+        vencimento_treino_str = None
+        if treina == "Sim":
+            vencimento_treino_date = self.vencimento_treino_input.date()
+            vencimento_treino_str = vencimento_treino_date.toString("dd/MM/yyyy")
+        
+        # Detecta mudança de treino (não treina -> treina)
+        old_treina = self.member_data.get('treina', 'Não')
+        treina_activated = old_treina == "Não" and treina == "Sim"
+        
         # Se mudou o plano E não selecionou método de pagamento, perguntar
         if plano_changed and not metodo_pagamento:
             from src.ui.dialogs.payment_method_dialog import PaymentMethodDialog
@@ -292,6 +357,21 @@ class EditMemberDialog(QDialog):
                     # Usuário cancelou - não salvar as alterações
                     return
         
+        # Se ativou o treino E não selecionou método de pagamento, perguntar
+        if treina_activated and not metodo_pagamento:
+            from src.ui.dialogs.payment_method_dialog import PaymentMethodDialog
+            from src import config
+            
+            valor = config.TREINO_PRECO
+            
+            dialog = PaymentMethodDialog("", "Treino", valor, self)
+            
+            if dialog.exec() == QDialog.DialogCode.Accepted:
+                metodo_pagamento = dialog.get_payment_method()
+            else:
+                # Usuário cancelou - não salvar as alterações
+                return
+        
         # Monta o dicionário com os dados atualizados
         updated_data = {
             'id': self.member_id,
@@ -304,7 +384,10 @@ class EditMemberDialog(QDialog):
             'genero': self.genero_combo.currentText(),
             'calcado': self.calcado_input.text().strip(),
             'email': self.email_input.text().strip(),
-            'metodo_pagamento': metodo_pagamento
+            'metodo_pagamento': metodo_pagamento,
+            'treina': treina,
+            'vencimento_treino': vencimento_treino_str,
+            'treina_activated': treina_activated  # Flag para registrar pagamento
         }
         
         # Emite o sinal com os dados atualizados

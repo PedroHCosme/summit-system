@@ -8,7 +8,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import QDate
 
-from src.config import PLANOS, PLANOS_COM_VENCIMENTO
+from src.config import PLANOS_COM_VENCIMENTO
 
 
 class AddMemberDialog(QDialog):
@@ -21,6 +21,7 @@ class AddMemberDialog(QDialog):
         self._setup_ui()
         self._connect_signals()
         self._toggle_vencimento_visibility(self.plano_combo.currentText())
+        self._toggle_treino_visibility(self.treina_combo.currentText())
 
     def _setup_ui(self):
         """Configura a interface do diálogo."""
@@ -33,7 +34,9 @@ class AddMemberDialog(QDialog):
         self.nome_input = QLineEdit()
         
         self.plano_combo = QComboBox()
-        self.plano_combo.addItems(PLANOS)
+        # Importar PLANOS dinamicamente em tempo de execução para pegar atualizações
+        from src import config
+        self.plano_combo.addItems(config.PLANOS)
         
         self.vencimento_plano_input = QDateEdit()
         self.vencimento_plano_input.setCalendarPopup(True)
@@ -53,6 +56,15 @@ class AddMemberDialog(QDialog):
         
         self.email_input = QLineEdit()
         self.email_input.setPlaceholderText("exemplo@email.com")
+        
+        # Campos de treino
+        self.treina_combo = QComboBox()
+        self.treina_combo.addItems(["Não", "Sim"])
+        
+        self.vencimento_treino_input = QDateEdit()
+        self.vencimento_treino_input.setCalendarPopup(True)
+        self.vencimento_treino_input.setDate(QDate.currentDate())
+        self.vencimento_treino_input.setDisplayFormat("dd/MM/yyyy")
 
         # Adiciona campos ao formulário
         self.form_layout.addRow("Nome (*):", self.nome_input)
@@ -62,6 +74,8 @@ class AddMemberDialog(QDialog):
         self.form_layout.addRow("WhatsApp (*):", self.whatsapp_input)
         self.form_layout.addRow("Gênero (*):", self.genero_combo)
         self.form_layout.addRow("Email:", self.email_input)
+        self.form_layout.addRow("Treina:", self.treina_combo)
+        self.vencimento_treino_row = self.form_layout.addRow("Vencimento do Treino:", self.vencimento_treino_input)
         
         self.layout.addLayout(self.form_layout)
 
@@ -80,6 +94,7 @@ class AddMemberDialog(QDialog):
         self.save_button.clicked.connect(self.accept)
         self.cancel_button.clicked.connect(self.reject)
         self.plano_combo.currentTextChanged.connect(self._toggle_vencimento_visibility)
+        self.treina_combo.currentTextChanged.connect(self._toggle_treino_visibility)
 
     def _toggle_vencimento_visibility(self, plano: str):
         """Mostra ou esconde o campo de vencimento baseado no plano e calcula a data automaticamente."""
@@ -96,10 +111,27 @@ class AddMemberDialog(QDialog):
                 # Já é um objeto datetime, converter diretamente para QDate
                 qdate = QDate(new_due_date.year, new_due_date.month, new_due_date.day)
                 self.vencimento_plano_input.setDate(qdate)
+    
+    def _toggle_treino_visibility(self, treina: str):
+        """Mostra ou esconde o campo de vencimento do treino baseado na seleção."""
+        is_visible = treina == "Sim"
+        self.form_layout.labelForField(self.vencimento_treino_input).setVisible(is_visible)
+        self.vencimento_treino_input.setVisible(is_visible)
+        
+        # Calcula automaticamente a data de vencimento do treino (1 mês)
+        if is_visible:
+            from datetime import timedelta
+            from src import config
+            
+            today = datetime.now()
+            vencimento = today + timedelta(days=config.TREINO_VALIDADE_DIAS)
+            qdate = QDate(vencimento.year, vencimento.month, vencimento.day)
+            self.vencimento_treino_input.setDate(qdate)
 
     def get_data(self):
         """Retorna os dados do formulário como um dicionário."""
         plano = self.plano_combo.currentText()
+        treina = self.treina_combo.currentText()
         
         data = {
             "nome": self.nome_input.text().strip(),
@@ -108,10 +140,15 @@ class AddMemberDialog(QDialog):
             "whatsapp": self.whatsapp_input.text().strip(),
             "genero": self.genero_combo.currentText(),
             "email": self.email_input.text().strip(),
+            "treina": treina,
         }
         
         # Para planos com vencimento, sempre incluir a data
         if plano in PLANOS_COM_VENCIMENTO:
             data["vencimento_plano"] = self.vencimento_plano_input.date().toString("dd/MM/yyyy")
+        
+        # Para treino ativo, incluir a data de vencimento
+        if treina == "Sim":
+            data["vencimento_treino"] = self.vencimento_treino_input.date().toString("dd/MM/yyyy")
         
         return data

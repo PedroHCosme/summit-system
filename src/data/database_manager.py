@@ -178,6 +178,45 @@ class DatabaseManager:
             return None
 
         descricao_final = descricao or f"Plano: {plan_name}"
+
+    def _register_training_payment(
+        self,
+        member_id: int,
+        metodo_pagamento: str,
+        valor: float,
+        vencimento: Optional[str],
+        payment_date_override: Optional[datetime] = None
+    ) -> Optional[int]:
+        """
+        Registra um pagamento de treino para um membro.
+        
+        Args:
+            member_id: ID do membro
+            metodo_pagamento: Método de pagamento utilizado
+            valor: Valor do treino
+            vencimento: Data de vencimento do treino
+            payment_date_override: Data específica do pagamento (opcional)
+            
+        Returns:
+            ID do pagamento criado ou None em caso de erro
+        """
+        if not self.connection:
+            return None
+
+        normalized_vencimento = normalize_date_string(vencimento)
+        
+        # Data de pagamento: usa override ou data atual
+        payment_date = payment_date_override or datetime.now().replace(hour=12, minute=0, second=0, microsecond=0)
+
+        return self.add_payment(
+            member_id=member_id,
+            valor=valor,
+            tipo_transacao="Pagamento Treino",
+            descricao="Ativação do serviço de treino",
+            metodo_pagamento=metodo_pagamento or "Não informado",
+            nova_data_vencimento=normalized_vencimento or vencimento,
+            data_pagamento=payment_date
+        )
         return self._register_plan_payment(
             member_id=member_id,
             plan_name=plan_name,
@@ -1129,7 +1168,9 @@ class DatabaseManager:
                 'genero': 'genero',
                 'frequencia': 'frequencia',
                 'calcado': 'calcado',
-                'email': 'email'
+                'email': 'email',
+                'treina': 'treina',
+                'vencimento_treino': 'vencimento_treino'
             }
             
             # Adicionar campos que estão no dicionário
@@ -1160,7 +1201,18 @@ class DatabaseManager:
             if register_payment:
                 new_plano = member_data.get('plano')
                 new_vencimento = member_data.get('vencimento_plano')
+                treina_activated = member_data.get('treina_activated', False)
                 payment_registered = False
+
+                # Registrar pagamento de treino se ativado
+                if treina_activated:
+                    from src import config
+                    self._register_training_payment(
+                        member_id=member_id,
+                        metodo_pagamento=metodo_pagamento,
+                        valor=config.TREINO_PRECO,
+                        vencimento=member_data.get('vencimento_treino')
+                    )
 
                 if old_data:
                     old_plano = old_data.get('plano')
@@ -1332,6 +1384,40 @@ class DatabaseManager:
             return [dict(row) for row in rows]
         except Exception as e:
             print(f"Erro ao buscar detalhes dos check-ins de hoje: {e}")
+            return []
+    
+    def get_checkins_by_date(self, date_str: str) -> List[Dict[str, Any]]:
+        """
+        Busca os detalhes de todos os check-ins realizados em uma data específica.
+        
+        Args:
+            date_str: Data no formato 'YYYY-MM-DD'
+        
+        Returns:
+            Lista de dicionários com dados dos check-ins (nome, plano, data).
+        """
+        try:
+            if not self.connection:
+                print("Erro: Conexão com o banco de dados não estabelecida.")
+                return []
+                
+            cursor = self.connection.cursor()
+            
+            cursor.execute("""
+                SELECT 
+                    m.nome,
+                    m.plano,
+                    f.checkin_datetime
+                FROM frequencia f
+                JOIN membros m ON f.member_id = m.id
+                WHERE DATE(f.checkin_datetime) = ?
+                ORDER BY f.checkin_datetime DESC
+            """, (date_str,))
+            
+            rows = cursor.fetchall()
+            return [dict(row) for row in rows]
+        except Exception as e:
+            print(f"Erro ao buscar check-ins por data: {e}")
             return []
 
     def get_last_checkins(self, limit: int = 5) -> List[Dict[str, Any]]:

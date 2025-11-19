@@ -32,6 +32,7 @@ class DatabaseMigrator:
         """Executa todas as migrações de forma idempotente."""
         steps = [
             ("Garantindo coluna de e-mail", self.ensure_email_column),
+            ("Garantindo colunas de treino", self.ensure_training_columns),
             ("Garantindo tabela/colunas de pagamentos", self.ensure_payments_schema),
             ("Ajustando formato das datas de pagamento", self.ensure_payment_datetime),
             ("Ajustando timestamps sem hora", self.ensure_payment_times),
@@ -101,6 +102,31 @@ class DatabaseMigrator:
         cursor.execute("ALTER TABLE membros ADD COLUMN email TEXT")
         cursor.close()
         self.conn.commit()
+    
+    def ensure_training_columns(self) -> None:
+        """Adiciona colunas para controle de treino como serviço adicional."""
+        if not self._table_exists('membros'):
+            return
+
+        info = self._get_table_info('membros')
+        missing_columns = []
+        
+        # treina: 'Sim' ou 'Não' (default 'Não')
+        if 'treina' not in info:
+            missing_columns.append("ALTER TABLE membros ADD COLUMN treina TEXT DEFAULT 'Não'")
+        
+        # vencimento_treino: data de validade do treino (formato YYYY-MM-DD)
+        if 'vencimento_treino' not in info:
+            missing_columns.append("ALTER TABLE membros ADD COLUMN vencimento_treino TEXT")
+        
+        if missing_columns:
+            self._execute_many(missing_columns)
+            
+            # Atualizar membros existentes para "Não treina" se o campo for NULL
+            cursor = self.conn.cursor()
+            cursor.execute("UPDATE membros SET treina = 'Não' WHERE treina IS NULL")
+            cursor.close()
+            self.conn.commit()
 
     def ensure_payments_schema(self) -> None:
         cursor = self.conn.cursor()

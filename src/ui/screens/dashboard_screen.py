@@ -5,9 +5,9 @@ from datetime import datetime
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
     QPushButton, QTextBrowser, QDialog, QTableWidget,
-    QTableWidgetItem, QHeaderView, QMessageBox
+    QTableWidgetItem, QHeaderView, QMessageBox, QDateEdit
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QDate
 
 
 class DashboardScreen(QWidget):
@@ -129,52 +129,138 @@ class DashboardScreen(QWidget):
         self.last_checkins_browser.setHtml(f"<p style='color: #FF6B6B;'>{error_message}</p>")
 
     def show_checkins_details(self):
-        """Mostra uma janela com os detalhes dos check-ins de hoje."""
+        """Mostra uma janela com os detalhes dos check-ins com seletor de data."""
         try:
-            from src.data.data_provider import get_checkins_today_details
-
-            checkins = get_checkins_today_details()
-
-            if not checkins:
-                QMessageBox.information(self, "Check-ins de Hoje", "Nenhum check-in registrado hoje.")
-                return
+            from src.data.data_provider import get_checkins_by_date
 
             # Cria a janela de diálogo
             dialog = QDialog(self)
-            dialog.setWindowTitle("Detalhes dos Check-ins de Hoje")
-            dialog.setMinimumSize(600, 400)
+            dialog.setWindowTitle("Detalhes dos Check-ins")
+            dialog.setMinimumSize(700, 500)
             
             layout = QVBoxLayout(dialog)
             
+            # Header com seletor de data
+            header_layout = QHBoxLayout()
+            
+            date_label = QLabel("Selecione a data:")
+            date_label.setStyleSheet("font-size: 14px; font-weight: bold; color: #333;")
+            header_layout.addWidget(date_label)
+            
+            # Seletor de data
+            date_edit = QDateEdit()
+            date_edit.setCalendarPopup(True)
+            date_edit.setDisplayFormat("dd/MM/yyyy")
+            date_edit.setDate(QDate.currentDate())
+            date_edit.setMaximumDate(QDate.currentDate())  # Não permite datas futuras
+            date_edit.setStyleSheet("""
+                QDateEdit {
+                    padding: 8px;
+                    font-size: 14px;
+                    border: 2px solid #007ACC;
+                    border-radius: 4px;
+                    min-width: 150px;
+                }
+            """)
+            header_layout.addWidget(date_edit)
+            
+            # Botão para atualizar
+            update_button = QPushButton("Atualizar")
+            update_button.setStyleSheet("""
+                QPushButton {
+                    background-color: #007ACC;
+                    color: white;
+                    font-weight: bold;
+                    border: none;
+                    border-radius: 4px;
+                    padding: 8px 16px;
+                    font-size: 14px;
+                }
+                QPushButton:hover {
+                    background-color: #005FA3;
+                }
+            """)
+            header_layout.addWidget(update_button)
+            header_layout.addStretch()
+            
+            layout.addLayout(header_layout)
+            
+            # Label para mostrar informações
+            info_label = QLabel("")
+            info_label.setStyleSheet("font-size: 13px; color: #555; margin: 10px 0;")
+            layout.addWidget(info_label)
+            
+            # Tabela
             table = QTableWidget()
             table.setColumnCount(4)
             table.setHorizontalHeaderLabels(["Nome do Membro", "Plano", "Data", "Horário"])
-            table.setRowCount(len(checkins))
+            table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
             
-            for row, checkin in enumerate(checkins):
-                nome = checkin.get('nome', 'N/A')
-                plano = checkin.get('plano', 'N/A')
-                checkin_datetime_str = checkin.get('checkin_datetime')
-                
-                if checkin_datetime_str:
-                    dt_obj = datetime.fromisoformat(checkin_datetime_str)
-                    table.setItem(row, 2, QTableWidgetItem(dt_obj.strftime('%d/%m/%Y')))
-                    table.setItem(row, 3, QTableWidgetItem(dt_obj.strftime('%H:%M:%S')))
-                else:
-                    table.setItem(row, 2, QTableWidgetItem('N/A'))
-                    table.setItem(row, 3, QTableWidgetItem('N/A'))
-
-                table.setItem(row, 0, QTableWidgetItem(nome))
-                table.setItem(row, 1, QTableWidgetItem(plano))
-
             header = table.horizontalHeader()
             if header:
                 header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-            table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
             
             layout.addWidget(table)
             
+            # Função para carregar os dados
+            def load_checkins():
+                selected_date = date_edit.date()
+                date_str = selected_date.toString("yyyy-MM-dd")
+                date_display = selected_date.toString("dd/MM/yyyy")
+                
+                checkins = get_checkins_by_date(date_str)
+                
+                if not checkins:
+                    info_label.setText(f"📅 {date_display} - Nenhum check-in registrado nesta data.")
+                    info_label.setStyleSheet("font-size: 13px; color: #FF6B6B; margin: 10px 0; font-weight: bold;")
+                    table.setRowCount(0)
+                else:
+                    info_label.setText(f"📅 {date_display} - Total: {len(checkins)} check-in(s)")
+                    info_label.setStyleSheet("font-size: 13px; color: #28a745; margin: 10px 0; font-weight: bold;")
+                    table.setRowCount(len(checkins))
+                    
+                    for row, checkin in enumerate(checkins):
+                        nome = checkin.get('nome', 'N/A')
+                        plano = checkin.get('plano', 'N/A')
+                        checkin_datetime_str = checkin.get('checkin_datetime')
+                        
+                        if checkin_datetime_str:
+                            dt_obj = datetime.fromisoformat(checkin_datetime_str)
+                            table.setItem(row, 2, QTableWidgetItem(dt_obj.strftime('%d/%m/%Y')))
+                            table.setItem(row, 3, QTableWidgetItem(dt_obj.strftime('%H:%M:%S')))
+                        else:
+                            table.setItem(row, 2, QTableWidgetItem('N/A'))
+                            table.setItem(row, 3, QTableWidgetItem('N/A'))
+
+                        table.setItem(row, 0, QTableWidgetItem(nome))
+                        table.setItem(row, 1, QTableWidgetItem(plano))
+            
+            # Conectar o botão de atualizar
+            update_button.clicked.connect(load_checkins)
+            
+            # Conectar mudança de data para auto-atualizar
+            date_edit.dateChanged.connect(load_checkins)
+            
+            # Carregar dados iniciais (hoje)
+            load_checkins()
+            
+            # Botão fechar
             close_button = QPushButton("Fechar")
+            close_button.setStyleSheet("""
+                QPushButton {
+                    background-color: #CCCCCC;
+                    color: #333333;
+                    font-weight: bold;
+                    border: none;
+                    border-radius: 4px;
+                    padding: 10px;
+                    font-size: 14px;
+                    min-width: 100px;
+                }
+                QPushButton:hover {
+                    background-color: #BBBBBB;
+                }
+            """)
             close_button.clicked.connect(dialog.close)
             layout.addWidget(close_button)
             

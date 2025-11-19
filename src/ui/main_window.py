@@ -315,6 +315,10 @@ class MainWindow(QMainWindow):
         """Manipula a conclusão da conexão."""
         if success:
             self.is_connected = True
+            
+            # Executa migrações do banco de dados
+            self._run_migrations()
+            
             if hasattr(self, 'gestao_menu') and self.gestao_menu:
                 self.gestao_menu.setEnabled(True)
             if hasattr(self, 'atividade_menu') and self.atividade_menu:
@@ -325,6 +329,22 @@ class MainWindow(QMainWindow):
             self._show_dashboard()
         else:
             self.home_screen.set_error("Falha na conexão. Verifique o console para mais detalhes.")
+    
+    def _run_migrations(self):
+        """Executa as migrações do banco de dados automaticamente."""
+        try:
+            from src.data.migrations import DatabaseMigrator
+            from src.data.data_provider import get_provider
+            
+            provider = get_provider()
+            db_manager = provider.db_manager
+            
+            migrator = DatabaseMigrator(db_manager)
+            migrator.run_all()
+            print("✓ Migrações do banco de dados executadas com sucesso")
+        except Exception as e:
+            print(f"⚠ Erro ao executar migrações: {e}")
+            # Não bloqueia a aplicação se houver erro nas migrações
     
     # === Dashboard ===
     
@@ -566,6 +586,7 @@ class MainWindow(QMainWindow):
                     # Se registrou pagamento, atualizar a aba financeira também
                     if register_payment:
                         from src.data.data_provider import get_provider
+                        provider = get_provider()
                         payments = provider.db_manager.get_member_payment_history(member_id)
                         self.member_search_screen.display_member_financial_history(
                             member_id, 

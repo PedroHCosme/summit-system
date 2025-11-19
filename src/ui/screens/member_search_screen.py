@@ -415,6 +415,11 @@ class MemberSearchScreen(QWidget):
             ('calcado', 'Calçado')
         ])
         
+        # Adicionar campos de treino se o membro treina
+        treina = member_data.get('treina', 'Não')
+        if treina == 'Sim':
+            fields.append(('vencimento_treino', 'Vencimento do Treino'))
+        
         html = """
             <div style="padding: 20px;">
                 <h2 style="color: #007ACC; text-align: center; margin-bottom: 20px;">Dados do Membro</h2>
@@ -426,6 +431,16 @@ class MemberSearchScreen(QWidget):
             <div style="margin-bottom: 10px;">
                 <strong style="color: #333333;">Frequência (Este Mês):</strong>
                 <span style="color: #007ACC; font-weight: bold;"> {frequencia_mes_atual} check-ins</span>
+            </div>
+        """
+        
+        # Adicionar informação de treino
+        treina = member_data.get('treina', 'Não')
+        treina_color = '#28a745' if treina == 'Sim' else '#888888'
+        html += f"""
+            <div style="margin-bottom: 10px;">
+                <strong style="color: #333333;">Treina:</strong>
+                <span style="color: {treina_color}; font-weight: bold;"> {treina}</span>
             </div>
         """
         
