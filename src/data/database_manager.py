@@ -372,7 +372,12 @@ class DatabaseManager:
     
     def find_members_by_name(self, name_query: str) -> List[Dict[str, Any]]:
         """
-        Busca membros por nome (busca parcial).
+        Busca membros por nome com busca inteligente.
+        
+        Suporta busca por palavras separadas. Por exemplo:
+        - "Pedro Cosme" encontra "Pedro Henrique de Menezes Cosme"
+        - "Cosme" encontra "Pedro Henrique de Menezes Cosme"
+        - "Menezes Pedro" encontra "Pedro Henrique de Menezes Cosme"
         
         Args:
             name_query: Nome ou parte do nome a buscar
@@ -383,11 +388,22 @@ class DatabaseManager:
         if not self.connection:
             return []
         try:
+            # Dividir a query em palavras (tokens)
+            tokens = [token.strip() for token in name_query.split() if token.strip()]
+            
+            if not tokens:
+                return []
+            
+            # Construir query SQL com múltiplos LIKE (AND entre eles)
+            # Cada palavra deve aparecer em algum lugar do nome
+            conditions = " AND ".join(["nome LIKE ?" for _ in tokens])
+            query = f"SELECT * FROM membros WHERE {conditions} ORDER BY nome"
+            
+            # Criar parâmetros com % ao redor de cada token
+            params = tuple(f"%{token}%" for token in tokens)
+            
             cursor = self.connection.cursor()
-            cursor.execute(
-                "SELECT * FROM membros WHERE nome LIKE ? ORDER BY nome",
-                (f"%{name_query}%",)
-            )
+            cursor.execute(query, params)
             rows = cursor.fetchall()
             
             return [dict(row) for row in rows]
@@ -661,6 +677,41 @@ class DatabaseManager:
                 DELETE FROM frequencia
                 WHERE id = ?
             """, (checkin_id,))
+            
+            self.connection.commit()
+            return True
+        except Exception as e:
+            print(f"Erro ao deletar check-in: {e}")
+            return False
+    
+    def update_checkin_datetime(self, checkin_id: int, new_datetime: datetime) -> bool:
+        """
+        Atualiza a data/hora de um check-in existente.
+        
+        Args:
+            checkin_id: ID do check-in a ser atualizado
+            new_datetime: Nova data/hora para o check-in
+            
+        Returns:
+            True se a atualização foi bem-sucedida, False caso contrário
+        """
+        if not self.connection:
+            return False
+        try:
+            cursor = self.connection.cursor()
+            
+            # Verificar se o check-in existe
+            cursor.execute("SELECT id FROM frequencia WHERE id = ?", (checkin_id,))
+            if not cursor.fetchone():
+                print(f"Check-in com ID {checkin_id} não encontrado")
+                return False
+            
+            # Atualizar a data/hora
+            cursor.execute("""
+                UPDATE frequencia
+                SET checkin_datetime = ?
+                WHERE id = ?
+            """, (new_datetime.strftime('%Y-%m-%d %H:%M:%S'), checkin_id))
             
             self.connection.commit()
             return cursor.rowcount > 0

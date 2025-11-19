@@ -370,10 +370,22 @@ class MemberSearchScreen(QWidget):
             # Emite um sinal ou chama diretamente o controller
             # Por enquanto, vamos armazenar o ID para ser tratado externamente
             self.request_delete_checkin(checkin_id)
+        # Verifica se é um link de editar
+        elif url_str.startswith("edit:"):
+            checkin_id = int(url_str.split(":")[1])
+            self.request_edit_checkin(checkin_id)
     
     def request_delete_checkin(self, checkin_id: int):
         """
         Solicita a exclusão de um check-in.
+        Este método será conectado ao controller na main_window.
+        """
+        # Placeholder - será conectado no main_window
+        pass
+    
+    def request_edit_checkin(self, checkin_id: int):
+        """
+        Solicita a edição de um check-in.
         Este método será conectado ao controller na main_window.
         """
         # Placeholder - será conectado no main_window
@@ -538,7 +550,10 @@ class MemberSearchScreen(QWidget):
                             <span style="color: #555555; margin-left: 10px;">{date_str}</span>
                             <span style="color: #007ACC; margin-left: 10px;">⏰ {time_str}</span>
                         </div>
-                        <a href="delete:{checkin_id}" style="color: #FF6B6B; text-decoration: none; font-weight: bold; padding: 4px 8px; background: #FFE5E5; border-radius: 4px;">🗑️ Deletar</a>
+                        <div style="display: flex; gap: 8px;">
+                            <a href="edit:{checkin_id}" style="color: #007ACC; text-decoration: none; font-weight: bold; padding: 4px 8px; background: #E3F2FD; border-radius: 4px;">✏️ Editar</a>
+                            <a href="delete:{checkin_id}" style="color: #FF6B6B; text-decoration: none; font-weight: bold; padding: 4px 8px; background: #FFE5E5; border-radius: 4px;">🗑️ Deletar</a>
+                        </div>
                     </div>
                 """
             

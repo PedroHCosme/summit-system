@@ -190,6 +190,24 @@ class DataProvider:
             # Funcionalidade não suportada para Google Sheets
             print("Aviso: A funcionalidade de exclusão de check-in não é suportada para Google Sheets.")
             return False
+    
+    def update_checkin_datetime(self, checkin_id: int, new_datetime) -> bool:
+        """
+        Atualiza a data/hora de um check-in existente.
+        
+        Args:
+            checkin_id: ID do check-in a ser atualizado
+            new_datetime: Nova data/hora para o check-in (datetime object)
+            
+        Returns:
+            True se a atualização foi bem-sucedida, False caso contrário
+        """
+        if self.use_sqlite:
+            return self.db_manager.update_checkin_datetime(checkin_id, new_datetime)
+        else:
+            # Funcionalidade não suportada para Google Sheets
+            print("Aviso: A funcionalidade de edição de check-in não é suportada para Google Sheets.")
+            return False
 
     def get_checkins_today(self) -> int:
         """Retorna o número de check-ins de hoje."""
@@ -472,3 +490,17 @@ def delete_checkin(checkin_id: int) -> bool:
         True se a exclusão foi bem-sucedida, False caso contrário
     """
     return get_provider().delete_checkin(checkin_id)
+
+
+def update_checkin_datetime(checkin_id: int, new_datetime) -> bool:
+    """
+    Atualiza a data/hora de um check-in existente.
+    
+    Args:
+        checkin_id: ID do check-in a ser atualizado
+        new_datetime: Nova data/hora para o check-in (datetime object)
+        
+    Returns:
+        True se a atualização foi bem-sucedida, False caso contrário
+    """
+    return get_provider().update_checkin_datetime(checkin_id, new_datetime)

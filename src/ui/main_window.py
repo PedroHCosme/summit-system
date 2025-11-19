@@ -248,6 +248,8 @@ class MainWindow(QMainWindow):
         )
         # Substituir o método request_delete_checkin por nossa implementação
         self.member_search_screen.request_delete_checkin = self._on_delete_checkin_requested
+        # Substituir o método request_edit_checkin por nossa implementação
+        self.member_search_screen.request_edit_checkin = self._on_edit_checkin_requested
         
         # Check-in
         self.checkin_screen.name_input.returnPressed.connect(
@@ -686,9 +688,66 @@ class MainWindow(QMainWindow):
             except Exception as e:
                 QMessageBox.critical(
                     self,
-                    "Erro Crítico",
-                    f"Ocorreu um erro inesperado: {e}"
+                    "Erro",
+                    f"Erro ao deletar check-in: {str(e)}"
                 )
+    
+    def _on_edit_checkin_requested(self, checkin_id: int):
+        """Manipula a solicitação de edição de um check-in."""
+        try:
+            from src.data.data_provider import get_provider, update_checkin_datetime
+            from src.ui.dialogs import EditCheckinDialog
+            
+            # Buscar dados do check-in
+            provider = get_provider()
+            if not self.member_search_screen.current_member_data:
+                QMessageBox.warning(self, "Erro", "Nenhum membro selecionado.")
+                return
+            
+            member_id = self.member_search_screen.current_member_data['id']
+            member_name = self.member_search_screen.current_member_data['nome']
+            
+            # Buscar o histórico para encontrar o check-in específico
+            history = provider.get_member_checkin_history(member_id)
+            checkin_data = next((c for c in history if c['id'] == checkin_id), None)
+            
+            if not checkin_data:
+                QMessageBox.warning(self, "Erro", "Check-in não encontrado.")
+                return
+            
+            # Converter data/hora
+            current_datetime = datetime.fromisoformat(checkin_data['checkin_datetime'])
+            
+            # Abrir dialog de edição
+            dialog = EditCheckinDialog(checkin_id, current_datetime, member_name, self)
+            
+            # Conectar sinal de atualização
+            def on_checkin_updated(cid: int, new_dt: datetime):
+                success = update_checkin_datetime(cid, new_dt)
+                if success:
+                    QMessageBox.information(
+                        self,
+                        "Sucesso",
+                        "Horário do check-in atualizado com sucesso!"
+                    )
+                    # Recarrega o histórico
+                    self._load_member_history(member_id, member_name)
+                else:
+                    QMessageBox.warning(
+                        self,
+                        "Erro",
+                        "Não foi possível atualizar o check-in. Verifique o console."
+                    )
+            
+            dialog.checkin_updated.connect(on_checkin_updated)
+            dialog.exec()
+            
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Erro",
+                f"Erro ao editar check-in: {str(e)}"
+            )
     
     # === Check-in ===
     
