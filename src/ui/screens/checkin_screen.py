@@ -118,27 +118,73 @@ class CheckinScreen(QWidget):
     def display_member_for_checkin(self, member_id: int, member_data: dict):
         """Exibe dados do membro para check-in."""
         self.current_member_id = member_id
+        
+        # Extrair dados
         nome = member_data.get('nome', 'N/A')
         plano = member_data.get('plano', 'N/A')
         estado_plano = member_data.get('estado_plano', 'N/A')
+        vencimento_plano = member_data.get('vencimento_plano', 'N/A')
+        data_nascimento = member_data.get('data_nascimento', 'N/A')
+        whatsapp = member_data.get('whatsapp', 'N/A')
+        email = member_data.get('email', 'N/A')
+        genero = member_data.get('genero', 'N/A')
+        calcado = member_data.get('calcado', 'N/A')
         
         is_active = estado_plano.upper() == 'ATIVO'
         color = '#28a745' if is_active else '#FF6B6B'
+        
+        # Mensagem de aviso se inativo
+        warning_html = ""
+        if not is_active:
+            warning_html = f"""
+            <div style='background-color: #FFF3CD; color: #856404; padding: 10px; 
+                        border: 1px solid #FFEEBA; border-radius: 5px; margin-bottom: 15px; text-align: center;'>
+                <strong>⚠️ O plano desse membro está vencido</strong>
+            </div>
+            """
 
         html = f"""
-            <div style='padding: 10px; font-size: 16px;'>
+            <div style='padding: 10px; font-size: 14px;'>
+                {warning_html}
+                
+                <h3 style='color: #333; border-bottom: 2px solid #007ACC; padding-bottom: 5px;'>Informações Principais</h3>
                 <p><b>Nome:</b> {nome}</p>
                 <p><b>Plano:</b> {plano}</p>
                 <p><b>Status:</b> <span style='color: {color}; font-weight: bold;'>{estado_plano}</span></p>
+                <p><b>Vencimento:</b> {vencimento_plano}</p>
+                
+                <h3 style='color: #333; border-bottom: 1px solid #ccc; padding-bottom: 5px; margin-top: 15px;'>Dados Pessoais</h3>
+                <p><b>Data de Nascimento:</b> {data_nascimento}</p>
+                <p><b>Gênero:</b> {genero}</p>
+                <p><b>Tamanho Calçado:</b> {calcado}</p>
+                
+                <h3 style='color: #333; border-bottom: 1px solid #ccc; padding-bottom: 5px; margin-top: 15px;'>Contato</h3>
+                <p><b>WhatsApp:</b> {whatsapp}</p>
+                <p><b>Email:</b> {email}</p>
             </div>
         """
+        
         self.member_details_browser.setHtml(html)
         
-        self.confirm_button.setEnabled(is_active)
+        # Habilita o botão mesmo se inativo, mas muda o texto/estilo se necessário
+        self.confirm_button.setEnabled(True)
+        
         if not is_active:
-            self.confirm_button.setText("Plano Inativo")
+            self.confirm_button.setText("Confirmar Check-in (Plano Vencido)")
+            self.confirm_button.setStyleSheet("""
+                QPushButton {
+                    background-color: #ffc107; 
+                    color: #000; 
+                    font-size: 18px; 
+                    font-weight: bold;
+                }
+                QPushButton:hover {
+                    background-color: #e0a800;
+                }
+            """)
         else:
             self.confirm_button.setText("Confirmar Check-in")
+            self.confirm_button.setStyleSheet("font-size: 18px; font-weight: bold;")
     
     def show_error(self):
         """Mostra erro ao carregar dados."""

@@ -262,6 +262,10 @@ class MainWindow(QMainWindow):
         # Lista de Membros
         self.members_list_screen.refresh_requested.connect(self._on_members_list_refresh)
         self.members_list_screen.member_selected.connect(self._on_members_list_member_selected)
+        # Conectar sinais da lista de membros
+        self.members_list_screen.edit_requested.connect(self._on_list_edit_member_clicked)
+        self.members_list_screen.renew_requested.connect(self._on_list_renew_plan_clicked)
+        self.members_list_screen.delete_requested.connect(self._on_list_delete_member_clicked)
         
         # Check-in
         self.checkin_screen.name_input.returnPressed.connect(
@@ -1283,9 +1287,124 @@ class MainWindow(QMainWindow):
     
     def _on_members_list_member_selected(self, member_data: dict):
         """Quando um membro é selecionado na lista."""
-        # Mostrar na tela de busca
-        self.member_search_screen.set_member_data(member_data)
-        self.stacked_widget.setCurrentIndex(3)
+        # Carregar dados completos (garantir que temos tudo)
+        full_member_data = self.search_service.get_member_by_id(member_data['id'])
+        
+        if full_member_data:
+            # Exibir dados básicos
+            self.members_list_screen.display_member_data(full_member_data)
+            
+            # Carregar históricos
+            self._load_list_member_history(full_member_data['id'], full_member_data['nome'])
+            self._load_list_member_financial_history(full_member_data['id'], full_member_data['nome'])
+            
+    def _load_list_member_history(self, member_id: int, member_name: str):
+        """Carrega e exibe o histórico de check-ins do membro na lista."""
+        try:
+            from src.data.data_provider import get_member_checkin_history
+            history = get_member_checkin_history(member_id)
+            self.members_list_screen.display_member_history(history)
+        except Exception as e:
+            print(f"Erro ao carregar histórico na lista: {e}")
+
+    def _load_list_member_financial_history(self, member_id: int, member_name: str):
+        """Carrega e exibe o histórico financeiro do membro na lista."""
+        try:
+            from src.data.data_provider import get_provider
+            db_manager = get_provider().db_manager
+            if db_manager and db_manager.connection:
+                payments = db_manager.get_member_payment_history(member_id)
+                self.members_list_screen.display_member_financial_history(payments)
+        except Exception as e:
+            print(f"Erro ao carregar histórico financeiro na lista: {e}")
+
+    def _on_list_edit_member_clicked(self):
+        """Abre o diálogo de edição do membro atual da lista."""
+        if not self.members_list_screen.current_member_data:
+            return
+        
+        from src.ui.dialogs.edit_member_dialog import EditMemberDialog
+        
+        dialog = EditMemberDialog(self.members_list_screen.current_member_data, self)
+        dialog.member_updated.connect(self._on_list_member_updated)
+        dialog.exec()
+
+    def _on_list_renew_plan_clicked(self):
+        """Abre o diálogo de renovação de plano do membro atual da lista."""
+        if not self.members_list_screen.current_member_data:
+            return
+        
+        from src.ui.dialogs.renew_plan_dialog import RenewPlanDialog
+        
+        dialog = RenewPlanDialog(self.members_list_screen.current_member_data, self)
+        dialog.plan_renewed.connect(self._on_list_plan_renewed)
+        dialog.exec()
+
+    def _on_list_delete_member_clicked(self):
+        """Abre o diálogo de confirmação de exclusão do membro atual da lista."""
+        if not self.members_list_screen.current_member_data:
+            return
+        
+        from src.ui.dialogs.delete_member_dialog import DeleteMemberDialog
+        
+        dialog = DeleteMemberDialog(self.members_list_screen.current_member_data, self)
+        
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self._delete_list_member(self.members_list_screen.current_member_data)
+
+    def _on_list_member_updated(self, updated_data: dict):
+        """Manipula a atualização de um membro na lista."""
+        # Reutiliza a lógica de atualização, mas atualiza a tela da lista
+        self._on_member_updated(updated_data) # Atualiza lógica geral (pagamentos, etc)
+        
+        # Atualiza especificamente a tela da lista
+        full_data = self.search_service.get_member_by_id(updated_data['id'])
+        if full_data:
+            self.members_list_screen.display_member_data(full_data)
+            self._load_members_list() # Recarrega a lista para atualizar nomes/planos na esquerda
+
+    def _on_list_plan_renewed(self, renewal_data: dict):
+        """Manipula a renovação de plano na lista."""
+        self._on_plan_renewed(renewal_data) # Reutiliza lógica geral
+        
+        # Atualiza tela da lista
+        full_data = self.search_service.get_member_by_id(renewal_data['id'])
+        if full_data:
+            self.members_list_screen.display_member_data(full_data)
+            self._load_list_member_financial_history(full_data['id'], full_data['nome'])
+            self._load_members_list()
+
+    def _delete_list_member(self, member_data: dict):
+        """Executa a exclusão do membro a partir da lista."""
+        try:
+            from src.data.data_provider import delete_member
+            
+            member_id = member_data['id']
+            member_name = member_data['nome']
+            
+            success = delete_member(member_id)
+            
+            if success:
+                QMessageBox.information(
+                    self,
+                    "Sucesso",
+                    f"Membro '{member_name}' foi excluído com sucesso!"
+                )
+                self._load_members_list() # Recarrega a lista
+                # Limpar detalhes
+                self.members_list_screen.details_browser.setHtml(
+                    "<div style='text-align: center; color: #666; margin-top: 20px;'>Selecione um membro para ver os detalhes</div>"
+                )
+                self.members_list_screen.history_browser.clear()
+                self.members_list_screen.financial_browser.clear()
+                self.members_list_screen.edit_button.setVisible(False)
+                self.members_list_screen.renew_button.setVisible(False)
+                self.members_list_screen.delete_button.setVisible(False)
+                self.members_list_screen.current_member_data = None
+            else:
+                QMessageBox.warning(self, "Erro", f"Não foi possível excluir o membro '{member_name}'.")
+        except Exception as e:
+            QMessageBox.critical(self, "Erro", f"Erro ao excluir membro: {str(e)}")
 
 
 def main():

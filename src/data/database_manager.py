@@ -227,6 +227,17 @@ class DatabaseManager:
             payment_date_override=payment_date
         )
     
+    @staticmethod
+    def remove_accents(text: str) -> str:
+        """Remove acentos de uma string."""
+        if not text:
+            return ""
+        import unicodedata
+        # Normaliza para NFD (decompõe caracteres)
+        nfkd_form = unicodedata.normalize('NFD', text)
+        # Filtra caracteres não-espaçamento (acentos)
+        return "".join([c for c in nfkd_form if not unicodedata.combining(c)])
+
     def connect(self) -> bool:
         """
         Cria a conexão com o banco de dados.
@@ -242,6 +253,10 @@ class DatabaseManager:
                 check_same_thread=False
             )
             self.connection.row_factory = sqlite3.Row  # Permite acessar colunas por nome
+            
+            # Registrar função personalizada para remover acentos
+            self.connection.create_function("REMOVE_ACCENTS", 1, self.remove_accents)
+            
             return True
         except Exception as e:
             print(f"Erro ao conectar ao banco de dados: {e}")
@@ -435,7 +450,8 @@ class DatabaseManager:
             
             # Construir query SQL com múltiplos LIKE (AND entre eles)
             # Cada palavra deve aparecer em algum lugar do nome
-            conditions = " AND ".join(["nome LIKE ?" for _ in tokens])
+            # Usamos a função customizada REMOVE_ACCENTS para ignorar acentos
+            conditions = " AND ".join(["REMOVE_ACCENTS(nome) LIKE REMOVE_ACCENTS(?)" for _ in tokens])
             query = f"SELECT * FROM membros WHERE {conditions} ORDER BY nome"
             
             # Criar parâmetros com % ao redor de cada token
@@ -500,7 +516,7 @@ class DatabaseManager:
                 # Busca tokenizada por nome
                 tokens = filter_text.strip().split()
                 for token in tokens:
-                    where_clauses.append("nome LIKE ?")
+                    where_clauses.append("REMOVE_ACCENTS(nome) LIKE REMOVE_ACCENTS(?)")
                     params.append(f"%{token}%")
             
             if filter_plan:

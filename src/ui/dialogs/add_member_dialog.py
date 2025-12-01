@@ -56,6 +56,9 @@ class AddMemberDialog(QDialog):
         
         self.email_input = QLineEdit()
         self.email_input.setPlaceholderText("exemplo@email.com")
+
+        self.calcado_input = QLineEdit()
+        self.calcado_input.setPlaceholderText("Ex: 40")
         
         # Campos de treino
         self.treina_combo = QComboBox()
@@ -73,6 +76,7 @@ class AddMemberDialog(QDialog):
         self.form_layout.addRow("Data de Nascimento (*):", self.data_nascimento_input)
         self.form_layout.addRow("WhatsApp (*):", self.whatsapp_input)
         self.form_layout.addRow("Gênero (*):", self.genero_combo)
+        self.form_layout.addRow("Calçado:", self.calcado_input)
         self.form_layout.addRow("Email:", self.email_input)
         self.form_layout.addRow("Treina:", self.treina_combo)
         self.vencimento_treino_row = self.form_layout.addRow("Vencimento do Treino:", self.vencimento_treino_input)
@@ -139,6 +143,7 @@ class AddMemberDialog(QDialog):
             "data_nascimento": self.data_nascimento_input.date().toString("dd/MM/yyyy"),
             "whatsapp": self.whatsapp_input.text().strip(),
             "genero": self.genero_combo.currentText(),
+            "calcado": self.calcado_input.text().strip(),
             "email": self.email_input.text().strip(),
             "treina": treina,
         }
