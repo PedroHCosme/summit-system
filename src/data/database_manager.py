@@ -606,17 +606,16 @@ class DatabaseManager:
             cursor.execute(
                 """
                 SELECT id
-                FROM pagamentos
-                WHERE member_id = ?
-                  AND DATE(data_pagamento) = DATE(?)
-                  AND tipo_transacao = ?
-                """,
-                (
-                    member_id,
-                    checkin_datetime.strftime('%Y-%m-%d %H:%M:%S'),
-                    plan_for_payment
-                )
+            FROM pagamentos
+            WHERE member_id = ?
+              AND DATE(data_pagamento) = DATE(?)
+              AND metodo_pagamento = 'Check-in'
+            """,
+            (
+                member_id,
+                checkin_datetime.strftime('%Y-%m-%d %H:%M:%S')
             )
+        )
             exists = cursor.fetchone()
         finally:
             cursor.close()
