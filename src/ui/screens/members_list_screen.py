@@ -397,7 +397,12 @@ class MembersListScreen(QWidget):
         self.members_list.clear()
         
         for member in members:
-            item = QListWidgetItem(member.get('nome', ''))
+            nome = member.get('nome', '')
+            apelido = member.get('apelido', '')
+            
+            display_text = f"{nome} ({apelido})" if apelido else nome
+            
+            item = QListWidgetItem(display_text)
             item.setData(Qt.ItemDataRole.UserRole, member)
             self.members_list.addItem(item)
             
@@ -455,10 +460,13 @@ class MembersListScreen(QWidget):
         
         # 1. Nome
         nome = member_data.get('nome', '')
+        apelido = member_data.get('apelido', '')
+        nome_display = f"{nome} ({apelido})" if apelido else (nome if nome else '<span style="color: #888888; font-style: italic;">Não informado</span>')
+        
         html += f"""
             <div style="margin-bottom: 10px;">
                 <strong style="color: #333333;">Nome:</strong>
-                <span style="color: #555555;"> {nome if nome else '<span style="color: #888888; font-style: italic;">Não informado</span>'}</span>
+                <span style="color: #555555;"> {nome_display}</span>
             </div>
         """
         

@@ -32,6 +32,8 @@ class AddMemberDialog(QDialog):
         
         # Campos
         self.nome_input = QLineEdit()
+        self.apelido_input = QLineEdit()
+        self.apelido_input.setPlaceholderText("Opcional")
         
         self.plano_combo = QComboBox()
         # Importar PLANOS dinamicamente em tempo de execução para pegar atualizações
@@ -43,10 +45,8 @@ class AddMemberDialog(QDialog):
         self.vencimento_plano_input.setDate(QDate.currentDate())
         self.vencimento_plano_input.setDisplayFormat("dd/MM/yyyy")
         
-        self.data_nascimento_input = QDateEdit()
-        self.data_nascimento_input.setCalendarPopup(True)
-        self.data_nascimento_input.setDate(QDate.currentDate())
-        self.data_nascimento_input.setDisplayFormat("dd/MM/yyyy")
+        self.data_nascimento_input = QLineEdit()
+        self.data_nascimento_input.setPlaceholderText("dd/mm/aaaa")
 
         self.whatsapp_input = QLineEdit()
         self.whatsapp_input.setPlaceholderText("(XX) XXXXX-XXXX")
@@ -71,6 +71,7 @@ class AddMemberDialog(QDialog):
 
         # Adiciona campos ao formulário
         self.form_layout.addRow("Nome (*):", self.nome_input)
+        self.form_layout.addRow("Apelido:", self.apelido_input)
         self.form_layout.addRow("Plano (*):", self.plano_combo)
         self.vencimento_row = self.form_layout.addRow("Vencimento do Plano:", self.vencimento_plano_input)
         self.form_layout.addRow("Data de Nascimento (*):", self.data_nascimento_input)
@@ -87,6 +88,21 @@ class AddMemberDialog(QDialog):
         self.button_layout = QHBoxLayout()
         self.save_button = QPushButton("Salvar")
         self.cancel_button = QPushButton("Cancelar")
+        self.save_button.setStyleSheet("""
+            QPushButton {
+                background-color: #007ACC;
+                color: white;
+                font-weight: bold;
+                border: none;
+                border-radius: 4px;
+                padding: 8px;
+            }
+            QPushButton:hover {
+                background-color: #005FA3;
+            }
+        """)
+        self.save_button.setDefault(True)
+        self.save_button.setAutoDefault(True)
         self.button_layout.addStretch()
         self.button_layout.addWidget(self.cancel_button)
         self.button_layout.addWidget(self.save_button)
@@ -95,10 +111,28 @@ class AddMemberDialog(QDialog):
 
     def _connect_signals(self):
         """Conecta os sinais dos widgets."""
-        self.save_button.clicked.connect(self.accept)
+        self.save_button.clicked.connect(self._on_save)
         self.cancel_button.clicked.connect(self.reject)
         self.plano_combo.currentTextChanged.connect(self._toggle_vencimento_visibility)
         self.treina_combo.currentTextChanged.connect(self._toggle_treino_visibility)
+
+    def _on_save(self):
+        """Valida os dados e salva."""
+        # Validar data de nascimento
+        # Validar data de nascimento
+        data_nasc_text = self.data_nascimento_input.text().strip()
+        if not data_nasc_text:
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "Atenção", "Por favor, informe a data de nascimento.")
+            return
+
+        from src.utils.utils import parse_date
+        if not parse_date(data_nasc_text):
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "Atenção", "Data de nascimento inválida. Use o formato dd/mm/aaaa.")
+            return
+            
+        self.accept()
 
     def _toggle_vencimento_visibility(self, plano: str):
         """Mostra ou esconde o campo de vencimento baseado no plano e calcula a data automaticamente."""
@@ -139,8 +173,9 @@ class AddMemberDialog(QDialog):
         
         data = {
             "nome": self.nome_input.text().strip(),
+            "apelido": self.apelido_input.text().strip(),
             "plano": plano,
-            "data_nascimento": self.data_nascimento_input.date().toString("dd/MM/yyyy"),
+            "data_nascimento": self.data_nascimento_input.text().strip(),
             "whatsapp": self.whatsapp_input.text().strip(),
             "genero": self.genero_combo.currentText(),
             "calcado": self.calcado_input.text().strip(),

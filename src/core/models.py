@@ -27,7 +27,8 @@ class Pessoa:
         estado_plano: str = "",
         genero: str = "",
         frequencia: str = "",
-        calcado: str = ""
+        calcado: str = "",
+        apelido: str = ""
     ):
         """
         Inicializa uma Pessoa.
@@ -42,6 +43,7 @@ class Pessoa:
             genero: Gênero do membro (opcional)
             frequencia: Frequência de treinos (opcional)
             calcado: Numeração de calçado (opcional)
+            apelido: Apelido do membro (opcional)
         """
         self._nome = nome.strip()
         self._data_nascimento = data_nascimento
@@ -52,6 +54,7 @@ class Pessoa:
         self._genero = genero.strip()
         self._frequencia = frequencia.strip()
         self._calcado = calcado.strip()
+        self._apelido = apelido.strip()
     
     # --- Getters (Properties) ---
     
@@ -99,6 +102,11 @@ class Pessoa:
     def calcado(self) -> str:
         """Retorna a numeração do calçado."""
         return self._calcado
+
+    @property
+    def apelido(self) -> str:
+        """Retorna o apelido."""
+        return self._apelido
 
     @property
     def idade(self) -> Optional[int]:
@@ -173,6 +181,11 @@ class Pessoa:
     def calcado(self, valor: str):
         """Define uma nova numeração de calçado."""
         self._calcado = valor.strip()
+
+    @apelido.setter
+    def apelido(self, valor: str):
+        """Define um novo apelido."""
+        self._apelido = valor.strip()
     
     # --- Métodos de Negócio ---
     
@@ -285,7 +298,8 @@ class Pessoa:
             'calcado': self._calcado,
             'dia_aniversario': self.dia_aniversario,
             'mes_aniversario': self.mes_aniversario,
-            'dias_ate_aniversario': dias_ate if dias_ate is not None else float('inf')
+            'dias_ate_aniversario': dias_ate if dias_ate is not None else float('inf'),
+            'apelido': self._apelido
         }
     
     @classmethod
@@ -323,7 +337,8 @@ class Pessoa:
                 estado_plano=dados.get('estado_plano', ''),
                 genero=dados.get('genero', ''),
                 frequencia=dados.get('frequencia', ''),
-                calcado=dados.get('calcado', '')
+                calcado=dados.get('calcado', ''),
+                apelido=dados.get('apelido', '')
             )
         except Exception:
             return None

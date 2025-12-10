@@ -257,10 +257,34 @@ class DatabaseManager:
             # Registrar função personalizada para remover acentos
             self.connection.create_function("REMOVE_ACCENTS", 1, self.remove_accents)
             
+            # Garantir que colunas novas existam (migração simplificada)
+            self._ensure_columns_exist()
+            
             return True
         except Exception as e:
             print(f"Erro ao conectar ao banco de dados: {e}")
             return False
+
+    def _ensure_columns_exist(self):
+        """Verifica e cria colunas novas se não existirem."""
+        if not self.connection:
+            return
+            
+        try:
+            cursor = self.connection.cursor()
+            
+            # Verificar colunas da tabela membros
+            cursor.execute("PRAGMA table_info(membros)")
+            columns = [info[1] for info in cursor.fetchall()]
+            
+            # Adicionar coluna 'apelido' se não existir
+            if 'apelido' not in columns:
+                print("Adicionando coluna 'apelido' à tabela membros...")
+                cursor.execute("ALTER TABLE membros ADD COLUMN apelido TEXT")
+                self.connection.commit()
+                
+        except Exception as e:
+            print(f"Erro ao verificar/criar colunas: {e}")
     
     def create_tables(self) -> bool:
         """
@@ -288,6 +312,7 @@ class DatabaseManager:
                     frequencia TEXT,
                     calcado TEXT,
                     email TEXT,
+                    apelido TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
@@ -449,13 +474,20 @@ class DatabaseManager:
                 return []
             
             # Construir query SQL com múltiplos LIKE (AND entre eles)
-            # Cada palavra deve aparecer em algum lugar do nome
+            # Cada palavra deve aparecer em algum lugar do nome OU do apelido
             # Usamos a função customizada REMOVE_ACCENTS para ignorar acentos
-            conditions = " AND ".join(["REMOVE_ACCENTS(nome) LIKE REMOVE_ACCENTS(?)" for _ in tokens])
+            conditions = " AND ".join([
+                "(REMOVE_ACCENTS(nome) LIKE REMOVE_ACCENTS(?) OR REMOVE_ACCENTS(COALESCE(apelido, '')) LIKE REMOVE_ACCENTS(?))" 
+                for _ in tokens
+            ])
             query = f"SELECT * FROM membros WHERE {conditions} ORDER BY nome"
             
-            # Criar parâmetros com % ao redor de cada token
-            params = tuple(f"%{token}%" for token in tokens)
+            # Criar parâmetros com % ao redor de cada token (duplicado para nome e apelido)
+            params = []
+            for token in tokens:
+                param = f"%{token}%"
+                params.extend([param, param])
+            params = tuple(params)
             
             cursor = self.connection.cursor()
             cursor.execute(query, params)
@@ -513,11 +545,12 @@ class DatabaseManager:
             params = []
             
             if filter_text:
-                # Busca tokenizada por nome
+                # Busca tokenizada por nome ou apelido
                 tokens = filter_text.strip().split()
                 for token in tokens:
-                    where_clauses.append("REMOVE_ACCENTS(nome) LIKE REMOVE_ACCENTS(?)")
-                    params.append(f"%{token}%")
+                    where_clauses.append("(REMOVE_ACCENTS(nome) LIKE REMOVE_ACCENTS(?) OR REMOVE_ACCENTS(COALESCE(apelido, '')) LIKE REMOVE_ACCENTS(?))")
+                    param = f"%{token}%"
+                    params.extend([param, param])
             
             if filter_plan:
                 where_clauses.append("plano = ?")
@@ -1261,7 +1294,8 @@ class DatabaseManager:
                 'calcado': 'calcado',
                 'email': 'email',
                 'treina': 'treina',
-                'vencimento_treino': 'vencimento_treino'
+                'vencimento_treino': 'vencimento_treino',
+                'apelido': 'apelido'
             }
             
             # Adicionar campos que estão no dicionário

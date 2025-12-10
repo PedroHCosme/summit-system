@@ -9,7 +9,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QDate, pyqtSignal
 
 from src.config import PLANOS_PRECOS
-from src.utils.utils import calculate_new_due_date
+from src.utils.utils import calculate_new_due_date, parse_date
 
 
 class RenewPlanDialog(QDialog):
@@ -62,7 +62,8 @@ class RenewPlanDialog(QDialog):
         self.vencimento_input.setDisplayFormat("dd/MM/yyyy")
         
         # Calcular nova data de vencimento baseada no plano atual
-        new_due_date = calculate_new_due_date(self.current_plan)
+        current_due_date = parse_date(self.current_vencimento)
+        new_due_date = calculate_new_due_date(self.current_plan, start_date=current_due_date)
         if new_due_date:
             # Converter datetime para QDate
             self.vencimento_input.setDate(QDate(new_due_date.year, new_due_date.month, new_due_date.day))
@@ -158,6 +159,8 @@ class RenewPlanDialog(QDialog):
                 background-color: #218838;
             }
         """)
+        confirm_btn.setDefault(True)
+        confirm_btn.setAutoDefault(True)
         confirm_btn.clicked.connect(self._on_confirm)
         
         button_layout.addWidget(cancel_btn)

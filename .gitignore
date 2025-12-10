@@ -30,5 +30,14 @@ env/
 Thumbs.db
 *.db
 
-# Relatórios gerados automaticamente
 relatorios/*.html
+
+# Logs e Backups
+logs/
+*.log
+backups/
+
+# Mídia e Uploads
+media/
+uploads/
+fotos_alunos/

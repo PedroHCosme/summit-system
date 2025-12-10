@@ -120,6 +120,8 @@ class EditCheckinDialog(QDialog):
                 background-color: #005FA3;
             }
         """)
+        self.save_button.setDefault(True)
+        self.save_button.setAutoDefault(True)
         self.save_button.clicked.connect(self._on_save_clicked)
         button_layout.addWidget(self.save_button)
         

@@ -116,6 +116,8 @@ class PaymentMethodDialog(QDialog):
                 background-color: #218838;
             }
         """)
+        confirm_btn.setDefault(True)
+        confirm_btn.setAutoDefault(True)
         confirm_btn.clicked.connect(self._on_confirm)
         
         button_layout.addWidget(cancel_btn)

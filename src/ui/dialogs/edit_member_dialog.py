@@ -52,6 +52,11 @@ class EditMemberDialog(QDialog):
         self.nome_input.setPlaceholderText("Nome completo do membro")
         form_layout.addRow("Nome *:", self.nome_input)
         
+        # Apelido
+        self.apelido_input = QLineEdit()
+        self.apelido_input.setPlaceholderText("Opcional")
+        form_layout.addRow("Apelido:", self.apelido_input)
+        
         # Plano (obrigatório)
         self.plano_combo = QComboBox()
         # Importar PLANOS dinamicamente em tempo de execução para pegar atualizações
@@ -68,11 +73,8 @@ class EditMemberDialog(QDialog):
         form_layout.addRow(self.vencimento_plano_label, self.vencimento_plano_input)
         
         # Data de Nascimento
-        self.data_nascimento_input = QDateEdit()
-        self.data_nascimento_input.setCalendarPopup(True)
-        self.data_nascimento_input.setDisplayFormat("dd/MM/yyyy")
-        self.data_nascimento_input.setDate(QDate.currentDate())
-        self.data_nascimento_input.setSpecialValueText("Não informado")
+        self.data_nascimento_input = QLineEdit()
+        self.data_nascimento_input.setPlaceholderText("dd/mm/aaaa")
         form_layout.addRow("Data de Nascimento:", self.data_nascimento_input)
         
         # WhatsApp
@@ -143,6 +145,8 @@ class EditMemberDialog(QDialog):
                 background-color: #005FA3;
             }
         """)
+        self.save_button.setDefault(True)
+        self.save_button.setAutoDefault(True)
         button_layout.addWidget(self.save_button)
         
         layout.addLayout(button_layout)
@@ -151,6 +155,9 @@ class EditMemberDialog(QDialog):
         """Popula os campos com os dados do membro."""
         # Nome
         self.nome_input.setText(self.member_data.get('nome', ''))
+        
+        # Apelido
+        self.apelido_input.setText(self.member_data.get('apelido', ''))
         
         # Plano
         from src import config
@@ -168,13 +175,7 @@ class EditMemberDialog(QDialog):
                 )
         
         # Data de Nascimento
-        data_nasc_str = self.member_data.get('data_nascimento', '')
-        if data_nasc_str:
-            data_nasc_dt = parse_date(data_nasc_str)
-            if data_nasc_dt:
-                self.data_nascimento_input.setDate(
-                    QDate(data_nasc_dt.year, data_nasc_dt.month, data_nasc_dt.day)
-                )
+        self.data_nascimento_input.setText(self.member_data.get('data_nascimento', ''))
         
         # WhatsApp
         self.whatsapp_input.setText(self.member_data.get('whatsapp', ''))
@@ -316,11 +317,17 @@ class EditMemberDialog(QDialog):
         # Calcula o estado do plano
         estado_plano = self._calculate_estado_plano(vencimento_str)
         
-        # Data de nascimento (opcional)
-        data_nasc_str = None
-        if self.data_nascimento_input.text() != "Não informado":
-            data_nasc_date = self.data_nascimento_input.date()
-            data_nasc_str = data_nasc_date.toString("dd/MM/yyyy")
+        # Data de Nascimento (opcional)
+        data_nasc_str = self.data_nascimento_input.text().strip()
+        if data_nasc_str:
+            from src.utils.utils import parse_date
+            if not parse_date(data_nasc_str):
+                QMessageBox.warning(
+                    self,
+                    "Data Inválida",
+                    "A data de nascimento informada é inválida. Use o formato dd/mm/aaaa."
+                )
+                return
         
         # Obtém o método de pagamento selecionado
         metodo_pagamento = self.metodo_pagamento_combo.currentText()
@@ -376,6 +383,7 @@ class EditMemberDialog(QDialog):
         updated_data = {
             'id': self.member_id,
             'nome': self.nome_input.text().strip(),
+            'apelido': self.apelido_input.text().strip(),
             'plano': plano,
             'vencimento_plano': vencimento_str,
             'estado_plano': estado_plano,

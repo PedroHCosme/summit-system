@@ -277,7 +277,11 @@ class MemberSearchScreen(QWidget):
         """Popula a lista de resultados."""
         self.results_list.clear()
         for result in results:
-            item = QListWidgetItem(result['nome'])
+            nome = result.get('nome', '')
+            apelido = result.get('apelido', '')
+            display_text = f"{nome} ({apelido})" if apelido else nome
+            
+            item = QListWidgetItem(display_text)
             item.setData(Qt.ItemDataRole.UserRole, result.get('id', result.get('row_index', 0)))
             self.results_list.addItem(item)
         
@@ -405,10 +409,13 @@ class MemberSearchScreen(QWidget):
         
         # 1. Nome
         nome = member_data.get('nome', '')
+        apelido = member_data.get('apelido', '')
+        nome_display = f"{nome} ({apelido})" if apelido else (nome if nome else '<span style="color: #888888; font-style: italic;">Não informado</span>')
+        
         html += f"""
             <div style="margin-bottom: 10px;">
                 <strong style="color: #333333;">Nome:</strong>
-                <span style="color: #555555;"> {nome if nome else '<span style="color: #888888; font-style: italic;">Não informado</span>'}</span>
+                <span style="color: #555555;"> {nome_display}</span>
             </div>
         """
         

@@ -111,7 +111,11 @@ class CheckinScreen(QWidget):
             self.member_details_browser.setHtml("<p style='color: #FF6B6B; text-align: center;'>Nenhum membro encontrado.</p>")
         else:
             for result in results:
-                item = QListWidgetItem(result['nome'])
+                nome = result.get('nome', '')
+                apelido = result.get('apelido', '')
+                display_text = f"{nome} ({apelido})" if apelido else nome
+                
+                item = QListWidgetItem(display_text)
                 item.setData(Qt.ItemDataRole.UserRole, result.get('id'))
                 self.results_list.addItem(item)
     
@@ -148,7 +152,7 @@ class CheckinScreen(QWidget):
                 {warning_html}
                 
                 <h3 style='color: #333; border-bottom: 2px solid #007ACC; padding-bottom: 5px;'>Informações Principais</h3>
-                <p><b>Nome:</b> {nome}</p>
+                <p><b>Nome:</b> {nome} {f"({member_data.get('apelido')})" if member_data.get('apelido') else ""}</p>
                 <p><b>Plano:</b> {plano}</p>
                 <p><b>Status:</b> <span style='color: {color}; font-weight: bold;'>{estado_plano}</span></p>
                 <p><b>Vencimento:</b> {vencimento_plano}</p>
