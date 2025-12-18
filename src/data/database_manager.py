@@ -251,7 +251,7 @@ class DatabaseManager:
             self.connection = sqlite3.connect(
                 self.db_path,
                 check_same_thread=False,
-                timeout=30
+                timeout=60
             )
             self.connection.row_factory = sqlite3.Row  # Permite acessar colunas por nome
             
@@ -1660,14 +1660,11 @@ class DatabaseManager:
         finally:
             cursor.close()
 
-        # Garante que VACUUM/ANALYZE rodem fora de uma transação ativa
+        # Garante que ANALYZE rode fora de uma transação ativa
         self.connection.commit()
 
-        try:
-            self.connection.execute("VACUUM")
-            stats["vacuum_executed"] = True
-        except sqlite3.Error as exc:
-            print(f"Aviso: VACUUM falhou: {exc}")
+        # REMOVIDO: VACUUM causa erro "database is locked" se houver outras conexões ativas (ex: UI)
+        stats["vacuum_executed"] = False 
 
         try:
             self.connection.execute("ANALYZE")
