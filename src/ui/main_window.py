@@ -29,7 +29,9 @@ from src.ui.screens import (
     MemberSearchScreen,
     CheckinScreen,
     FinancialScreen,
-    MembersListScreen
+    FinancialScreen,
+    MembersListScreen,
+    PendingMembersScreen
 )
 from src.ui.dialogs import AddMemberDialog, SyncDialog, ManagePlansDialog, ExpiringPlansDialog
 
@@ -85,6 +87,7 @@ class MainWindow(QMainWindow):
         self.checkin_screen = CheckinScreen()
         self.financial_screen = FinancialScreen()
         self.members_list_screen = MembersListScreen()
+        self.pending_members_screen = PendingMembersScreen()
         
         # Adiciona ao stack
         self.stacked_widget.addWidget(self.home_screen)  # 0
@@ -94,6 +97,7 @@ class MainWindow(QMainWindow):
         self.stacked_widget.addWidget(self.checkin_screen)  # 4
         self.stacked_widget.addWidget(self.financial_screen)  # 5
         self.stacked_widget.addWidget(self.members_list_screen)  # 6
+        self.stacked_widget.addWidget(self.pending_members_screen)  # 7
         
         # Conecta sinais das telas
         self._connect_screen_signals()
@@ -128,7 +132,12 @@ class MainWindow(QMainWindow):
             buscar_action = QAction("🔍 Buscar Membro", self)
             buscar_action.setShortcut("Ctrl+F")
             buscar_action.triggered.connect(self._show_member_search)
+            buscar_action.triggered.connect(self._show_member_search)
             membros_menu.addAction(buscar_action)
+
+            pending_members_action = QAction("⏳ Aprovar Novos Membros", self)
+            pending_members_action.triggered.connect(self._show_pending_members)
+            membros_menu.addAction(pending_members_action)
 
             aniversariantes_action = QAction("🎂 Aniversariantes do Mês", self)
             aniversariantes_action.triggered.connect(self._show_aniversariantes)
@@ -280,6 +289,9 @@ class MainWindow(QMainWindow):
         self.checkin_screen.confirm_button.clicked.connect(
             self._on_confirm_checkin_clicked
         )
+        self.checkin_screen.profile_button.clicked.connect(
+            self._on_checkin_profile_clicked
+        )
         
         # Financeiro
         self.financial_screen.update_button.clicked.connect(
@@ -314,6 +326,13 @@ class MainWindow(QMainWindow):
             return
         self.stacked_widget.setCurrentIndex(6)
         self._load_members_list()
+
+    def _show_pending_members(self):
+        """Mostra a tela de aprovação de membros."""
+        if not self.is_connected:
+            return
+        self.stacked_widget.setCurrentIndex(7)
+        self.pending_members_screen.refresh_list()
     
     def _show_checkin_screen(self):
         """Mostra a tela de check-in."""
@@ -844,6 +863,25 @@ class MainWindow(QMainWindow):
                 QMessageBox.warning(self, "Erro", "Não foi possível registrar o check-in.")
         except Exception as e:
             QMessageBox.critical(self, "Erro Crítico", f"Ocorreu um erro inesperado: {e}")
+
+    def _on_checkin_profile_clicked(self):
+        """Manipula o clique no botão de perfil do membro na tela de check-in."""
+        member_id = self.checkin_screen.current_member_id
+        if member_id is None:
+            return
+            
+        # Obter dados do membro para pegar o nome
+        member_data = self.search_service.get_member_by_id(member_id)
+        if not member_data:
+            return
+            
+        member_name = member_data.get('nome', '')
+        
+        # Mudar para a tela de lista de membros
+        self._show_members_list()
+        
+        # Selecionar o membro
+        self.members_list_screen.select_member_by_id(member_id, member_name)
     
     # === Adicionar Membro ===
     

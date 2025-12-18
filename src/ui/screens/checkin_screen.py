@@ -84,7 +84,30 @@ class CheckinScreen(QWidget):
         self.confirm_button.setEnabled(False)
         self.confirm_button.setMinimumHeight(50)
         self.confirm_button.setStyleSheet("font-size: 18px; font-weight: bold;")
+        self.confirm_button.setStyleSheet("font-size: 18px; font-weight: bold;")
         checkin_details_layout.addWidget(self.confirm_button)
+
+        # Botão de Perfil do Membro
+        self.profile_button = QPushButton("Perfil do Membro")
+        self.profile_button.setEnabled(False)
+        self.profile_button.setMinimumHeight(40)
+        self.profile_button.setStyleSheet("""
+            QPushButton {
+                background-color: #17a2b8;
+                color: white;
+                font-size: 16px;
+                font-weight: bold;
+                border: none;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #138496;
+            }
+            QPushButton:disabled {
+                background-color: #cccccc;
+            }
+        """)
+        checkin_details_layout.addWidget(self.profile_button)
         
         main_content_layout.addWidget(checkin_details_container, 2)
 
@@ -97,6 +120,7 @@ class CheckinScreen(QWidget):
         self.results_list.clear()
         self.member_details_browser.clear()
         self.confirm_button.setEnabled(False)
+        self.profile_button.setEnabled(False)
         self.current_member_id = None
     
     def set_ready_state(self):
@@ -172,6 +196,7 @@ class CheckinScreen(QWidget):
         
         # Habilita o botão mesmo se inativo, mas muda o texto/estilo se necessário
         self.confirm_button.setEnabled(True)
+        self.profile_button.setEnabled(True)
         
         if not is_active:
             self.confirm_button.setText("Confirmar Check-in (Plano Vencido)")
@@ -194,6 +219,7 @@ class CheckinScreen(QWidget):
         """Mostra erro ao carregar dados."""
         self.member_details_browser.setHtml("<p style='color: #FF6B6B; text-align: center;'>Erro ao carregar dados do membro.</p>")
         self.confirm_button.setEnabled(False)
+        self.profile_button.setEnabled(False)
         self.current_member_id = None
     
     def clear_after_checkin(self):
@@ -202,4 +228,5 @@ class CheckinScreen(QWidget):
         self.results_list.clear()
         self.member_details_browser.clear()
         self.confirm_button.setEnabled(False)
+        self.profile_button.setEnabled(False)
         self.current_member_id = None

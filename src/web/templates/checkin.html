@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="form-container">
+    <h2 style="text-align: center; margin-bottom: 20px;">Fazer Check-in</h2>
+
+    <form method="POST" action="{{ url_for('checkin') }}">
+        <div class="form-group">
+            <label for="identifier">Nome ou Apelido</label>
+            <input type="text" id="identifier" name="identifier" required placeholder="Digite seu nome..."
+                value="{{ identifier or '' }}" autofocus>
+        </div>
+
+        <button type="submit" class="btn btn-primary">CONFIRMAR</button>
+    </form>
+
+    {% if results %}
+    <div class="alert alert-warning" style="margin-top: 20px;">
+        <p>Encontramos múltiplos membros. Tente ser mais específico:</p>
+        <ul style="list-style: none; margin-top: 10px; text-align: left;">
+            {% for member in results %}
+            <li
+                style="padding: 10px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;">
+                <span>
+                    <strong>{{ member.nome }}</strong>
+                    {% if member.apelido %}({{ member.apelido }}){% endif %}
+                </span>
+                <form method="POST" action="{{ url_for('checkin') }}" style="margin: 0;">
+                    <input type="hidden" name="member_id" value="{{ member.id }}">
+                    <button type="submit" class="btn btn-sm btn-success"
+                        style="padding: 5px 10px; font-size: 0.9em;">Confirmar</button>
+                </form>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    <a href="{{ url_for('index') }}" class="back-link">Voltar</a>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const input = document.getElementById('identifier');
+        if (input) {
+            input.addEventListener('keypress', function (event) {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    return false;
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}

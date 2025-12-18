@@ -415,6 +415,32 @@ class MembersListScreen(QWidget):
         if member_data:
             self.member_selected.emit(member_data)
             
+    def select_member_by_id(self, member_id: int, member_name: str):
+        """
+        Seleciona um membro específico na lista.
+        
+        Args:
+            member_id: ID do membro a ser selecionado
+            member_name: Nome do membro (para filtro)
+        """
+        # 1. Definir o filtro de nome
+        self.search_input.setText(member_name)
+        
+        # 2. Aplicar filtro (isso recarrega a lista)
+        self._on_filter()
+        
+        # 3. Encontrar e selecionar o item na lista
+        for i in range(self.members_list.count()):
+            item = self.members_list.item(i)
+            data = item.data(Qt.ItemDataRole.UserRole)
+            
+            if data and data.get('id') == member_id:
+                # Selecionar visualmente
+                self.members_list.setCurrentItem(item)
+                # Disparar evento de clique
+                self._on_item_clicked(item)
+                break
+
     def display_member_data(self, member_data: dict):
         """Exibe os detalhes do membro no browser."""
         self.current_member_data = member_data

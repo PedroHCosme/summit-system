@@ -159,7 +159,8 @@ def calculate_new_due_date(plan_name: str, start_date: Optional[datetime] = None
     base_date = start_date if start_date else datetime.now()
     
     # Planos mensais (1 mês)
-    if plan_name in ["Mensal", "Mens. c/ Treino", "Escolhinha"]:
+    # Planos mensais (1 mês)
+    if plan_name in ["Mensal", "Mens. c/ Treino", "Escolhinha", "Escolhinha 1x", "Escolhinha 2x", "Escolinha 1x", "Escolinha 2x"]:
         return base_date + relativedelta(months=1)
     
     # Plano trimestral (3 meses)

@@ -8,7 +8,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QDate, pyqtSignal
 
-from src.config import PLANOS_PRECOS
+from src.config import PLANOS_PRECOS, PLANOS
 from src.utils.utils import calculate_new_due_date, parse_date
 
 
@@ -42,15 +42,37 @@ class RenewPlanDialog(QDialog):
         layout.addWidget(title_label)
         
         # Informações do membro
+        # Informações do membro
         member_info = f"""
         <div style='background-color: #F5F5F5; padding: 15px; border-radius: 8px; border-left: 4px solid #007ACC;'>
             <p style='font-size: 14px; margin: 5px 0;'><b>Membro:</b> {self.member_data.get('nome', 'N/A')}</p>
-            <p style='font-size: 14px; margin: 5px 0;'><b>Plano Atual:</b> {self.current_plan}</p>
             <p style='font-size: 14px; margin: 5px 0;'><b>Vencimento Atual:</b> {self.current_vencimento or 'N/A'}</p>
         </div>
         """
         info_label = QLabel(member_info)
         layout.addWidget(info_label)
+
+        # Seleção de Plano
+        plan_layout = QHBoxLayout()
+        plan_label = QLabel("Plano:")
+        plan_label.setStyleSheet("font-weight: bold; font-size: 14px;")
+        
+        self.plan_combo = QComboBox()
+        self.plan_combo.addItems(PLANOS)
+        self.plan_combo.setCurrentText(self.current_plan)
+        self.plan_combo.setStyleSheet("""
+            QComboBox {
+                padding: 8px;
+                border: 2px solid #007ACC;
+                border-radius: 5px;
+                font-size: 13px;
+            }
+        """)
+        self.plan_combo.currentTextChanged.connect(self._on_plan_changed)
+        
+        plan_layout.addWidget(plan_label)
+        plan_layout.addWidget(self.plan_combo, 1)
+        layout.addLayout(plan_layout)
         
         # Nova data de vencimento
         vencimento_layout = QHBoxLayout()
@@ -84,16 +106,9 @@ class RenewPlanDialog(QDialog):
         layout.addLayout(vencimento_layout)
         
         # Valor da renovação
-        valor = PLANOS_PRECOS.get(self.current_plan, 0.0)
-        valor_info = f"""
-        <div style='background-color: #E8F5E9; padding: 12px; border-radius: 8px; border-left: 4px solid #4CAF50;'>
-            <p style='font-size: 15px; margin: 5px 0; text-align: center;'>
-                <b>💰 Valor da Renovação:</b> <span style='color: #2E7D32; font-size: 18px;'>R$ {valor:.2f}</span>
-            </p>
-        </div>
-        """
-        valor_label = QLabel(valor_info)
-        layout.addWidget(valor_label)
+        self.valor_label = QLabel()
+        self._update_price_display(self.current_plan)
+        layout.addWidget(self.valor_label)
         
         # Método de pagamento
         metodo_layout = QHBoxLayout()
@@ -167,6 +182,39 @@ class RenewPlanDialog(QDialog):
         button_layout.addWidget(confirm_btn)
         layout.addLayout(button_layout)
     
+    def _on_plan_changed(self, new_plan):
+        """Atualiza a data de vencimento e o valor quando o plano muda."""
+        # Atualizar valor
+        self._update_price_display(new_plan)
+        
+        # Recalcular vencimento
+        # Se mudou de plano, calculamos a partir de hoje. 
+        # Se é o mesmo plano, tentamos manter a lógica de extensão (start_date=current_due_date)
+        
+        if new_plan == self.current_plan:
+            start_date = parse_date(self.current_vencimento)
+        else:
+            start_date = datetime.now()
+            
+        new_due_date = calculate_new_due_date(new_plan, start_date=start_date)
+        
+        if new_due_date:
+            self.vencimento_input.setDate(QDate(new_due_date.year, new_due_date.month, new_due_date.day))
+        else:
+            self.vencimento_input.setDate(QDate.currentDate())
+
+    def _update_price_display(self, plan):
+        """Atualiza o display do preço."""
+        valor = PLANOS_PRECOS.get(plan, 0.0)
+        valor_info = f"""
+        <div style='background-color: #E8F5E9; padding: 12px; border-radius: 8px; border-left: 4px solid #4CAF50;'>
+            <p style='font-size: 15px; margin: 5px 0; text-align: center;'>
+                <b>💰 Valor da Renovação:</b> <span style='color: #2E7D32; font-size: 18px;'>R$ {valor:.2f}</span>
+            </p>
+        </div>
+        """
+        self.valor_label.setText(valor_info)
+    
     def _on_confirm(self):
         """Confirma a renovação do plano."""
         # Validar se selecionou método de pagamento
@@ -188,7 +236,7 @@ class RenewPlanDialog(QDialog):
             'id': self.member_id,
             'vencimento_plano': new_vencimento_str,
             'metodo_pagamento': metodo,
-            'plano': self.current_plan  # Mantém o mesmo plano
+            'plano': self.plan_combo.currentText()
         }
         
         # Emitir sinal com os dados

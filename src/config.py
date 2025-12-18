@@ -36,7 +36,9 @@ PLANOS = [
     "Diária",
     "Gympass",
     "Totalpass",
-    "Cortesia"
+    "Cortesia",
+    "Escolinha 1x",
+    "Escolinha 2x"
 ]
 
 # Planos que exigem uma data de vencimento
@@ -45,7 +47,9 @@ PLANOS_COM_VENCIMENTO = [
     "Mens. c/ Treino",
     "Trimestral",
     "Semestral",
-    "Anual"
+    "Anual",
+    "Escolinha 1x",
+    "Escolinha 2x"
 ]
 
 # Preços dos planos (em R$)
@@ -60,7 +64,9 @@ PLANOS_PRECOS = {
     "Diária": 0.0,       # CORRIGIDO: Diária cobra apenas no check-in, não na renovação
     "Gympass": 0.0,      # Gympass: renovação não gera receita (pago por check-in)
     "Totalpass": 0.0,    # CORRIGIDO: era 00.0 (typo), agora 0.0
-    "Cortesia": 0.0      # Cortesia não tem custo
+    "Cortesia": 0.0,     # Cortesia não tem custo
+    "Escolinha 1x": 0.0,
+    "Escolinha 2x": 0.0
 }
 
 # Planos que geram pagamento por check-in

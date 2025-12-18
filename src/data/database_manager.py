@@ -250,9 +250,13 @@ class DatabaseManager:
             # Isso é seguro para nossa aplicação read-only
             self.connection = sqlite3.connect(
                 self.db_path,
-                check_same_thread=False
+                check_same_thread=False,
+                timeout=30
             )
             self.connection.row_factory = sqlite3.Row  # Permite acessar colunas por nome
+            
+            # Habilitar modo WAL para concorrência
+            self.connection.execute("PRAGMA journal_mode=WAL;")
             
             # Registrar função personalizada para remover acentos
             self.connection.create_function("REMOVE_ACCENTS", 1, self.remove_accents)
