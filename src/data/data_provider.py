@@ -440,6 +440,8 @@ class DataProvider:
             'genero': get_value(config.COL_GENERO),
             'frequencia': get_value(config.COL_FREQUENCIA),
             'calcado': get_value(config.COL_CALCADO),
+            'profissao': get_value(config.COL_PROFISSAO),
+            'contato_emergencia': get_value(config.COL_CONTATO_EMERGENCIA),
         }
     
     def close(self):

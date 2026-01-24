@@ -435,6 +435,11 @@ class MemberSearchScreen(QWidget):
                 <strong style="color: #333333;">Gênero:</strong>
                 <span style="color: #555555;"> {genero if genero else '<span style="color: #888888; font-style: italic;">Não informado</span>'}</span>
             </div>
+            
+            <div style="margin-bottom: 10px;">
+                <strong style="color: #333333;">Profissão:</strong>
+                <span style="color: #555555;"> {member_data.get('profissao', '') or '<span style="color: #888888; font-style: italic;">Não informado</span>'}</span>
+            </div>
         """
         
         # 4. WhatsApp
@@ -464,6 +469,15 @@ class MemberSearchScreen(QWidget):
                     <span style="color: #888888; font-style: italic;"> Não informado</span>
                 </div>
             """
+        
+        # 4a. Contato de Emergência (Always show)
+        html += f"""
+            <div style="margin-bottom: 10px;">
+                <strong style="color: #333333;">Contato de Emergência:</strong>
+                <span style="color: #555555;"> {member_data.get('contato_emergencia', '') or '<span style="color: #888888; font-style: italic;">Não informado</span>'}</span>
+            </div>
+        """
+
         
         # 5. Email
         email = member_data.get('email', '')
@@ -524,6 +538,11 @@ class MemberSearchScreen(QWidget):
             <div style="margin-bottom: 10px;">
                 <strong style="color: #333333;">Treina:</strong>
                 <span style="color: {treina_color}; font-weight: bold;"> {treina}</span>
+            </div>
+
+            <div style="margin-bottom: 10px;">
+                <strong style="color: #333333;">Frequência (Meta):</strong>
+                <span style="color: #555555;"> {member_data.get('frequencia', '') or '<span style="color: #888888; font-style: italic;">Não informado</span>'}</span>
             </div>
         """
         

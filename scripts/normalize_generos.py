@@ -33,17 +33,23 @@ def normalize_generos():
             count = cursor.fetchone()[0]
             print(f"  - '{genero[0]}': {count} membros")
         
-        # Normalizar "M" para "Masculino"
-        print("\nNormalizando 'M' para 'Masculino'...")
-        cursor.execute("UPDATE membros SET genero = 'Masculino' WHERE genero = 'M'")
+        # Normalizar para "Masculino"
+        print("\nNormalizando para 'Masculino'...")
+        cursor.execute("UPDATE membros SET genero = 'Masculino' WHERE genero IN ('M', 'Male', 'masculino', 'm')")
         m_updated = cursor.rowcount
-        print(f"  ✓ {m_updated} registros atualizados")
+        print(f"  ✓ {m_updated} registros atualizados para 'Masculino'")
         
-        # Normalizar "F" para "Feminino"
-        print("\nNormalizando 'F' para 'Feminino'...")
-        cursor.execute("UPDATE membros SET genero = 'Feminino' WHERE genero = 'F'")
+        # Normalizar para "Feminino"
+        print("\nNormalizando para 'Feminino'...")
+        cursor.execute("UPDATE membros SET genero = 'Feminino' WHERE genero IN ('F', 'Female', 'feminino', 'f')")
         f_updated = cursor.rowcount
-        print(f"  ✓ {f_updated} registros atualizados")
+        print(f"  ✓ {f_updated} registros atualizados para 'Feminino'")
+
+        # Normalizar para "Outro"
+        print("\nNormalizando para 'Outro'...")
+        cursor.execute("UPDATE membros SET genero = 'Outro' WHERE genero IN ('Other', 'other', 'outro', 'o', 'T', 't')")
+        o_updated = cursor.rowcount
+        print(f"  ✓ {o_updated} registros atualizados para 'Outro'")
         
         # Commit das alterações
         conn.commit()
@@ -60,7 +66,7 @@ def normalize_generos():
             print(f"  - '{genero[0]}': {count} membros")
         
         print("\n✓ Normalização concluída com sucesso!")
-        print(f"Total de registros atualizados: {m_updated + f_updated}")
+        print(f"Total de registros atualizados: {m_updated + f_updated + o_updated}")
         
     except Exception as e:
         print(f"\n✗ Erro ao normalizar gêneros: {e}")

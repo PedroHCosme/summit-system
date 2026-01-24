@@ -22,6 +22,8 @@ COL_DATA_NASCIMENTO = 67  # Coluna BP (68ª coluna)
 COL_FREQUENCIA = 69  # Coluna BR
 COL_WHATSAPP = 70  # Coluna BS (71ª coluna)
 COL_CALCADO = 71  # Coluna BT (72ª coluna)
+COL_PROFISSAO = 72  # Coluna BU (73ª coluna)
+COL_CONTATO_EMERGENCIA = 73  # Coluna BV (74ª coluna)
 
 # Usado para determinar se a conexão será com SQLite ou Google Sheets
 USE_SQLITE = True

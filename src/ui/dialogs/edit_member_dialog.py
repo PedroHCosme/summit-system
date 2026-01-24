@@ -91,6 +91,17 @@ class EditMemberDialog(QDialog):
         self.calcado_input = QLineEdit()
         self.calcado_input.setPlaceholderText("Ex: 42")
         form_layout.addRow("Calçado:", self.calcado_input)
+
+        # Profissão
+        self.profissao_input = QLineEdit()
+        self.profissao_input.setPlaceholderText("Ex: Engenheiro")
+        form_layout.addRow("Profissão:", self.profissao_input)
+
+        # Contato de Emergência
+        self.contato_emergencia_input = QLineEdit()
+        self.contato_emergencia_input.setPlaceholderText("Nome e Telefone")
+        form_layout.addRow("Contato de Emergência:", self.contato_emergencia_input)
+
         
         # Email
         self.email_input = QLineEdit()
@@ -187,6 +198,12 @@ class EditMemberDialog(QDialog):
         
         # Calçado
         self.calcado_input.setText(self.member_data.get('calcado', ''))
+
+        # Profissão
+        self.profissao_input.setText(self.member_data.get('profissao', ''))
+
+        # Contato de Emergência
+        self.contato_emergencia_input.setText(self.member_data.get('contato_emergencia', ''))
         
         # Email
         self.email_input.setText(self.member_data.get('email', ''))
@@ -391,6 +408,8 @@ class EditMemberDialog(QDialog):
             'whatsapp': self.whatsapp_input.text().strip(),
             'genero': self.genero_combo.currentText(),
             'calcado': self.calcado_input.text().strip(),
+            'profissao': self.profissao_input.text().strip(),
+            'contato_emergencia': self.contato_emergencia_input.text().strip(),
             'email': self.email_input.text().strip(),
             'metodo_pagamento': metodo_pagamento,
             'treina': treina,

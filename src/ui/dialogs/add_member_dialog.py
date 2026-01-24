@@ -52,13 +52,20 @@ class AddMemberDialog(QDialog):
         self.whatsapp_input.setPlaceholderText("(XX) XXXXX-XXXX")
         
         self.genero_combo = QComboBox()
-        self.genero_combo.addItems(["", "M", "F"])
+        self.genero_combo.addItems(["", "Masculino", "Feminino", "Outro"])
         
         self.email_input = QLineEdit()
         self.email_input.setPlaceholderText("exemplo@email.com")
 
         self.calcado_input = QLineEdit()
         self.calcado_input.setPlaceholderText("Ex: 40")
+
+        self.profissao_input = QLineEdit()
+        self.profissao_input.setPlaceholderText("Ex: Advogado")
+
+        self.contato_emergencia_input = QLineEdit()
+        self.contato_emergencia_input.setPlaceholderText("Nome e Telefone")
+
         
         # Campos de treino
         self.treina_combo = QComboBox()
@@ -78,6 +85,8 @@ class AddMemberDialog(QDialog):
         self.form_layout.addRow("WhatsApp (*):", self.whatsapp_input)
         self.form_layout.addRow("Gênero (*):", self.genero_combo)
         self.form_layout.addRow("Calçado:", self.calcado_input)
+        self.form_layout.addRow("Profissão:", self.profissao_input)
+        self.form_layout.addRow("Contato de Emergência:", self.contato_emergencia_input)
         self.form_layout.addRow("Email:", self.email_input)
         self.form_layout.addRow("Treina:", self.treina_combo)
         self.vencimento_treino_row = self.form_layout.addRow("Vencimento do Treino:", self.vencimento_treino_input)
@@ -179,6 +188,8 @@ class AddMemberDialog(QDialog):
             "whatsapp": self.whatsapp_input.text().strip(),
             "genero": self.genero_combo.currentText(),
             "calcado": self.calcado_input.text().strip(),
+            "profissao": self.profissao_input.text().strip(),
+            "contato_emergencia": self.contato_emergencia_input.text().strip(),
             "email": self.email_input.text().strip(),
             "treina": treina,
         }

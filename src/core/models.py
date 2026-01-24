@@ -17,6 +17,7 @@ class Pessoa:
         plano (str): Plano contratado
     """
     
+
     def __init__(
         self, 
         nome: str, 
@@ -28,7 +29,9 @@ class Pessoa:
         genero: str = "",
         frequencia: str = "",
         calcado: str = "",
-        apelido: str = ""
+        apelido: str = "",
+        profissao: str = "",
+        contato_emergencia: str = ""
     ):
         """
         Inicializa uma Pessoa.
@@ -44,6 +47,8 @@ class Pessoa:
             frequencia: Frequência de treinos (opcional)
             calcado: Numeração de calçado (opcional)
             apelido: Apelido do membro (opcional)
+            profissao: Profissão do membro (opcional)
+            contato_emergencia: Contato de emergência (opcional)
         """
         self._nome = nome.strip()
         self._data_nascimento = data_nascimento
@@ -55,6 +60,8 @@ class Pessoa:
         self._frequencia = frequencia.strip()
         self._calcado = calcado.strip()
         self._apelido = apelido.strip()
+        self._profissao = profissao.strip()
+        self._contato_emergencia = contato_emergencia.strip()
     
     # --- Getters (Properties) ---
     
@@ -107,6 +114,16 @@ class Pessoa:
     def apelido(self) -> str:
         """Retorna o apelido."""
         return self._apelido
+
+    @property
+    def profissao(self) -> str:
+        """Retorna a profissão."""
+        return self._profissao
+
+    @property
+    def contato_emergencia(self) -> str:
+        """Retorna o contato de emergência."""
+        return self._contato_emergencia
 
     @property
     def idade(self) -> Optional[int]:
@@ -186,6 +203,16 @@ class Pessoa:
     def apelido(self, valor: str):
         """Define um novo apelido."""
         self._apelido = valor.strip()
+
+    @profissao.setter
+    def profissao(self, valor: str):
+        """Define uma nova profissão."""
+        self._profissao = valor.strip()
+
+    @contato_emergencia.setter
+    def contato_emergencia(self, valor: str):
+        """Define um novo contato de emergência."""
+        self._contato_emergencia = valor.strip()
     
     # --- Métodos de Negócio ---
     
@@ -299,7 +326,9 @@ class Pessoa:
             'dia_aniversario': self.dia_aniversario,
             'mes_aniversario': self.mes_aniversario,
             'dias_ate_aniversario': dias_ate if dias_ate is not None else float('inf'),
-            'apelido': self._apelido
+            'apelido': self._apelido,
+            'profissao': self._profissao,
+            'contato_emergencia': self._contato_emergencia
         }
     
     @classmethod
@@ -338,7 +367,9 @@ class Pessoa:
                 genero=dados.get('genero', ''),
                 frequencia=dados.get('frequencia', ''),
                 calcado=dados.get('calcado', ''),
-                apelido=dados.get('apelido', '')
+                apelido=dados.get('apelido', ''),
+                profissao=dados.get('profissao', ''),
+                contato_emergencia=dados.get('contato_emergencia', '')
             )
         except Exception:
             return None

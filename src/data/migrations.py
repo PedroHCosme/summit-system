@@ -33,6 +33,8 @@ class DatabaseMigrator:
         steps = [
             ("Garantindo coluna de e-mail", self.ensure_email_column),
             ("Garantindo colunas de treino", self.ensure_training_columns),
+            ("Garantindo coluna de profissão", self.ensure_profession_column),
+            ("Garantindo coluna de contato de emergência", self.ensure_emergency_contact_column),
             ("Garantindo tabela/colunas de pagamentos", self.ensure_payments_schema),
             ("Ajustando formato das datas de pagamento", self.ensure_payment_datetime),
             ("Ajustando timestamps sem hora", self.ensure_payment_times),
@@ -103,6 +105,34 @@ class DatabaseMigrator:
         cursor.close()
         self.conn.commit()
     
+    def ensure_profession_column(self) -> None:
+        """Adiciona coluna de profissão se não existir."""
+        if not self._table_exists('membros'):
+            return
+
+        info = self._get_table_info('membros')
+        if 'profissao' in info:
+            return
+
+        cursor = self.conn.cursor()
+        cursor.execute("ALTER TABLE membros ADD COLUMN profissao TEXT DEFAULT ''")
+        cursor.close()
+        self.conn.commit()
+
+    def ensure_emergency_contact_column(self) -> None:
+        """Adiciona coluna de contato de emergência se não existir."""
+        if not self._table_exists('membros'):
+            return
+
+        info = self._get_table_info('membros')
+        if 'contato_emergencia' in info:
+            return
+
+        cursor = self.conn.cursor()
+        cursor.execute("ALTER TABLE membros ADD COLUMN contato_emergencia TEXT DEFAULT ''")
+        cursor.close()
+        self.conn.commit()
+
     def ensure_training_columns(self) -> None:
         """Adiciona colunas para controle de treino como serviço adicional."""
         if not self._table_exists('membros'):
