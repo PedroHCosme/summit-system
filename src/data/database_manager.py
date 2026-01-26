@@ -286,6 +286,16 @@ class DatabaseManager:
                 print("Adicionando coluna 'apelido' à tabela membros...")
                 cursor.execute("ALTER TABLE membros ADD COLUMN apelido TEXT")
                 self.connection.commit()
+
+            if 'profissao' not in columns:
+                print("Adicionando coluna 'profissao' à tabela membros...")
+                cursor.execute("ALTER TABLE membros ADD COLUMN profissao TEXT")
+                self.connection.commit()
+
+            if 'contato_emergencia' not in columns:
+                print("Adicionando coluna 'contato_emergencia' à tabela membros...")
+                cursor.execute("ALTER TABLE membros ADD COLUMN contato_emergencia TEXT")
+                self.connection.commit()
                 
         except Exception as e:
             print(f"Erro ao verificar/criar colunas: {e}")
@@ -1172,7 +1182,9 @@ class DatabaseManager:
         vencimento_plano: Optional[str] = None,
         whatsapp: Optional[str] = None,
         genero: Optional[str] = None,
-        calcado: Optional[str] = None
+        calcado: Optional[str] = None,
+        profissao: Optional[str] = None,
+        contato_emergencia: Optional[str] = None
     ) -> bool:
         """
         Atualiza os dados de um membro existente.
@@ -1187,6 +1199,8 @@ class DatabaseManager:
             whatsapp: Novo WhatsApp (opcional)
             genero: Novo gênero (opcional)
             calcado: Novo calçado (opcional)
+            profissao: Nova profissão (opcional)
+            contato_emergencia: Novo contato de emergência (opcional)
             
         Returns:
             True se a atualização foi bem-sucedida, False caso contrário
@@ -1227,6 +1241,14 @@ class DatabaseManager:
             if calcado is not None:
                 updates.append("calcado = ?")
                 values.append(calcado)
+            
+            if profissao is not None:
+                updates.append("profissao = ?")
+                values.append(profissao)
+            
+            if contato_emergencia is not None:
+                updates.append("contato_emergencia = ?")
+                values.append(contato_emergencia)
             
             # Sempre atualizar o timestamp
             updates.append("updated_at = CURRENT_TIMESTAMP")
@@ -1298,6 +1320,8 @@ class DatabaseManager:
                 'calcado': 'calcado',
                 'email': 'email',
                 'treina': 'treina',
+                'profissao': 'profissao',
+                'contato_emergencia': 'contato_emergencia',
                 'vencimento_treino': 'vencimento_treino',
                 'apelido': 'apelido'
             }
