@@ -414,6 +414,12 @@ class DatabaseManager:
         if 'estado_plano' not in member_data:
             member_data['estado_plano'] = 'ATIVO'
 
+        # Se o plano não requer vencimento, remover/limpar vencimento_plano
+        from src.config import PLANOS_COM_VENCIMENTO
+        plano = member_data.get('plano')
+        if plano and plano not in PLANOS_COM_VENCIMENTO:
+            member_data['vencimento_plano'] = None
+
         # Prepara a query de inserção
         columns = ', '.join(member_data.keys())
         placeholders = ', '.join('?' for _ in member_data)
@@ -1333,6 +1339,19 @@ class DatabaseManager:
                     # Permitir None ou string vazia para limpar campos
                     updates.append(f"{column_name} = ?")
                     values.append(value if value else None)
+            
+            # Se o plano não requer vencimento, limpar a data de vencimento
+            from src.config import PLANOS_COM_VENCIMENTO
+            new_plano = member_data.get('plano')
+            if new_plano and new_plano not in PLANOS_COM_VENCIMENTO:
+                # Forçar vencimento_plano como None para planos sem vencimento
+                if 'vencimento_plano = ?' not in updates:
+                    updates.append("vencimento_plano = ?")
+                    values.append(None)
+                else:
+                    # Substituir o valor existente por None
+                    idx = updates.index('vencimento_plano = ?')
+                    values[idx] = None
             
             # Sempre atualizar o timestamp
             updates.append("updated_at = CURRENT_TIMESTAMP")
