@@ -31,9 +31,13 @@ class DatabaseMigrator:
     def run_all(self) -> None:
         """Executa todas as migrações de forma idempotente."""
         steps = [
-            # IMPORTANTE: ensure_all_member_columns deve ser primeiro!
+            # IMPORTANTE: Criar tabelas deve ser o PRIMEIRO passo absoluto
+            ("Garantindo existência de todas as tabelas", self.ensure_all_tables_exist),
+            
+            # IMPORTANTE: ensure_all_member_columns deve ser logo após criar tabelas
             # Garante que todas as colunas do modelo existem antes de qualquer query
             ("Garantindo todas as colunas da tabela membros", self.ensure_all_member_columns),
+            
             ("Garantindo coluna de e-mail", self.ensure_email_column),
             ("Garantindo colunas de treino", self.ensure_training_columns),
             ("Garantindo coluna de profissão", self.ensure_profession_column),
