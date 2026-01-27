@@ -25,7 +25,7 @@
                     <strong>{{ member.nome }}</strong>
                     {% if member.apelido %}({{ member.apelido }}){% endif %}
                 </span>
-                <form method="POST" action="{{ url_for('checkin') }}" style="margin: 0;">
+                <form method="POST" action="{{ url_for('checkin') }}" style="margin: 0;" onsubmit="return confirmCheckin('{{ member.nome }}')">
                     <input type="hidden" name="member_id" value="{{ member.id }}">
                     <button type="submit" class="btn btn-sm btn-success"
                         style="padding: 5px 10px; font-size: 0.9em;">Confirmar</button>
@@ -40,13 +40,17 @@
 </div>
 
 <script>
+    function confirmCheckin(name) {
+        return confirm(`Tem certeza que deseja fazer check-in para ${name}?`);
+    }
+
     document.addEventListener('DOMContentLoaded', function () {
         const input = document.getElementById('identifier');
         if (input) {
             input.addEventListener('keypress', function (event) {
                 if (event.key === 'Enter') {
-                    event.preventDefault();
-                    return false;
+                    // Allow normal form submission for search
+                    return true;
                 }
             });
         }

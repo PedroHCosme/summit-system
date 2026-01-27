@@ -608,6 +608,18 @@ class MembersListScreen(QWidget):
             </div>
         """
         
+        # 9b. Saldo de Voucher (se aplicável)
+        is_quota_plan = plano in ('Voucher', 'Pacote 10') or (plano and 'Pacote' in plano)
+        if is_quota_plan:
+            credits_val = member_data.get('voucher_credits', 0)
+            credits_color = '#28a745' if credits_val > 0 else '#dc3545'
+            html += f"""
+                <div style="margin-bottom: 10px;">
+                    <strong style="color: #333333;">Saldo de Vouchers:</strong>
+                    <span style="color: {credits_color}; font-weight: bold;"> {credits_val}</span>
+                </div>
+            """
+        
         # 10. Treino
         treina = member_data.get('treina', 'Não')
         treina_color = '#28a745' if treina == 'Sim' else '#888888'

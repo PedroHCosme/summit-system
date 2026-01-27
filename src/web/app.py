@@ -84,20 +84,15 @@ def checkin():
                 flash('Membro não encontrado. Tente novamente ou faça seu cadastro.', 'error')
                 return redirect(url_for('checkin'))
             
-            if len(results) > 1:
-                # Se encontrou vários, mostra a lista para seleção
-                results_dicts = [m.to_dict() if hasattr(m, 'to_dict') else m for m in results]
-                flash(f'Encontramos {len(results)} membros com esse nome. Confirme quem é você:', 'warning')
-                return render_template('checkin.html', results=results_dicts, identifier=identifier)
-
-            # Se encontrou apenas um
-            member = results[0]
-            member_data = member.to_dict() if hasattr(member, 'to_dict') else member
-            member_id = member_data['id']
+            # Sempre mostrar a lista de resultados para confirmação (mesmo que seja apenas 1)
+            results_dicts = [m.to_dict() if hasattr(m, 'to_dict') else m for m in results]
             
-        else:
-            flash('Por favor, informe seu Nome ou Apelido.', 'error')
-            return redirect(url_for('checkin'))
+            if len(results) == 1:
+                flash('Membro encontrado! Confirme o check-in abaixo.', 'info')
+            else:
+                flash(f'Encontramos {len(results)} membros com esse nome. Confirme quem é você:', 'warning')
+            
+            return render_template('checkin.html', results=results_dicts, identifier=identifier)
 
         # Realiza o check-in usando o serviço (Lógica comum para ambos os casos)
         if member_data:
