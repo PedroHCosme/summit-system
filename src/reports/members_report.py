@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, date
 from pathlib import Path
-from typing import Dict, List, Any, Optional, Union
+from typing import Dict, List, Any, Optional, Union, Tuple
 from html import escape
 
-from src.data.database_manager import DatabaseManager
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+from src.data.db import create_session
 from src.utils.date_utils import parse_date_to_date
 
 
@@ -407,745 +409,773 @@ def _get_status_info(vencimento_str: str) -> tuple[str, str]:
         return ("Ativo", "active")
 
 
-def generate_members_report(db_manager: DatabaseManager) -> str:
+def generate_members_report(db_session: Optional[Session] = None) -> str:
     """
     Gera relatório completo de membros.
     
     Args:
-        db_manager: Gerenciador do banco de dados
+        db_session: Sessão SQLAlchemy (nova sessão será criada se None)
         
     Returns:
         Caminho do arquivo HTML gerado
     """
-    if not db_manager.connection and not db_manager.connect():
-        raise RuntimeError("Não foi possível conectar ao banco de dados")
-    
-    assert db_manager.connection is not None, "Conexão com banco ausente após tentativa de conexão"
+    close_session = False
+    if db_session is None:
+        db_session = create_session()
+        close_session = True
 
-    cursor = db_manager.connection.cursor()
-    
-    # Estatísticas gerais
-    cursor.execute("SELECT COUNT(*) FROM membros")
-    total_members = cursor.fetchone()[0]
-    
-    # Calcular contadores usando parse de datas (mesmo método do dialog)
-    today = datetime.now().date()
-    week_ahead = today + timedelta(days=7)
-    
-    # Planos que não têm conceito de vencimento (pagos por check-in)
-    per_checkin_plans = {'Gympass', 'Diária', 'Livre', 'Voucher', 'Diária Boulder', 'Totalpass'}
-    
-    # Buscar todos os membros com seus planos para calcular estatísticas
-    cursor.execute("SELECT vencimento_plano, plano FROM membros")
-    all_members_data = cursor.fetchall()
-    
-    active_members = 0
-    expired_members = 0
-    expiring_soon = 0
-    
-    for vencimento_str, plano in all_members_data:
-        # Planos por check-in não contam como vencidos
-        if plano in per_checkin_plans:
-            continue
+    try:
+        # Estatísticas gerais
+        total_members = db_session.execute(text("SELECT COUNT(*) FROM membros")).scalar() or 0
+        
+        # Calcular contadores usando parse de datas (mesmo método do dialog)
+        today = datetime.now().date()
+        week_ahead = today + timedelta(days=7)
+        
+        # Planos que não têm conceito de vencimento (pagos por check-in)
+        per_checkin_plans = {'Gympass', 'Diária', 'Livre', 'Voucher', 'Diária Boulder', 'Totalpass'}
+        
+        # Buscar todos os membros com seus planos para calcular estatísticas
+        all_members_data = db_session.execute(text("SELECT vencimento_plano, plano FROM membros")).fetchall()
+        
+        active_members = 0
+        expired_members = 0
+        expiring_soon = 0
+        
+        for row in all_members_data:
+            vencimento_str = row[0]
+            plano = row[1]
             
-        if not vencimento_str:
-            expired_members += 1
-            continue
-        
-        vencimento = parse_date_to_date(vencimento_str)
-        if not vencimento:
-            expired_members += 1
-            continue
-        
-        if vencimento >= today:
-            active_members += 1
-            if today <= vencimento <= week_ahead:
-                expiring_soon += 1
-        else:
-            expired_members += 1
-    
-    # Distribuição por plano
-    cursor.execute("""
-        SELECT plano, COUNT(*) as total
-        FROM membros
-        GROUP BY plano
-        ORDER BY total DESC
-    """)
-    plan_distribution = cursor.fetchall()
-
-    plan_value_order: List[str] = []
-    seen_plan_values: set[str] = set()
-    for plan_name, _ in plan_distribution:
-        plan_value = plan_name or "Sem Plano"
-        if plan_value in seen_plan_values:
-            continue
-        seen_plan_values.add(plan_value)
-        plan_value_order.append(plan_value)
-    
-    # Distribuição por gênero
-    cursor.execute("""
-        SELECT genero, COUNT(*) as total
-        FROM membros
-        GROUP BY genero
-        ORDER BY total DESC
-    """)
-    gender_distribution = cursor.fetchall()
-    
-    # Lista completa de membros
-    cursor.execute("""
-        SELECT 
-            nome,
-            email,
-            whatsapp,
-            plano,
-            vencimento_plano,
-            genero,
-            data_nascimento,
-            id
-        FROM membros
-        ORDER BY nome
-    """)
-    members = cursor.fetchall()
-    
-    # Criar mapa de membros para acesso rápido por ID
-    members_by_id = {member[-1]: member for member in members}
-
-    # Mapear última visita de cada membro utilizando parse consistente
-    cursor.execute("""
-        SELECT member_id, checkin_datetime
-        FROM frequencia
-        WHERE checkin_datetime IS NOT NULL
-    """)
-    raw_checkins = cursor.fetchall()
-    print(f"[DEBUG] Total de check-ins retornados: {len(raw_checkins)}")
-    if raw_checkins:
-        print(f"[DEBUG] Primeiros check-ins recebidos: {raw_checkins[:5]}")
-
-    last_visits_map: Dict[int, datetime] = {}
-    debug_failures = 0
-    for member_id, checkin_str in raw_checkins:
-        visit_dt = _parse_date(checkin_str)
-        if not visit_dt:
-            if debug_failures < 10:
-                print(f"[DEBUG] Falha ao converter check-in. member_id={member_id}, valor='{checkin_str}'")
-                debug_failures += 1
-            continue
-        previous_visit = last_visits_map.get(member_id)
-        if not previous_visit or visit_dt > previous_visit:
-            last_visits_map[member_id] = visit_dt
-            print(f"[DEBUG] Atualizando última visita: member_id={member_id}, visita={visit_dt}")
-    print(f"[DEBUG] Membros com última visita registrada: {len(last_visits_map)}")
-
-    # Análise de retenção: membros que frequentaram nos últimos 3 meses mas não voltam há 1 mês
-    three_months_ago = datetime.now() - timedelta(days=90)
-    one_month_ago = datetime.now() - timedelta(days=30)
-
-    inactive_members = []
-    for member_id, last_visit_dt in last_visits_map.items():
-        if three_months_ago <= last_visit_dt < one_month_ago:
-            member_data = members_by_id.get(member_id)
-            if not member_data:
+            # Planos por check-in não contam como vencidos
+            if plano in per_checkin_plans:
                 continue
-            nome, email, whatsapp, plano, vencimento_plano, genero, data_nascimento, _ = member_data
-            inactive_members.append(
-                (
-                    member_id,
-                    nome,
-                    plano,
-                    email,
-                    whatsapp,
-                    vencimento_plano,
-                    last_visit_dt,
-                )
-            )
-
-    # Ordenar membros inativos por data da última visita (mais recente primeiro)
-    inactive_members.sort(key=lambda item: item[-1], reverse=True)
-
-    plan_options_html = "".join(
-        f'<option value="{escape(plan_value, quote=True)}">{escape(plan_value)}</option>'
-        for plan_value in plan_value_order
-    )
-
-    inactive_plan_labels = {member[2] or "Sem Plano" for member in inactive_members}
-    inactive_plan_options_html = "".join(
-        f'<option value="{escape(plan_value, quote=True)}">{escape(plan_value)}</option>'
-        for plan_value in plan_value_order
-        if plan_value in inactive_plan_labels
-    )
-
-    # Membros que vencem nos próximos 7 dias (detalhados)
-    expiring_members_details = []
-    for vencimento_str, plano in all_members_data:
-        # Planos por check-in não têm vencimento
-        if plano in per_checkin_plans:
-            continue
-            
-        if not vencimento_str:
-            continue
-        vencimento = parse_date_to_date(vencimento_str)
-        if not vencimento:
-            continue
-        if today <= vencimento <= week_ahead:
-            # Buscar detalhes do membro
-            cursor.execute("""
-                SELECT nome, email, whatsapp, plano, vencimento_plano, id
-                FROM membros
-                WHERE vencimento_plano = ? AND plano = ?
-            """, (vencimento_str, plano))
-            member_detail = cursor.fetchone()
-            if member_detail:
-                days_remaining = (vencimento - today).days
-                expiring_members_details.append((*member_detail, days_remaining))
-    
-    # Análise de conversão por plano (últimos 30 dias)
-    thirty_days_ago = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
-    cursor.execute("""
-        SELECT plano, COUNT(*) as novos_membros
-        FROM membros
-        WHERE created_at >= ?
-        GROUP BY plano
-        ORDER BY novos_membros DESC
-    """, (thirty_days_ago,))
-    new_members_by_plan = cursor.fetchall()
-    
-    cursor.close()
-    
-    # Gerar HTML
-    html = _generate_html_header("Relatório de Membros")
-    
-    html += f"""
-    <div class="container">
-        <div class="header">
-            <h1>👤 Relatório de Membros</h1>
-            <p class="subtitle">Gerado em: {datetime.now().strftime('%d/%m/%Y às %H:%M')}</p>
-        </div>
-        
-        <div class="content">
-            <div class="info-box">
-                <h3>📊 Como usar este relatório</h3>
-                <ul>
-                    <li><strong>Cards Clicáveis:</strong> Clique nos cards coloridos para filtrar membros por status</li>
-                    <li><strong>Membros Ativos:</strong> Planos com vencimento futuro (data de vencimento ≥ hoje)</li>
-                    <li><strong>Vencendo:</strong> Planos que expiram nos próximos 7 dias (oportunidade de renovação!)</li>
-                    <li><strong>Vencidos:</strong> Planos com data de vencimento no passado</li>
-                    <li><strong>Inativos:</strong> Membros que frequentaram nos últimos 3 meses mas não voltam há 1 mês (risco de cancelamento!)</li>
-                </ul>
-            </div>
-            
-            <div class="stats-grid">
-                <div class="stat-card blue" onclick="showAllMembers()">
-                    <div class="label">Total de Membros</div>
-                    <div class="value">{total_members}</div>
-                    <div class="hint">👆 Clique para ver todos</div>
-                </div>
                 
-                <div class="stat-card green" onclick="filterMembers('active')">
-                    <div class="label">Ativos</div>
-                    <div class="value">{active_members}</div>
-                    <div class="hint">👆 Clique para ver lista</div>
-                </div>
-                
-                <div class="stat-card orange" onclick="filterMembers('expiring')">
-                    <div class="label">Vencendo (7 dias)</div>
-                    <div class="value">{expiring_soon}</div>
-                    <div class="hint">👆 Clique para ver quem</div>
-                </div>
-                
-                <div class="stat-card" onclick="filterMembers('expired')">
-                    <div class="label">Vencidos</div>
-                    <div class="value">{expired_members}</div>
-                    <div class="hint">👆 Clique para ver lista</div>
-                </div>
-            </div>
+            if not vencimento_str:
+                expired_members += 1
+                continue
             
-            <!-- Alerta de Retenção -->"""
-    
-    if len(inactive_members) > 0:
-        html += f"""
-            <div class="alert-box">
-                <h3>⚠️ Alerta de Retenção: {len(inactive_members)} membro(s) em risco!</h3>
-                <p>Estes membros frequentaram nos últimos 3 meses mas não aparecem há mais de 1 mês. 
-                   <strong>Ação recomendada:</strong> Entre em contato para reengajar antes do cancelamento!</p>
-            </div>"""
-    else:
-        html += """
-            <div class="success-box">
-                <h3>✅ Retenção Excelente!</h3>
-                <p>Nenhum membro ativo apresenta sinais de abandono. Continue com o excelente trabalho!</p>
-            </div>"""
-    
-    html += f"""
+            vencimento = parse_date_to_date(vencimento_str)
+            if not vencimento:
+                expired_members += 1
+                continue
             
-            <!-- Seção de Membros Inativos -->
-            <div class="section" id="inactive-section" {"" if len(inactive_members) > 0 else 'style="display:none;"'}>
-                <h2>🔴 Membros em Risco de Cancelamento (<span id="inactive-count">{len(inactive_members)}</span>)</h2>
-                <p style="margin-bottom: 15px; color: #856404;">
-                    <strong>Estratégia de Retenção:</strong> Estes membros estavam ativos mas pararam de frequentar. 
-                    Entre em contato oferecendo: desconto na renovação, sessão gratuita com instrutor, ou novos horários/atividades.
-                </p>
-                <div class="plan-filter">
-                    <label for="inactive-plan-filter">Filtrar por plano:</label>
-                    <select id="inactive-plan-filter">
-                        <option value="all">Todos os planos</option>
-                        {inactive_plan_options_html}
-                    </select>
-                </div>
-                <table id="inactive-members-table">
-                    <thead>
-                        <tr>
-                            <th>Nome</th>
-                            <th>Plano</th>
-                            <th>Último Check-in</th>
-                            <th>Status do Plano</th>
-                            <th>Contato</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-    """
-    
-    for member in inactive_members:
-        member_id, nome, plano, email, whatsapp, vencimento_str, ultimo_checkin_dt = member
-        
-        ultimo_checkin_display = ultimo_checkin_dt.strftime('%d/%m/%Y')
-        days_inactive = (datetime.now() - ultimo_checkin_dt).days
-
-        plan_display = plano or 'Sem Plano'
-        plan_attr_value = escape(plan_display, quote=True)
-        
-        vencimento_parsed = parse_date_to_date(vencimento_str) if vencimento_str else None
-        status_plano = "Ativo" if vencimento_parsed and vencimento_parsed >= today else "Vencido"
-        status_class = "active" if status_plano == "Ativo" else "expired"
-        
-        contact_info = []
-        if email:
-            contact_info.append(f"✉️ {escape(email)}")
-        if whatsapp:
-            whatsapp_clean = ''.join(filter(str.isdigit, whatsapp))
-            whatsapp_link = f"https://wa.me/{whatsapp_clean}" if whatsapp_clean else None
-            whatsapp_display = escape(whatsapp)
-            if whatsapp_link:
-                contact_info.append(f"📱 <a href=\"{whatsapp_link}\" target=\"_blank\" rel=\"noopener\">{whatsapp_display}</a>")
+            if vencimento >= today:
+                active_members += 1
+                if today <= vencimento <= week_ahead:
+                    expiring_soon += 1
             else:
-                contact_info.append(f"📱 {whatsapp_display}")
-        contact_display = "<br>".join(contact_info) if contact_info else "Sem contato"
+                expired_members += 1
+        
+        # Distribuição por plano
+        plan_distribution = db_session.execute(text("""
+            SELECT plano, COUNT(*) as total
+            FROM membros
+            GROUP BY plano
+            ORDER BY total DESC
+        """)).fetchall()
+
+        plan_value_order: List[str] = []
+        seen_plan_values: set[str] = set()
+        for row in plan_distribution:
+            plan_name = row[0]
+            plan_value = plan_name or "Sem Plano"
+            if plan_value in seen_plan_values:
+                continue
+            seen_plan_values.add(plan_value)
+            plan_value_order.append(plan_value)
+        
+        # Distribuição por gênero
+        gender_distribution = db_session.execute(text("""
+            SELECT genero, COUNT(*) as total
+            FROM membros
+            GROUP BY genero
+            ORDER BY total DESC
+        """)).fetchall()
+        
+        # Lista completa de membros
+        members = db_session.execute(text("""
+            SELECT 
+                nome,
+                email,
+                whatsapp,
+                plano,
+                vencimento_plano,
+                genero,
+                data_nascimento,
+                id
+            FROM membros
+            ORDER BY nome
+        """)).fetchall()
+        
+        # Criar mapa de membros para acesso rápido por ID
+        # row[-1] é o id
+        members_by_id = {row[-1]: row for row in members}
+
+        # Mapear última visita de cada membro utilizando parse consistente
+        raw_checkins = db_session.execute(text("""
+            SELECT member_id, checkin_datetime
+            FROM frequencia
+            WHERE checkin_datetime IS NOT NULL
+        """)).fetchall()
+        
+        print(f"[DEBUG] Total de check-ins retornados: {len(raw_checkins)}")
+        if raw_checkins:
+            print(f"[DEBUG] Primeiros check-ins recebidos: {raw_checkins[:5]}")
+
+        last_visits_map: Dict[int, datetime] = {}
+        debug_failures = 0
+        for row in raw_checkins:
+            member_id = row[0]
+            checkin_str = row[1]
+            
+            visit_dt = _parse_date(checkin_str)
+            if not visit_dt:
+                if debug_failures < 10:
+                    print(f"[DEBUG] Falha ao converter check-in. member_id={member_id}, valor='{checkin_str}'")
+                    debug_failures += 1
+                continue
+            previous_visit = last_visits_map.get(member_id)
+            if not previous_visit or visit_dt > previous_visit:
+                last_visits_map[member_id] = visit_dt
+                print(f"[DEBUG] Atualizando última visita: member_id={member_id}, visita={visit_dt}")
+        print(f"[DEBUG] Membros com última visita registrada: {len(last_visits_map)}")
+
+        # Análise de retenção: membros que frequentaram nos últimos 3 meses mas não voltam há 1 mês
+        three_months_ago = datetime.now() - timedelta(days=90)
+        one_month_ago = datetime.now() - timedelta(days=30)
+
+        inactive_members = []
+        for member_id, last_visit_dt in last_visits_map.items():
+            if three_months_ago <= last_visit_dt < one_month_ago:
+                member_data = members_by_id.get(member_id)
+                if not member_data:
+                    continue
+                # Desempacotar dados do membro
+                nome = member_data[0]
+                email = member_data[1]
+                whatsapp = member_data[2]
+                plano = member_data[3]
+                vencimento_plano = member_data[4]
+                # genero = member_data[5]
+                # data_nascimento = member_data[6]
+                
+                inactive_members.append(
+                    (
+                        member_id,
+                        nome,
+                        plano,
+                        email,
+                        whatsapp,
+                        vencimento_plano,
+                        last_visit_dt,
+                    )
+                )
+
+        # Ordenar membros inativos por data da última visita (mais recente primeiro)
+        inactive_members.sort(key=lambda item: item[-1], reverse=True)
+
+        plan_options_html = "".join(
+            f'<option value="{escape(plan_value, quote=True)}">{escape(plan_value)}</option>'
+            for plan_value in plan_value_order
+        )
+
+        inactive_plan_labels = {member[2] or "Sem Plano" for member in inactive_members}
+        inactive_plan_options_html = "".join(
+            f'<option value="{escape(plan_value, quote=True)}">{escape(plan_value)}</option>'
+            for plan_value in plan_value_order
+            if plan_value in inactive_plan_labels
+        )
+
+        # Membros que vencem nos próximos 7 dias (detalhados)
+        expiring_members_details = []
+        for row in all_members_data:
+            vencimento_str = row[0]
+            plano = row[1]
+            
+            # Planos por check-in não têm vencimento
+            if plano in per_checkin_plans:
+                continue
+                
+            if not vencimento_str:
+                continue
+            vencimento = parse_date_to_date(vencimento_str)
+            if not vencimento:
+                continue
+            if today <= vencimento <= week_ahead:
+                # Buscar detalhes do membro
+                result = db_session.execute(text("""
+                    SELECT nome, email, whatsapp, plano, vencimento_plano, id
+                    FROM membros
+                    WHERE vencimento_plano = :venc AND plano = :plano
+                """), {"venc": vencimento_str, "plano": plano}).fetchone()
+                
+                if result:
+                    days_remaining = (vencimento - today).days
+                    # Converter result para tupla/lista e adicionar days_remaining
+                    expiring_members_details.append((*result, days_remaining))
+        
+        # Análise de conversão por plano (últimos 30 dias)
+        thirty_days_ago = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
+        new_members_by_plan = db_session.execute(text("""
+            SELECT plano, COUNT(*) as novos_membros
+            FROM membros
+            WHERE created_at >= :date
+            GROUP BY plano
+            ORDER BY novos_membros DESC
+        """), {"date": thirty_days_ago}).fetchall()
+        
+        # Gerar HTML
+        html = _generate_html_header("Relatório de Membros")
         
         html += f"""
-                        <tr data-plan="{plan_attr_value}">
-                            <td><strong>{nome}</strong></td>
-                            <td><span class="plan-badge">{plan_display}</span></td>
-                            <td>{ultimo_checkin_display} <span style="color: #dc3545;">({days_inactive}d atrás)</span></td>
-                            <td><span class="status-badge {status_class}">{status_plano}</span></td>
-                            <td class="contact">{contact_display}</td>
-                        </tr>
-        """
-    
-    html += """
-                    </tbody>
-                </table>
+        <div class="container">
+            <div class="header">
+                <h1>👤 Relatório de Membros</h1>
+                <p class="subtitle">Gerado em: {datetime.now().strftime('%d/%m/%Y às %H:%M')}</p>
             </div>
             
-            <!-- Análise de Novos Membros (últimos 30 dias) -->"""
-    
-    total_new = sum(count for _, count in new_members_by_plan)
-    if total_new > 0:
+            <div class="content">
+                <div class="info-box">
+                    <h3>📊 Como usar este relatório</h3>
+                    <ul>
+                        <li><strong>Cards Clicáveis:</strong> Clique nos cards coloridos para filtrar membros por status</li>
+                        <li><strong>Membros Ativos:</strong> Planos com vencimento futuro (data de vencimento ≥ hoje)</li>
+                        <li><strong>Vencendo:</strong> Planos que expiram nos próximos 7 dias (oportunidade de renovação!)</li>
+                        <li><strong>Vencidos:</strong> Planos com data de vencimento no passado</li>
+                        <li><strong>Inativos:</strong> Membros que frequentaram nos últimos 3 meses mas não voltam há 1 mês (risco de cancelamento!)</li>
+                    </ul>
+                </div>
+                
+                <div class="stats-grid">
+                    <div class="stat-card blue" onclick="showAllMembers()">
+                        <div class="label">Total de Membros</div>
+                        <div class="value">{total_members}</div>
+                        <div class="hint">👆 Clique para ver todos</div>
+                    </div>
+                    
+                    <div class="stat-card green" onclick="filterMembers('active')">
+                        <div class="label">Ativos</div>
+                        <div class="value">{active_members}</div>
+                        <div class="hint">👆 Clique para ver lista</div>
+                    </div>
+                    
+                    <div class="stat-card orange" onclick="filterMembers('expiring')">
+                        <div class="label">Vencendo (7 dias)</div>
+                        <div class="value">{expiring_soon}</div>
+                        <div class="hint">👆 Clique para ver quem</div>
+                    </div>
+                    
+                    <div class="stat-card" onclick="filterMembers('expired')">
+                        <div class="label">Vencidos</div>
+                        <div class="value">{expired_members}</div>
+                        <div class="hint">👆 Clique para ver lista</div>
+                    </div>
+                </div>
+                
+                <!-- Alerta de Retenção -->"""
+        
+        if len(inactive_members) > 0:
+            html += f"""
+                <div class="alert-box">
+                    <h3>⚠️ Alerta de Retenção: {len(inactive_members)} membro(s) em risco!</h3>
+                    <p>Estes membros frequentaram nos últimos 3 meses mas não aparecem há mais de 1 mês. 
+                       <strong>Ação recomendada:</strong> Entre em contato para reengajar antes do cancelamento!</p>
+                </div>"""
+        else:
+            html += """
+                <div class="success-box">
+                    <h3>✅ Retenção Excelente!</h3>
+                    <p>Nenhum membro ativo apresenta sinais de abandono. Continue com o excelente trabalho!</p>
+                </div>"""
+        
         html += f"""
-            <div class="section">
-                <h2>🎉 Novos Membros (últimos 30 dias): {total_new}</h2>
-                <p style="margin-bottom: 15px; color: #155724;">
-                    <strong>Análise de Conversão:</strong> Acompanhe quais planos estão vendendo mais para otimizar estratégias de marketing.
-                </p>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Plano</th>
-                            <th>Novos Membros</th>
-                            <th>% do Total de Novos</th>
-                        </tr>
-                    </thead>
-                    <tbody>
+                
+                <!-- Seção de Membros Inativos -->
+                <div class="section" id="inactive-section" {"" if len(inactive_members) > 0 else 'style="display:none;"'}>
+                    <h2>🔴 Membros em Risco de Cancelamento (<span id="inactive-count">{len(inactive_members)}</span>)</h2>
+                    <p style="margin-bottom: 15px; color: #856404;">
+                        <strong>Estratégia de Retenção:</strong> Estes membros estavam ativos mas pararam de frequentar. 
+                        Entre em contato oferecendo: desconto na renovação, sessão gratuita com instrutor, ou novos horários/atividades.
+                    </p>
+                    <div class="plan-filter">
+                        <label for="inactive-plan-filter">Filtrar por plano:</label>
+                        <select id="inactive-plan-filter">
+                            <option value="all">Todos os planos</option>
+                            {inactive_plan_options_html}
+                        </select>
+                    </div>
+                    <table id="inactive-members-table">
+                        <thead>
+                            <tr>
+                                <th>Nome</th>
+                                <th>Plano</th>
+                                <th>Último Check-in</th>
+                                <th>Status do Plano</th>
+                                <th>Contato</th>
+                            </tr>
+                        </thead>
+                        <tbody>
         """
         
-        for plano, count in new_members_by_plan:
-            percentage = (count / total_new * 100) if total_new > 0 else 0
+        for member in inactive_members:
+            member_id, nome, plano, email, whatsapp, vencimento_str, ultimo_checkin_dt = member
+            
+            ultimo_checkin_display = ultimo_checkin_dt.strftime('%d/%m/%Y')
+            days_inactive = (datetime.now() - ultimo_checkin_dt).days
+
+            plan_display = plano or 'Sem Plano'
+            plan_attr_value = escape(plan_display, quote=True)
+            
+            vencimento_parsed = parse_date_to_date(vencimento_str) if vencimento_str else None
+            status_plano = "Ativo" if vencimento_parsed and vencimento_parsed >= today else "Vencido"
+            status_class = "active" if status_plano == "Ativo" else "expired"
+            
+            contact_info = []
+            if email:
+                contact_info.append(f"✉️ {escape(email)}")
+            if whatsapp:
+                whatsapp_clean = ''.join(filter(str.isdigit, whatsapp))
+                whatsapp_link = f"https://wa.me/{whatsapp_clean}" if whatsapp_clean else None
+                whatsapp_display = escape(whatsapp)
+                if whatsapp_link:
+                    contact_info.append(f"📱 <a href=\"{whatsapp_link}\" target=\"_blank\" rel=\"noopener\">{whatsapp_display}</a>")
+                else:
+                    contact_info.append(f"📱 {whatsapp_display}")
+            contact_display = "<br>".join(contact_info) if contact_info else "Sem contato"
+            
             html += f"""
-                        <tr>
-                            <td><strong>{plano}</strong></td>
-                            <td>{count}</td>
-                            <td>{percentage:.1f}%</td>
-                        </tr>
+                            <tr data-plan="{plan_attr_value}">
+                                <td><strong>{nome}</strong></td>
+                                <td><span class="plan-badge">{plan_display}</span></td>
+                                <td>{ultimo_checkin_display} <span style="color: #dc3545;">({days_inactive}d atrás)</span></td>
+                                <td><span class="status-badge {status_class}">{status_plano}</span></td>
+                                <td class="contact">{contact_display}</td>
+                            </tr>
             """
         
         html += """
-                    </tbody>
-                </table>
-            </div>
-        """
-    
-    html += """
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Análise de Novos Membros (últimos 30 dias) -->"""
+        
+        total_new = sum(row[1] for row in new_members_by_plan)
+        if total_new > 0:
+            html += f"""
+                <div class="section">
+                    <h2>🎉 Novos Membros (últimos 30 dias): {total_new}</h2>
+                    <p style="margin-bottom: 15px; color: #155724;">
+                        <strong>Análise de Conversão:</strong> Acompanhe quais planos estão vendendo mais para otimizar estratégias de marketing.
+                    </p>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Plano</th>
+                                <th>Novos Membros</th>
+                                <th>% do Total de Novos</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            """
             
-            <div class="section">
-                <h2>📊 Distribuição por Plano</h2>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Plano</th>
-                            <th>Total de Membros</th>
-                            <th>Percentual</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-    """
-    
-    for plan, count in plan_distribution:
-        percentage = (count / total_members * 100) if total_members > 0 else 0
+            for row in new_members_by_plan:
+                plano = row[0]
+                count = row[1]
+                percentage = (count / total_new * 100) if total_new > 0 else 0
+                html += f"""
+                            <tr>
+                                <td><strong>{plano}</strong></td>
+                                <td>{count}</td>
+                                <td>{percentage:.1f}%</td>
+                            </tr>
+                """
+            
+            html += """
+                        </tbody>
+                    </table>
+                </div>
+            """
+        
+        html += """
+                
+                <div class="section">
+                    <h2>📊 Distribuição por Plano</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Plano</th>
+                                <th>Total de Membros</th>
+                                <th>Percentual</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+        """
+        
+        for row in plan_distribution:
+            plan = row[0]
+            count = row[1]
+            percentage = (count / total_members * 100) if total_members > 0 else 0
+            html += f"""
+                            <tr>
+                                <td><strong>{plan}</strong></td>
+                                <td>{count}</td>
+                                <td>{percentage:.1f}%</td>
+                            </tr>
+            """
+        
+        html += """
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="section">
+                    <h2>👥 Distribuição por Gênero</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Gênero</th>
+                                <th>Total de Membros</th>
+                                <th>Percentual</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+        """
+        
+        for row in gender_distribution:
+            gender = row[0]
+            count = row[1]
+            percentage = (count / total_members * 100) if total_members > 0 else 0
+            gender_label = gender or "Não Informado"
+            html += f"""
+                            <tr>
+                                <td><strong>{gender_label}</strong></td>
+                                <td>{count}</td>
+                                <td>{percentage:.1f}%</td>
+                            </tr>
+            """
+        
         html += f"""
-                        <tr>
-                            <td><strong>{plan}</strong></td>
-                            <td>{count}</td>
-                            <td>{percentage:.1f}%</td>
-                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="section">
+                    <h2>📋 Lista Completa de Membros</h2>
+                    
+                    <div class="filter-buttons">
+                        <button class="filter-btn all active" onclick="showAllMembers()">
+                            👥 Todos ({total_members})
+                        </button>
+                        <button class="filter-btn active-filter" onclick="filterMembers('active')">
+                            ✅ Ativos ({active_members})
+                        </button>
+                        <button class="filter-btn expiring-filter" onclick="filterMembers('expiring')">
+                            ⚠️ Vencendo ({expiring_soon})
+                        </button>
+                        <button class="filter-btn expired-filter" onclick="filterMembers('expired')">
+                            ❌ Vencidos ({expired_members})
+                        </button>
+                        <button class="filter-btn inactive-filter" onclick="filterMembers('inactive')">
+                            🔴 Inativos ({len(inactive_members)})
+                        </button>
+                    </div>
+
+                    <div class="plan-filter">
+                        <label for="plan-filter">Filtrar por plano:</label>
+                        <select id="plan-filter">
+                            <option value="all">Todos os planos</option>
+                            {plan_options_html}
+                        </select>
+                    </div>
+                    
+                    <div id="filter-info" style="margin-bottom: 15px; padding: 10px; background: #f8f9fa; border-radius: 8px; display: none;">
+                        <strong>Filtro ativo:</strong> <span id="filter-description"></span>
+                    </div>
+                    
+                    <table id="members-table">
+                        <thead>
+                            <tr>
+                                <th>Nome</th>
+                                <th>Plano</th>
+                                <th>Status</th>
+                                <th>Vencimento</th>
+                                <th>Última Visita</th>
+                                <th>Contato</th>
+                                <th>Gênero</th>
+                                <th>Nascimento</th>
+                            </tr>
+                        </thead>
+                        <tbody>
         """
-    
-    html += """
-                    </tbody>
-                </table>
-            </div>
+        
+        # Mapa de últimas visitas calculado anteriormente
+        last_visits = last_visits_map
+        
+        for member in members:
+            nome = member[0]
+            email = member[1]
+            whatsapp = member[2]
+            plano = member[3]
+            vencimento = member[4]
+            genero = member[5]
+            nascimento = member[6]
+            member_id = member[7]
             
-            <div class="section">
-                <h2>👥 Distribuição por Gênero</h2>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Gênero</th>
-                            <th>Total de Membros</th>
-                            <th>Percentual</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-    """
-    
-    for gender, count in gender_distribution:
-        percentage = (count / total_members * 100) if total_members > 0 else 0
-        gender_label = gender or "Não Informado"
-        html += f"""
-                        <tr>
-                            <td><strong>{gender_label}</strong></td>
-                            <td>{count}</td>
-                            <td>{percentage:.1f}%</td>
-                        </tr>
-        """
-    
-    html += f"""
-                    </tbody>
-                </table>
-            </div>
+            status_text, status_class = _get_status_info(vencimento)
             
-            <div class="section">
-                <h2>📋 Lista Completa de Membros</h2>
-                
-                <div class="filter-buttons">
-                    <button class="filter-btn all active" onclick="showAllMembers()">
-                        👥 Todos ({total_members})
-                    </button>
-                    <button class="filter-btn active-filter" onclick="filterMembers('active')">
-                        ✅ Ativos ({active_members})
-                    </button>
-                    <button class="filter-btn expiring-filter" onclick="filterMembers('expiring')">
-                        ⚠️ Vencendo ({expiring_soon})
-                    </button>
-                    <button class="filter-btn expired-filter" onclick="filterMembers('expired')">
-                        ❌ Vencidos ({expired_members})
-                    </button>
-                    <button class="filter-btn inactive-filter" onclick="filterMembers('inactive')">
-                        🔴 Inativos ({len(inactive_members)})
-                    </button>
-                </div>
-
-                <div class="plan-filter">
-                    <label for="plan-filter">Filtrar por plano:</label>
-                    <select id="plan-filter">
-                        <option value="all">Todos os planos</option>
-                        {plan_options_html}
-                    </select>
-                </div>
-                
-                <div id="filter-info" style="margin-bottom: 15px; padding: 10px; background: #f8f9fa; border-radius: 8px; display: none;">
-                    <strong>Filtro ativo:</strong> <span id="filter-description"></span>
-                </div>
-                
-                <table id="members-table">
-                    <thead>
-                        <tr>
-                            <th>Nome</th>
-                            <th>Plano</th>
-                            <th>Status</th>
-                            <th>Vencimento</th>
-                            <th>Última Visita</th>
-                            <th>Contato</th>
-                            <th>Gênero</th>
-                            <th>Nascimento</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-    """
-    
-    # Mapa de últimas visitas calculado anteriormente
-    last_visits = last_visits_map
-    
-    for member in members:
-        nome, email, whatsapp, plano, vencimento, genero, nascimento, member_id = member
-        status_text, status_class = _get_status_info(vencimento)
-        
-        # Determinar categoria do membro
-        vencimento_parsed = parse_date_to_date(vencimento) if vencimento else None
-        is_active = vencimento_parsed and vencimento_parsed >= today
-        is_expiring = vencimento_parsed and today <= vencimento_parsed <= week_ahead
-        
-        # Para planos por check-in, não mostrar como "vencido"
-        # Eles não têm conceito de vencimento de plano
-        if plano in per_checkin_plans:
-            is_expired = False
-        else:
-            is_expired = not vencimento_parsed or vencimento_parsed < today
-        
-        # Verificar se está na lista de inativos
-        is_inactive = any(m[0] == member_id for m in inactive_members)
-        
-        categories = []
-        if is_active:
-            categories.append('active')
-        if is_expiring:
-            categories.append('expiring')
-        if is_expired:
-            categories.append('expired')
-        if is_inactive:
-            categories.append('inactive')
-        
-        categories_str = ' '.join(categories)
-        
-        plan_display = plano or 'Sem Plano'
-        plan_attr_value = escape(plan_display, quote=True)
-
-        vencimento_dt = _parse_date(vencimento) if vencimento else None
-        vencimento_display = vencimento_dt.strftime('%d/%m/%Y') if vencimento_dt else 'N/A'
-
-        nascimento_dt = _parse_date(nascimento) if nascimento else None
-        nascimento_display = nascimento_dt.strftime('%d/%m/%Y') if nascimento_dt else 'N/A'
-
-        # Última visita
-        last_visit_date = last_visits.get(member_id)
-        if last_visit_date:
-            last_visit_display = last_visit_date.strftime('%d/%m/%Y')
-        else:
-            last_visit_display = 'Nunca'
-        
-        contact_info = []
-        if email:
-            contact_info.append(f"✉️ {escape(email)}")
-        if whatsapp:
-            whatsapp_clean = ''.join(filter(str.isdigit, whatsapp))
-            whatsapp_link = f"https://wa.me/{whatsapp_clean}" if whatsapp_clean else None
-            whatsapp_display = escape(whatsapp)
-            if whatsapp_link:
-                contact_info.append(f"📱 <a href=\"{whatsapp_link}\" target=\"_blank\" rel=\"noopener\">{whatsapp_display}</a>")
+            # Determinar categoria do membro
+            vencimento_parsed = parse_date_to_date(vencimento) if vencimento else None
+            is_active = vencimento_parsed and vencimento_parsed >= today
+            is_expiring = vencimento_parsed and today <= vencimento_parsed <= week_ahead
+            
+            # Para planos por check-in, não mostrar como "vencido"
+            # Eles não têm conceito de vencimento de plano
+            if plano in per_checkin_plans:
+                is_expired = False
             else:
-                contact_info.append(f"📱 {whatsapp_display}")
-        contact_display = "<br>".join(contact_info) if contact_info else "Sem contato"
+                is_expired = not vencimento_parsed or vencimento_parsed < today
+            
+            # Verificar se está na lista de inativos
+            is_inactive = any(m[0] == member_id for m in inactive_members)
+            
+            categories = []
+            if is_active:
+                categories.append('active')
+            if is_expiring:
+                categories.append('expiring')
+            if is_expired:
+                categories.append('expired')
+            if is_inactive:
+                categories.append('inactive')
+            
+            categories_str = ' '.join(categories)
+            
+            plan_display = plano or 'Sem Plano'
+            plan_attr_value = escape(plan_display, quote=True)
+
+            vencimento_dt = _parse_date(vencimento) if vencimento else None
+            vencimento_display = vencimento_dt.strftime('%d/%m/%Y') if vencimento_dt else 'N/A'
+
+            nascimento_dt = _parse_date(nascimento) if nascimento else None
+            nascimento_display = nascimento_dt.strftime('%d/%m/%Y') if nascimento_dt else 'N/A'
+
+            # Última visita
+            last_visit_date = last_visits.get(member_id)
+            if last_visit_date:
+                last_visit_display = last_visit_date.strftime('%d/%m/%Y')
+            else:
+                last_visit_display = 'Nunca'
+            
+            contact_info = []
+            if email:
+                contact_info.append(f"✉️ {escape(email)}")
+            if whatsapp:
+                whatsapp_clean = ''.join(filter(str.isdigit, whatsapp))
+                whatsapp_link = f"https://wa.me/{whatsapp_clean}" if whatsapp_clean else None
+                whatsapp_display = escape(whatsapp)
+                if whatsapp_link:
+                    contact_info.append(f"📱 <a href=\"{whatsapp_link}\" target=\"_blank\" rel=\"noopener\">{whatsapp_display}</a>")
+                else:
+                    contact_info.append(f"📱 {whatsapp_display}")
+            contact_display = "<br>".join(contact_info) if contact_info else "Sem contato"
+            
+            html += f"""
+                            <tr class="member-row" data-categories="{categories_str}" data-plan="{plan_attr_value}">
+                                <td><strong>{nome}</strong></td>
+                                <td><span class="plan-badge">{plan_display}</span></td>
+                                <td><span class="status-badge {status_class}">{status_text}</span></td>
+                                <td>{vencimento_display}</td>
+                                <td>{last_visit_display}</td>
+                                <td class="contact">{contact_display}</td>
+                                <td>{genero or 'N/A'}</td>
+                                <td>{nascimento_display}</td>
+                            </tr>
+            """
         
-        html += f"""
-                        <tr class="member-row" data-categories="{categories_str}" data-plan="{plan_attr_value}">
-                            <td><strong>{nome}</strong></td>
-                            <td><span class="plan-badge">{plan_display}</span></td>
-                            <td><span class="status-badge {status_class}">{status_text}</span></td>
-                            <td>{vencimento_display}</td>
-                            <td>{last_visit_display}</td>
-                            <td class="contact">{contact_display}</td>
-                            <td>{genero or 'N/A'}</td>
-                            <td>{nascimento_display}</td>
-                        </tr>
-        """
-    
-    html += """
-                    </tbody>
-                </table>
+        html += """
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
-    </div>
-    """
-    
-    html += """
-    
-    <script>
-        let currentFilter = 'all';
-        let currentPlan = 'all';
-        const planLabels = { all: 'Todos os planos' };
+        """
+        
+        html += """
+        
+        <script>
+            let currentFilter = 'all';
+            let currentPlan = 'all';
+            const planLabels = { all: 'Todos os planos' };
 
-        function showAllMembers() {
-            currentFilter = 'all';
-            updateFilterButtons('all');
-            applyFilters();
-        }
-
-        function filterMembers(category) {
-            currentFilter = category;
-            updateFilterButtons(category);
-            applyFilters();
-        }
-
-        function applyFilters() {
-            const rows = document.querySelectorAll('.member-row');
-            let visibleCount = 0;
-
-            rows.forEach(row => {
-                const categories = (row.dataset.categories || '').split(' ').filter(Boolean);
-                const planValue = row.dataset.plan || '';
-                const matchesCategory = currentFilter === 'all' || categories.includes(currentFilter);
-                const matchesPlan = currentPlan === 'all' || planValue === currentPlan;
-
-                if (matchesCategory && matchesPlan) {
-                    row.style.display = '';
-                    visibleCount++;
-                } else {
-                    row.style.display = 'none';
-                }
-            });
-
-            updateMemberCount(visibleCount);
-
-            if (currentFilter === 'all' && currentPlan === 'all') {
-                hideFilterInfo();
-            } else {
-                showFilterInfo(currentFilter, currentPlan, visibleCount);
-            }
-        }
-
-        function updateFilterButtons(activeCategory) {
-            const buttons = document.querySelectorAll('.filter-btn');
-            buttons.forEach(btn => btn.classList.remove('active'));
-
-            if (activeCategory === 'all') {
-                const allButton = document.querySelector('.filter-btn.all');
-                if (allButton) {
-                    allButton.classList.add('active');
-                }
-            } else {
-                const targetButton = document.querySelector(`.filter-btn.${activeCategory}-filter`);
-                if (targetButton) {
-                    targetButton.classList.add('active');
-                }
-            }
-        }
-
-        function showFilterInfo(category, planValue, count) {
-            const info = document.getElementById('filter-info');
-            const description = document.getElementById('filter-description');
-
-            const descriptions = {
-                all: qty => `Mostrando ${qty} membro(s)`,
-                active: qty => `Mostrando ${qty} membro(s) com planos ativos (vencimento futuro)`,
-                expiring: qty => `Mostrando ${qty} membro(s) com planos vencendo nos próximos 7 dias - CONTATE URGENTE para renovação!`,
-                expired: qty => `Mostrando ${qty} membro(s) com planos vencidos - Oportunidade de reengajamento`,
-                inactive: qty => `Mostrando ${qty} membro(s) em risco - Frequentaram nos últimos 3 meses mas não voltam há 1 mês`
-            };
-
-            const statusMessage = (descriptions[category] || descriptions.all)(count);
-            let message = statusMessage;
-
-            if (planValue !== 'all') {
-                const planLabel = planLabels[planValue] || planValue;
-                message += ` | Plano filtrado: ${planLabel}`;
+            function showAllMembers() {
+                currentFilter = 'all';
+                updateFilterButtons('all');
+                applyFilters();
             }
 
-            description.textContent = message;
-            info.style.display = 'block';
-        }
-
-        function hideFilterInfo() {
-            const info = document.getElementById('filter-info');
-            if (info) {
-                info.style.display = 'none';
-            }
-        }
-
-        function updateMemberCount(count) {
-            console.log(`Exibindo ${count} membro(s)`);
-        }
-
-        function applyInactivePlanFilter() {
-            const select = document.getElementById('inactive-plan-filter');
-            if (!select) {
-                return;
+            function filterMembers(category) {
+                currentFilter = category;
+                updateFilterButtons(category);
+                applyFilters();
             }
 
-            const selected = select.value;
-            const rows = document.querySelectorAll('#inactive-members-table tbody tr');
-            let visible = 0;
+            function applyFilters() {
+                const rows = document.querySelectorAll('.member-row');
+                let visibleCount = 0;
 
-            rows.forEach(row => {
-                const planValue = row.dataset.plan || '';
-                if (selected === 'all' || planValue === selected) {
-                    row.style.display = '';
-                    visible++;
-                } else {
-                    row.style.display = 'none';
-                }
-            });
+                rows.forEach(row => {
+                    const categories = (row.dataset.categories || '').split(' ').filter(Boolean);
+                    const planValue = row.dataset.plan || '';
+                    const matchesCategory = currentFilter === 'all' || categories.includes(currentFilter);
+                    const matchesPlan = currentPlan === 'all' || planValue === currentPlan;
 
-            const countElement = document.getElementById('inactive-count');
-            if (countElement) {
-                countElement.textContent = visible;
-            }
-        }
-
-        function setupPlanFilters() {
-            const planSelect = document.getElementById('plan-filter');
-            if (planSelect) {
-                Array.from(planSelect.options).forEach(option => {
-                    planLabels[option.value] = option.textContent;
-                });
-
-                planSelect.addEventListener('change', () => {
-                    currentPlan = planSelect.value;
-                    applyFilters();
-                });
-            }
-
-            const inactivePlanSelect = document.getElementById('inactive-plan-filter');
-            if (inactivePlanSelect) {
-                inactivePlanSelect.addEventListener('change', applyInactivePlanFilter);
-                applyInactivePlanFilter();
-            }
-        }
-
-        document.querySelectorAll('.stat-card').forEach(card => {
-            card.addEventListener('click', () => {
-                setTimeout(() => {
-                    const membersTable = document.getElementById('members-table');
-                    if (membersTable) {
-                        membersTable.scrollIntoView({
-                            behavior: 'smooth',
-                            block: 'start'
-                        });
+                    if (matchesCategory && matchesPlan) {
+                        row.style.display = '';
+                        visibleCount++;
+                    } else {
+                        row.style.display = 'none';
                     }
-                }, 100);
-            });
-        });
+                });
 
-        setupPlanFilters();
-        applyFilters();
-    </script>
-    """
-    
-    html += _generate_html_footer()
-    
-    # Salvar arquivo
-    reports_dir = _get_reports_dir()
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    filename = f"relatorio_membros_{timestamp}.html"
-    filepath = reports_dir / filename
-    
-    with open(filepath, 'w', encoding='utf-8') as f:
-        f.write(html)
-    
-    return str(filepath)
+                updateMemberCount(visibleCount);
+
+                if (currentFilter === 'all' && currentPlan === 'all') {
+                    hideFilterInfo();
+                } else {
+                    showFilterInfo(currentFilter, currentPlan, visibleCount);
+                }
+            }
+
+            function updateFilterButtons(activeCategory) {
+                const buttons = document.querySelectorAll('.filter-btn');
+                buttons.forEach(btn => btn.classList.remove('active'));
+
+                if (activeCategory === 'all') {
+                    const allButton = document.querySelector('.filter-btn.all');
+                    if (allButton) {
+                        allButton.classList.add('active');
+                    }
+                } else {
+                    const targetButton = document.querySelector(`.filter-btn.${activeCategory}-filter`);
+                    if (targetButton) {
+                        targetButton.classList.add('active');
+                    }
+                }
+            }
+
+            function showFilterInfo(category, planValue, count) {
+                const info = document.getElementById('filter-info');
+                const description = document.getElementById('filter-description');
+
+                const descriptions = {
+                    all: qty => `Mostrando ${qty} membro(s)`,
+                    active: qty => `Mostrando ${qty} membro(s) com planos ativos (vencimento futuro)`,
+                    expiring: qty => `Mostrando ${qty} membro(s) com planos vencendo nos próximos 7 dias - CONTATE URGENTE para renovação!`,
+                    expired: qty => `Mostrando ${qty} membro(s) com planos vencidos - Oportunidade de reengajamento`,
+                    inactive: qty => `Mostrando ${qty} membro(s) em risco - Frequentaram nos últimos 3 meses mas não voltam há 1 mês`
+                };
+
+                const statusMessage = (descriptions[category] || descriptions.all)(count);
+                let message = statusMessage;
+
+                if (planValue !== 'all') {
+                    const planLabel = planLabels[planValue] || planValue;
+                    message += ` | Plano filtrado: ${planLabel}`;
+                }
+
+                description.textContent = message;
+                info.style.display = 'block';
+            }
+
+            function hideFilterInfo() {
+                const info = document.getElementById('filter-info');
+                if (info) {
+                    info.style.display = 'none';
+                }
+            }
+
+            function updateMemberCount(count) {
+                console.log(`Exibindo ${count} membro(s)`);
+            }
+
+            function applyInactivePlanFilter() {
+                const select = document.getElementById('inactive-plan-filter');
+                if (!select) {
+                    return;
+                }
+
+                const selected = select.value;
+                const rows = document.querySelectorAll('#inactive-members-table tbody tr');
+                let visible = 0;
+
+                rows.forEach(row => {
+                    const planValue = row.dataset.plan || '';
+                    if (selected === 'all' || planValue === selected) {
+                        row.style.display = '';
+                        visible++;
+                    } else {
+                        row.style.display = 'none';
+                    }
+                });
+
+                const countElement = document.getElementById('inactive-count');
+                if (countElement) {
+                    countElement.textContent = visible;
+                }
+            }
+
+            function setupPlanFilters() {
+                const planSelect = document.getElementById('plan-filter');
+                if (planSelect) {
+                    Array.from(planSelect.options).forEach(option => {
+                        planLabels[option.value] = option.textContent;
+                    });
+
+                    planSelect.addEventListener('change', () => {
+                        currentPlan = planSelect.value;
+                        applyFilters();
+                    });
+                }
+
+                const inactivePlanSelect = document.getElementById('inactive-plan-filter');
+                if (inactivePlanSelect) {
+                    inactivePlanSelect.addEventListener('change', applyInactivePlanFilter);
+                    applyInactivePlanFilter();
+                }
+            }
+
+            document.querySelectorAll('.stat-card').forEach(card => {
+                card.addEventListener('click', () => {
+                    setTimeout(() => {
+                        const membersTable = document.getElementById('members-table');
+                        if (membersTable) {
+                            membersTable.scrollIntoView({
+                                behavior: 'smooth',
+                                block: 'start'
+                            });
+                        }
+                    }, 100);
+                });
+            });
+
+            setupPlanFilters();
+            applyFilters();
+        </script>
+        """
+        
+        html += _generate_html_footer()
+        
+        # Salvar arquivo
+        reports_dir = _get_reports_dir()
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f"relatorio_membros_{timestamp}.html"
+        filepath = reports_dir / filename
+        
+        with open(filepath, 'w', encoding='utf-8') as f:
+            f.write(html)
+        
+        return str(filepath)
+    finally:
+        if close_session:
+            db_session.close()

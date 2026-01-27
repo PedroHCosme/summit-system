@@ -100,6 +100,16 @@ class MemberDetailsDialog(QDialog):
         if treina == 'Sim':
             html += f"<p><span class='label'>Vencimento do Treino:</span> <span class='value'>{vencimento_treino}</span></p>"
             
+        # Observações
+        observacoes = self.member_data.get('observacoes')
+        if not observacoes:
+            observacoes = "<i>Nenhuma observação registrada.</i>"
+        
+        html += f"""
+            <h3>Observações</h3>
+            <p class='value'>{observacoes}</p>
+        """
+            
         html += "</div>"
         
         self.details_browser.setHtml(html)

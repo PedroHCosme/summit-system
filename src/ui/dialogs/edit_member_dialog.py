@@ -6,7 +6,7 @@ from typing import Optional
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QFormLayout,
     QLineEdit, QComboBox, QDateEdit, QPushButton,
-    QLabel, QMessageBox
+    QLabel, QMessageBox, QTextEdit, QSpinBox, QDoubleSpinBox, QWidget
 )
 from PyQt6.QtCore import Qt, QDate, pyqtSignal
 
@@ -23,27 +23,57 @@ class EditMemberDialog(QDialog):
         super().__init__(parent)
         self.member_data = member_data.copy()  # Cópia dos dados originais
         self.member_id = member_data.get('id')
+        self.plans_cache = {}  # {nome: {preco, is_quota, quota_amount}}
         
         self.setWindowTitle("Editar Membro")
-        self.setMinimumWidth(500)
+        self.setMinimumWidth(400)
         self.setModal(True)
         
         self._setup_ui()
         self._populate_fields()
         self._connect_signals()
     
+    def _load_plans_from_db(self):
+        """Load plans from database using centralized PlanService."""
+        try:
+            from src.services.plan_service import get_plan_service
+            plan_service = get_plan_service()
+            
+            # Get plans as dict from centralized service
+            self.plans_cache = plan_service.get_plans_as_dict()
+            return plan_service.get_plan_names()
+        except Exception as e:
+            print(f"Error loading plans from PlanService: {e}")
+        
+        # Fallback to config (should not happen in normal operation)
+        from src import config
+        return config.PLANOS
+    
     def _setup_ui(self):
         """Configura a interface do diálogo."""
-        layout = QVBoxLayout(self)
-        layout.setSpacing(15)
+        # Main Layout
+        main_layout = QVBoxLayout(self)
+        main_layout.setSpacing(10)
+        main_layout.setContentsMargins(10, 10, 10, 10)
         
         # Título
         title_label = QLabel("Editar Informações do Membro")
         title_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #007ACC;")
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(title_label)
+        main_layout.addWidget(title_label)
         
-        # Formulário
+        # Scroll Area
+        from PyQt6.QtWidgets import QScrollArea, QWidget
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setFrameShape(QScrollArea.Shape.NoFrame)
+        
+        # Widget para conter o formulário
+        scroll_content = QWidget()
+        scroll_layout = QVBoxLayout(scroll_content)
+        scroll_layout.setContentsMargins(0, 0, 10, 0) # Margem direita para scrollbar
+        
+        # Formulário dentro do Scroll
         form_layout = QFormLayout()
         form_layout.setSpacing(10)
         
@@ -59,9 +89,9 @@ class EditMemberDialog(QDialog):
         
         # Plano (obrigatório)
         self.plano_combo = QComboBox()
-        # Importar PLANOS dinamicamente em tempo de execução para pegar atualizações
-        from src import config
-        self.plano_combo.addItems(config.PLANOS)
+        # Load plans from database
+        plan_names = self._load_plans_from_db()
+        self.plano_combo.addItems(plan_names)
         form_layout.addRow("Plano *:", self.plano_combo)
         
         # Vencimento do Plano (condicional)
@@ -71,6 +101,36 @@ class EditMemberDialog(QDialog):
         self.vencimento_plano_input.setDisplayFormat("dd/MM/yyyy")
         self.vencimento_plano_input.setDate(QDate.currentDate())
         form_layout.addRow(self.vencimento_plano_label, self.vencimento_plano_input)
+        
+        # --- Voucher fields ---
+        self.voucher_widget = QWidget()
+        voucher_layout = QVBoxLayout(self.voucher_widget)
+        voucher_layout.setContentsMargins(0, 0, 0, 0)
+        voucher_layout.setSpacing(5)
+        
+        # Voucher credits
+        vc_layout = QHBoxLayout()
+        vc_label = QLabel("Quantidade de Diárias:")
+        self.voucher_credits_spin = QSpinBox()
+        self.voucher_credits_spin.setRange(1, 100)
+        self.voucher_credits_spin.setValue(10)
+        vc_layout.addWidget(vc_label)
+        vc_layout.addWidget(self.voucher_credits_spin, 1)
+        voucher_layout.addLayout(vc_layout)
+        
+        # Voucher price
+        vp_layout = QHBoxLayout()
+        vp_label = QLabel("Valor Pago (R$):")
+        self.voucher_price_spin = QDoubleSpinBox()
+        self.voucher_price_spin.setRange(0, 99999)
+        self.voucher_price_spin.setDecimals(2)
+        self.voucher_price_spin.setPrefix("R$ ")
+        self.voucher_price_spin.setValue(200.0)
+        vp_layout.addWidget(vp_label)
+        vp_layout.addWidget(self.voucher_price_spin, 1)
+        voucher_layout.addLayout(vp_layout)
+        form_layout.addRow("", self.voucher_widget)
+        # --- End voucher fields ---
         
         # Data de Nascimento
         self.data_nascimento_input = QLineEdit()
@@ -97,10 +157,15 @@ class EditMemberDialog(QDialog):
         self.profissao_input.setPlaceholderText("Ex: Engenheiro")
         form_layout.addRow("Profissão:", self.profissao_input)
 
-        # Contato de Emergência
         self.contato_emergencia_input = QLineEdit()
         self.contato_emergencia_input.setPlaceholderText("Nome e Telefone")
         form_layout.addRow("Contato de Emergência:", self.contato_emergencia_input)
+
+        # Observações
+        self.observacoes_input = QTextEdit()
+        self.observacoes_input.setPlaceholderText("Informações adicionais...")
+        self.observacoes_input.setMaximumHeight(80)
+        form_layout.addRow("Observações:", self.observacoes_input)
 
         
         # Email
@@ -126,12 +191,14 @@ class EditMemberDialog(QDialog):
         self.metodo_pagamento_combo.addItems(["", "PIX", "Cartão de Crédito", "Cartão de Débito", "Dinheiro", "Transferência"])
         form_layout.addRow("Método de Pagamento:", self.metodo_pagamento_combo)
         
-        layout.addLayout(form_layout)
+        scroll_layout.addLayout(form_layout)
+        scroll_area.setWidget(scroll_content)
+        main_layout.addWidget(scroll_area)
         
         # Nota sobre campos obrigatórios
         note_label = QLabel("* Campos obrigatórios")
         note_label.setStyleSheet("color: #888888; font-size: 11px; font-style: italic;")
-        layout.addWidget(note_label)
+        main_layout.addWidget(note_label)
         
         # Botões
         button_layout = QHBoxLayout()
@@ -160,7 +227,7 @@ class EditMemberDialog(QDialog):
         self.save_button.setAutoDefault(True)
         button_layout.addWidget(self.save_button)
         
-        layout.addLayout(button_layout)
+        main_layout.addLayout(button_layout)
     
     def _populate_fields(self):
         """Popula os campos com os dados do membro."""
@@ -170,10 +237,9 @@ class EditMemberDialog(QDialog):
         # Apelido
         self.apelido_input.setText(self.member_data.get('apelido', ''))
         
-        # Plano
-        from src import config
+        # Plano - check against loaded plans from DB
         plano = self.member_data.get('plano', '')
-        if plano in config.PLANOS:
+        if plano in self.plans_cache or self.plano_combo.findText(plano) >= 0:
             self.plano_combo.setCurrentText(plano)
         
         # Vencimento do Plano
@@ -184,6 +250,10 @@ class EditMemberDialog(QDialog):
                 self.vencimento_plano_input.setDate(
                     QDate(vencimento_dt.year, vencimento_dt.month, vencimento_dt.day)
                 )
+        
+        # Voucher credits
+        voucher_credits = self.member_data.get('voucher_credits', 0) or 0
+        self.voucher_credits_spin.setValue(voucher_credits)
         
         # Data de Nascimento
         self.data_nascimento_input.setText(self.member_data.get('data_nascimento', ''))
@@ -205,6 +275,9 @@ class EditMemberDialog(QDialog):
         # Contato de Emergência
         self.contato_emergencia_input.setText(self.member_data.get('contato_emergencia', ''))
         
+        # Observações
+        self.observacoes_input.setText(self.member_data.get('observacoes', ''))
+        
         # Email
         self.email_input.setText(self.member_data.get('email', ''))
         
@@ -221,8 +294,9 @@ class EditMemberDialog(QDialog):
                     QDate(vencimento_treino_dt.year, vencimento_treino_dt.month, vencimento_treino_dt.day)
                 )
         
-        # Ajusta visibilidade do campo de vencimento
+        # Ajusta visibilidade do campo de vencimento e voucher
         self._toggle_vencimento_visibility()
+        self._toggle_voucher_visibility()
         self._toggle_treino_visibility()
     
     def _connect_signals(self):
@@ -235,9 +309,20 @@ class EditMemberDialog(QDialog):
     def _on_plano_changed(self, plano: str):
         """Atualiza a visibilidade e valor do campo de vencimento quando o plano muda."""
         self._toggle_vencimento_visibility()
+        self._toggle_voucher_visibility()
         
-        # Calcula automaticamente a nova data de vencimento
-        if plano in PLANOS_COM_VENCIMENTO:
+        # Check if quota plan
+        is_quota = False
+        if plano in self.plans_cache:
+            is_quota = self.plans_cache[plano].get('is_quota', False)
+        
+        # For quota plans, update default values
+        if is_quota:
+            plan_info = self.plans_cache[plano]
+            self.voucher_credits_spin.setValue(plan_info.get('quota_amount', 10))
+            self.voucher_price_spin.setValue(plan_info.get('preco', 0))
+        elif plano in PLANOS_COM_VENCIMENTO:
+            # Calcula automaticamente a nova data de vencimento
             new_due_date = calculate_new_due_date(plano)
             if new_due_date:
                 self.vencimento_plano_input.setDate(
@@ -247,10 +332,25 @@ class EditMemberDialog(QDialog):
     def _toggle_vencimento_visibility(self):
         """Mostra ou esconde o campo de vencimento baseado no plano selecionado."""
         plano = self.plano_combo.currentText()
-        has_vencimento = plano in PLANOS_COM_VENCIMENTO
+        
+        # Check if quota plan (no vencimento needed)
+        is_quota = False
+        if plano in self.plans_cache:
+            is_quota = self.plans_cache[plano].get('is_quota', False)
+        
+        has_vencimento = plano in PLANOS_COM_VENCIMENTO and not is_quota
         
         self.vencimento_plano_label.setVisible(has_vencimento)
         self.vencimento_plano_input.setVisible(has_vencimento)
+    
+    def _toggle_voucher_visibility(self):
+        """Show or hide voucher fields based on plan type."""
+        plano = self.plano_combo.currentText()
+        is_quota = False
+        if plano in self.plans_cache:
+            is_quota = self.plans_cache[plano].get('is_quota', False)
+        
+        self.voucher_widget.setVisible(is_quota)
     
     def _on_treina_changed(self, treina: str):
         """Atualiza a visibilidade e valor do campo de vencimento do treino quando muda."""
@@ -396,6 +496,16 @@ class EditMemberDialog(QDialog):
                 # Usuário cancelou - não salvar as alterações
                 return
         
+        # Check if quota plan
+        is_quota = False
+        if plano in self.plans_cache:
+            is_quota = self.plans_cache[plano].get('is_quota', False)
+        
+        # For quota plans, adjust vencimento and estado
+        if is_quota:
+            vencimento_str = None
+            estado_plano = 'ATIVO'
+        
         # Monta o dicionário com os dados atualizados
         updated_data = {
             'id': self.member_id,
@@ -410,12 +520,18 @@ class EditMemberDialog(QDialog):
             'calcado': self.calcado_input.text().strip(),
             'profissao': self.profissao_input.text().strip(),
             'contato_emergencia': self.contato_emergencia_input.text().strip(),
+            'observacoes': self.observacoes_input.toPlainText().strip(),
             'email': self.email_input.text().strip(),
             'metodo_pagamento': metodo_pagamento,
             'treina': treina,
             'vencimento_treino': vencimento_treino_str,
             'treina_activated': treina_activated  # Flag para registrar pagamento
         }
+        
+        # Add voucher data for quota plans
+        if is_quota:
+            updated_data['voucher_credits'] = self.voucher_credits_spin.value()
+            updated_data['price'] = self.voucher_price_spin.value()
         
         # Emite o sinal com os dados atualizados
         self.member_updated.emit(updated_data)

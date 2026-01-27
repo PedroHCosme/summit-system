@@ -1,9 +1,17 @@
 """
 Gerenciador de banco de dados SQLite.
 Responsável por toda a comunicação com o banco de dados.
+
+.. deprecated::
+    Este módulo está sendo migrado para a camada de serviços.
+    Use os serviços em `src.services` para novo código:
+    - MemberService para operações de membros
+    - CheckinService para operações de check-in
+    - PaymentService para operações financeiras
 """
 import sqlite3
 import os
+import warnings
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from contextlib import contextmanager
@@ -11,6 +19,21 @@ from dateutil.relativedelta import relativedelta
 
 from src.core.models import Pessoa
 from src.utils.date_utils import parse_date as parse_flexible_date, normalize_date_string
+
+
+def _deprecation_warning(method_name: str, service_name: str, new_method: str = None):
+    """Emite um aviso de depreciação para métodos migrados para serviços."""
+    if new_method:
+        msg = (
+            f"DatabaseManager.{method_name}() is deprecated. "
+            f"Use {service_name}.{new_method}() instead."
+        )
+    else:
+        msg = (
+            f"DatabaseManager.{method_name}() is deprecated. "
+            f"Use {service_name} instead."
+        )
+    warnings.warn(msg, DeprecationWarning, stacklevel=3)
 
 
 _PLAN_DURATION_MAP = {
@@ -400,12 +423,17 @@ class DatabaseManager:
         """
         Adiciona um novo membro ao banco de dados.
 
+        .. deprecated::
+            Use `MemberService.create()` instead.
+
         Args:
             member_data: Dicionário com os dados do membro.
 
         Returns:
             O ID do membro recém-criado ou None em caso de erro.
         """
+        _deprecation_warning('add_member', 'MemberService', 'create')
+        
         if not self.connection:
             print("Erro: Conexão com o banco de dados não estabelecida.")
             return None
@@ -449,12 +477,17 @@ class DatabaseManager:
         """
         Busca um membro pelo seu ID.
         
+        .. deprecated::
+            Use `MemberService.get_by_id()` instead.
+        
         Args:
             member_id: ID do membro
             
         Returns:
             Dicionário com os dados do membro ou None se não encontrado
         """
+        _deprecation_warning('get_member_by_id', 'MemberService', 'get_by_id')
+        
         if not self.connection:
             return None
         try:
@@ -473,6 +506,9 @@ class DatabaseManager:
         """
         Busca membros por nome com busca inteligente.
         
+        .. deprecated::
+            Use `MemberService.search_by_name()` instead.
+        
         Suporta busca por palavras separadas. Por exemplo:
         - "Pedro Cosme" encontra "Pedro Henrique de Menezes Cosme"
         - "Cosme" encontra "Pedro Henrique de Menezes Cosme"
@@ -484,6 +520,8 @@ class DatabaseManager:
         Returns:
             Lista de dicionários com os dados dos membros encontrados
         """
+        _deprecation_warning('find_members_by_name', 'MemberService', 'search_by_name')
+        
         if not self.connection:
             return []
         try:
@@ -522,9 +560,14 @@ class DatabaseManager:
         """
         Retorna todos os membros do banco de dados.
         
+        .. deprecated::
+            Use `MemberService.get_all()` instead.
+        
         Returns:
             Lista de dicionários com os dados de todos os membros
         """
+        _deprecation_warning('get_all_members', 'MemberService', 'get_all')
+        
         if not self.connection:
             return []
         try:
@@ -701,6 +744,10 @@ class DatabaseManager:
         
         REGRA: Apenas 1 check-in por membro por dia é permitido.
         
+        .. deprecated::
+            Use `CheckinService.perform_checkin()` instead. This method will be
+            removed in a future version.
+        
         Args:
             member_id: ID do membro
             checkin_datetime: Data e hora do check-in
@@ -711,6 +758,14 @@ class DatabaseManager:
         Raises:
             ValueError: Se já existe check-in no mesmo dia para este membro
         """
+        import warnings
+        warnings.warn(
+            "DatabaseManager.add_checkin() is deprecated. "
+            "Use CheckinService.perform_checkin() instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        
         if not self.connection:
             return None
         try:
@@ -784,7 +839,20 @@ class DatabaseManager:
         checkin_datetime: datetime,
         plan_context: Optional[str] = None
     ) -> None:
-        """Garante que existe um pagamento registrado para o check-in informado."""
+        """
+        Garante que existe um pagamento registrado para o check-in informado.
+        
+        .. deprecated::
+            Use `CheckinService.ensure_payment_for_checkin()` instead.
+        """
+        import warnings
+        warnings.warn(
+            "DatabaseManager.ensure_payment_for_checkin() is deprecated. "
+            "Use CheckinService.ensure_payment_for_checkin() instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        
         if not self.connection:
             return
 
@@ -818,6 +886,10 @@ class DatabaseManager:
         """
         Verifica se já existe um check-in para o membro em uma data/hora específica.
         
+        .. deprecated::
+            Use `CheckinService.validate_checkin()` for validation, or access
+            the database directly if needed for sync operations.
+        
         Args:
             member_id: ID do membro
             checkin_datetime: Data e hora do check-in
@@ -825,6 +897,14 @@ class DatabaseManager:
         Returns:
             True se o check-in já existe, False caso contrário
         """
+        import warnings
+        warnings.warn(
+            "DatabaseManager.checkin_exists() is deprecated. "
+            "Use CheckinService for check-in validation.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        
         if not self.connection:
             return False
         try:
@@ -931,6 +1011,8 @@ class DatabaseManager:
         Returns:
             ID do pagamento registrado ou None se houver erro
         """
+        _deprecation_warning('add_payment', 'PaymentService', 'create_payment')
+        
         if not self.connection:
             return None
         

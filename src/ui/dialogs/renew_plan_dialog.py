@@ -4,12 +4,15 @@ from datetime import datetime
 
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QComboBox, 
-    QPushButton, QLabel, QDateEdit, QMessageBox
+    QPushButton, QLabel, QDateEdit, QMessageBox,
+    QSpinBox, QDoubleSpinBox, QWidget
 )
 from PyQt6.QtCore import Qt, QDate, pyqtSignal
 
-from src.config import PLANOS_PRECOS, PLANOS
+from src.data.data_provider import get_provider
+from src.data.models import Plano
 from src.utils.utils import calculate_new_due_date, parse_date
+from sqlalchemy import select
 
 
 class RenewPlanDialog(QDialog):
@@ -26,7 +29,7 @@ class RenewPlanDialog(QDialog):
         
         self.setWindowTitle("Renovar Plano")
         self.setModal(True)
-        self.setMinimumWidth(450)
+        self.setMinimumWidth(350)
         
         self._setup_ui()
     
@@ -58,8 +61,6 @@ class RenewPlanDialog(QDialog):
         plan_label.setStyleSheet("font-weight: bold; font-size: 14px;")
         
         self.plan_combo = QComboBox()
-        self.plan_combo.addItems(PLANOS)
-        self.plan_combo.setCurrentText(self.current_plan)
         self.plan_combo.setStyleSheet("""
             QComboBox {
                 padding: 8px;
@@ -68,6 +69,11 @@ class RenewPlanDialog(QDialog):
                 font-size: 13px;
             }
         """)
+        
+        # Carregar planos do banco
+        self.plans_cache = {}  # {nome: preco}
+        self._load_plans()
+        
         self.plan_combo.currentTextChanged.connect(self._on_plan_changed)
         
         plan_layout.addWidget(plan_label)
@@ -101,13 +107,57 @@ class RenewPlanDialog(QDialog):
             }
         """)
         
-        vencimento_layout.addWidget(vencimento_label)
-        vencimento_layout.addWidget(self.vencimento_input, 1)
-        layout.addLayout(vencimento_layout)
+        self.vencimento_label = vencimento_label # Store reference to toggle visibility
+        self.vencimento_input = self.vencimento_input # Already stored
+        self.vencimento_widget = QWidget() # Wrapper to hide the whole row
+        self.vencimento_widget.setLayout(vencimento_layout)
+        layout.addWidget(self.vencimento_widget)
         
-        # Valor da renovação
+        # --- Voucher Fields (initially hidden) ---
+        
+        # Voucher Credits Input
+        self.voucher_credits_widget = QWidget()
+        vc_layout = QHBoxLayout(self.voucher_credits_widget)
+        vc_layout.setContentsMargins(0, 0, 0, 0)
+        
+        vc_label = QLabel("Quantidade de Diárias (Créditos):")
+        vc_label.setStyleSheet("font-weight: bold; font-size: 14px;")
+        
+        self.voucher_credits_spin = QSpinBox()
+        self.voucher_credits_spin.setRange(1, 100)
+        self.voucher_credits_spin.setValue(10) # Default sensible value
+        self.voucher_credits_spin.setStyleSheet("""
+            QSpinBox { padding: 8px; border: 2px solid #007ACC; border-radius: 5px; font-size: 13px; }
+        """)
+        
+        vc_layout.addWidget(vc_label)
+        vc_layout.addWidget(self.voucher_credits_spin, 1)
+        layout.addWidget(self.voucher_credits_widget)
+        
+        # Voucher Custom Price Input
+        self.voucher_price_widget = QWidget()
+        vp_layout = QHBoxLayout(self.voucher_price_widget)
+        vp_layout.setContentsMargins(0, 0, 0, 0)
+        
+        vp_label = QLabel("Valor do Voucher (R$):")
+        vp_label.setStyleSheet("font-weight: bold; font-size: 14px;")
+        
+        self.voucher_price_spin = QDoubleSpinBox()
+        self.voucher_price_spin.setRange(0, 99999)
+        self.voucher_price_spin.setDecimals(2)
+        self.voucher_price_spin.setPrefix("R$ ")
+        self.voucher_price_spin.setValue(0.0)
+        self.voucher_price_spin.setStyleSheet("""
+            QDoubleSpinBox { padding: 8px; border: 2px solid #007ACC; border-radius: 5px; font-size: 13px; }
+        """)
+        
+        vp_layout.addWidget(vp_label)
+        vp_layout.addWidget(self.voucher_price_spin, 1)
+        layout.addWidget(self.voucher_price_widget)
+        
+        # Valor da renovação (original label)
         self.valor_label = QLabel()
-        self._update_price_display(self.current_plan)
+        self._update_price_display(self.plan_combo.currentText()) # Use current text from combo
         layout.addWidget(self.valor_label)
         
         # Método de pagamento
@@ -183,29 +233,36 @@ class RenewPlanDialog(QDialog):
         layout.addLayout(button_layout)
     
     def _on_plan_changed(self, new_plan):
-        """Atualiza a data de vencimento e o valor quando o plano muda."""
-        # Atualizar valor
-        self._update_price_display(new_plan)
+        """Atualiza a interface quando o plano muda."""
+        is_voucher = (new_plan == "Voucher")
         
-        # Recalcular vencimento
-        # Se mudou de plano, calculamos a partir de hoje. 
-        # Se é o mesmo plano, tentamos manter a lógica de extensão (start_date=current_due_date)
+        # Toggle visibility
+        self.vencimento_widget.setVisible(not is_voucher)
+        self.voucher_credits_widget.setVisible(is_voucher)
+        self.voucher_price_widget.setVisible(is_voucher)
+        self.valor_label.setVisible(not is_voucher) # Hide standard price display for voucher
         
-        if new_plan == self.current_plan:
-            start_date = parse_date(self.current_vencimento)
-        else:
-            start_date = datetime.now()
+        # Update standard price display
+        if not is_voucher:
+            self._update_price_display(new_plan)
+        
+        # Recalcular vencimento (only if not voucher)
+        if not is_voucher:
+            if new_plan == self.current_plan:
+                start_date = parse_date(self.current_vencimento)
+            else:
+                start_date = datetime.now()
+                
+            new_due_date = calculate_new_due_date(new_plan, start_date=start_date)
             
-        new_due_date = calculate_new_due_date(new_plan, start_date=start_date)
-        
-        if new_due_date:
-            self.vencimento_input.setDate(QDate(new_due_date.year, new_due_date.month, new_due_date.day))
-        else:
-            self.vencimento_input.setDate(QDate.currentDate())
+            if new_due_date:
+                self.vencimento_input.setDate(QDate(new_due_date.year, new_due_date.month, new_due_date.day))
+            else:
+                self.vencimento_input.setDate(QDate.currentDate())
 
     def _update_price_display(self, plan):
         """Atualiza o display do preço."""
-        valor = PLANOS_PRECOS.get(plan, 0.0)
+        valor = self.plans_cache.get(plan, 0.0)
         valor_info = f"""
         <div style='background-color: #E8F5E9; padding: 12px; border-radius: 8px; border-left: 4px solid #4CAF50;'>
             <p style='font-size: 15px; margin: 5px 0; text-align: center;'>
@@ -220,24 +277,28 @@ class RenewPlanDialog(QDialog):
         # Validar se selecionou método de pagamento
         metodo = self.metodo_combo.currentText()
         if not metodo:
-            QMessageBox.warning(
-                self,
-                "Atenção",
-                "Selecione um método de pagamento."
-            )
+            QMessageBox.warning(self, "Atenção", "Selecione um método de pagamento.")
             return
         
-        # Obter nova data de vencimento
-        new_vencimento_date = self.vencimento_input.date()
-        new_vencimento_str = new_vencimento_date.toString("dd/MM/yyyy")
+        selected_plan = self.plan_combo.currentText()
+        is_voucher = (selected_plan == "Voucher")
         
         # Preparar dados da renovação
         renewal_data = {
             'id': self.member_id,
-            'vencimento_plano': new_vencimento_str,
             'metodo_pagamento': metodo,
-            'plano': self.plan_combo.currentText()
+            'plano': selected_plan
         }
+        
+        if is_voucher:
+            renewal_data['voucher_credits'] = self.voucher_credits_spin.value()
+            renewal_data['price'] = self.voucher_price_spin.value()
+            # Voucher generally doesn't have a due date, or it's infinite. 
+            # We can leave it explicitly None or empty.
+            renewal_data['vencimento_plano'] = None 
+        else:
+            new_vencimento_date = self.vencimento_input.date()
+            renewal_data['vencimento_plano'] = new_vencimento_date.toString("dd/MM/yyyy")
         
         # Emitir sinal com os dados
         self.plan_renewed.emit(renewal_data)

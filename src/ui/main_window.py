@@ -376,13 +376,16 @@ class MainWindow(QMainWindow):
         """Executa as migrações do banco de dados automaticamente."""
         try:
             from src.data.migrations import DatabaseMigrator
-            from src.data.data_provider import get_provider
+            from src.data.database_manager import DatabaseManager
             
-            provider = get_provider()
-            db_manager = provider.db_manager
+            # Instanciar DatabaseManager apenas para migrações
+            db_manager = DatabaseManager()
+            db_manager.connect()
             
             migrator = DatabaseMigrator(db_manager)
             migrator.run_all()
+            
+            db_manager.close()
             print("✓ Migrações do banco de dados executadas com sucesso")
         except Exception as e:
             print(f"⚠ Erro ao executar migrações: {e}")
@@ -440,8 +443,9 @@ class MainWindow(QMainWindow):
         
         self.member_search_screen.set_searching_state()
         
-        self.worker = MemberSearchWorker(self.search_service, search_term)
+        self.worker = MemberSearchWorker(search_term)
         self.worker.search_completed.connect(self._on_member_search_completed)
+        self.worker.status_updated.connect(lambda msg: self.home_screen.append_status(msg))
         self.worker.start()
     
     def _on_member_search_completed(self, results):
@@ -489,21 +493,12 @@ class MainWindow(QMainWindow):
         try:
             from src.data.data_provider import get_provider
             
-            # Buscar histórico de pagamentos do membro
-            db_manager = get_provider().db_manager
-            if db_manager and db_manager.connection:
-                payments = db_manager.get_member_payment_history(member_id)
-                self.member_search_screen.display_member_financial_history(
-                    member_id, member_name, payments
-                )
-            else:
-                self.member_search_screen.member_financial_browser.setHtml("""
-                    <div style="text-align: center; padding: 20px;">
-                        <h3 style="color: #FF6B6B;">Erro de Conexão</h3>
-                        <p style="color: #888;">Sem conexão com o banco de dados</p>
-                    </div>
-                """)
-            
+            # Buscar histórico de pagamentos do membro via DataProvider
+            provider = get_provider()
+            payments = provider.get_member_payment_history(member_id)
+            self.member_search_screen.display_member_financial_history(
+                member_id, member_name, payments
+            )
         except Exception as e:
             print(f"Erro ao carregar histórico financeiro: {e}")
             import traceback
@@ -632,7 +627,7 @@ class MainWindow(QMainWindow):
                     if register_payment:
                         from src.data.data_provider import get_provider
                         provider = get_provider()
-                        payments = provider.db_manager.get_member_payment_history(member_id)
+                        payments = provider.get_member_payment_history(member_id)
                         self.member_search_screen.display_member_financial_history(
                             member_id, 
                             updated_data['nome'], 
@@ -697,7 +692,7 @@ class MainWindow(QMainWindow):
                     # Atualizar a aba financeira
                     from src.data.data_provider import get_provider
                     provider = get_provider()
-                    payments = provider.db_manager.get_member_payment_history(member_id)
+                    payments = provider.get_member_payment_history(member_id)
                     self.member_search_screen.display_member_financial_history(
                         member_id, 
                         member_name, 
@@ -825,7 +820,7 @@ class MainWindow(QMainWindow):
 
         self.checkin_screen.set_searching_state()
 
-        self.worker = MemberSearchWorker(self.search_service, search_term)
+        self.worker = MemberSearchWorker(search_term)
         self.worker.search_completed.connect(self._on_checkin_search_completed)
         self.worker.start()
 
@@ -851,18 +846,36 @@ class MainWindow(QMainWindow):
         if self.checkin_screen.current_member_id is None:
             return
 
-        from src.data.data_provider import add_checkin
-        from datetime import datetime
+        from src.ui.workers import CheckinWorker
 
-        try:
-            checkin_id = add_checkin(self.checkin_screen.current_member_id, datetime.now())
-            if checkin_id:
-                QMessageBox.information(self, "Check-in Realizado", "Check-in confirmado com sucesso!")
-                self.checkin_screen.clear_after_checkin()
-            else:
-                QMessageBox.warning(self, "Erro", "Não foi possível registrar o check-in.")
-        except Exception as e:
-            QMessageBox.critical(self, "Erro Crítico", f"Ocorreu um erro inesperado: {e}")
+        # Desabilitar botão para evitar duplo clique
+        self.checkin_screen.confirm_button.setEnabled(False)
+        self.checkin_screen.confirm_button.setText("Processando...")
+
+        # Iniciar worker
+        self.worker = CheckinWorker(self.checkin_screen.current_member_id)
+        self.worker.checkin_completed.connect(self._on_checkin_worker_completed)
+        self.worker.start()
+    
+    def _on_checkin_worker_completed(self, success, message, details):
+        """Manipula o resultado do worker de check-in."""
+        # Reabilitar botão
+        self.checkin_screen.confirm_button.setEnabled(True)
+        self.checkin_screen.confirm_button.setText("Confirmar Presença")
+        
+        if success:
+            msg = "Check-in confirmado com sucesso!"
+            if details.get('payment_generated'):
+                msg += f"\n\n💰 Pagamento de R$ {details.get('payment_amount', 0):.2f} gerado."
+            
+            QMessageBox.information(self, "Check-in Realizado", msg)
+            self.checkin_screen.clear_after_checkin()
+            
+            # Atualizar dashboard se estiver visível
+            if self.stacked_widget.currentIndex() == 1:
+                self._update_dashboard()
+        else:
+            QMessageBox.warning(self, "Atenção", message)
 
     def _on_checkin_profile_clicked(self):
         """Manipula o clique no botão de perfil do membro na tela de check-in."""
@@ -935,7 +948,7 @@ class MainWindow(QMainWindow):
             end_datetime = datetime.combine(end_date, time.max)
             
             # Obter resumo
-            summary = self.manager.data_provider.db_manager.get_financial_summary(
+            summary = self.manager.data_provider.get_financial_summary(
                 start_datetime, end_datetime
             )
             
@@ -947,13 +960,13 @@ class MainWindow(QMainWindow):
             )
             
             # Obter breakdown por tipo
-            breakdown = self.manager.data_provider.db_manager.get_revenue_breakdown(
+            breakdown = self.manager.data_provider.get_revenue_breakdown(
                 start_datetime, end_datetime
             )
             self.financial_screen.update_breakdown(breakdown)
             
             # Obter transações
-            transactions = self.manager.data_provider.db_manager.get_transactions_in_range(
+            transactions = self.manager.data_provider.get_transactions_in_range(
                 start_datetime, end_datetime
             )
             self.financial_screen.update_transactions(transactions)
@@ -981,10 +994,9 @@ class MainWindow(QMainWindow):
     
     def _show_expiring_plans_dialog(self):
         """Exibe o diálogo de planos a vencer."""
-        db = self.manager.data_provider.db_manager
-        if db and not db.connection:
-            db.connect()
-        dialog = ExpiringPlansDialog(db, self)
+        # DataProvider agora é compatível co o ExpiringPlansDialog (duck typing)
+        # pois ambos implementam get_all_members()
+        dialog = ExpiringPlansDialog(self.manager.data_provider, self)
         dialog.exec()
     
     # === Sincronização ===
@@ -1061,7 +1073,7 @@ class MainWindow(QMainWindow):
     
     def _generate_frequency_report(self):
         """Gera relatório de frequência em HTML."""
-        if not self.is_connected or not self.manager.data_provider or not self.manager.data_provider.db_manager:
+        if not self.is_connected:
             QMessageBox.warning(
                 self,
                 "Banco Desconectado",
@@ -1074,7 +1086,7 @@ class MainWindow(QMainWindow):
             import webbrowser
             
             # Gerar relatório (últimos 30 dias por padrão)
-            filepath = generate_frequency_report(self.manager.data_provider.db_manager, days=30)
+            filepath = generate_frequency_report(days=30)
             
             # Abrir no navegador
             webbrowser.open(f'file://{filepath}')
@@ -1096,7 +1108,7 @@ class MainWindow(QMainWindow):
     
     def _generate_members_report(self):
         """Gera relatório de membros em HTML."""
-        if not self.is_connected or not self.manager.data_provider or not self.manager.data_provider.db_manager:
+        if not self.is_connected:
             QMessageBox.warning(
                 self,
                 "Banco Desconectado",
@@ -1109,7 +1121,7 @@ class MainWindow(QMainWindow):
             import webbrowser
             
             # Gerar relatório
-            filepath = generate_members_report(self.manager.data_provider.db_manager)
+            filepath = generate_members_report()
             
             # Abrir no navegador
             webbrowser.open(f'file://{filepath}')
@@ -1131,7 +1143,7 @@ class MainWindow(QMainWindow):
     
     def _generate_financial_report(self):
         """Gera o relatório financeiro em HTML."""
-        if not self.is_connected or not self.manager.data_provider or not self.manager.data_provider.db_manager:
+        if not self.is_connected:
             QMessageBox.warning(
                 self,
                 "Banco Desconectado",
@@ -1150,7 +1162,6 @@ class MainWindow(QMainWindow):
             try:
                 # Gerar o relatório
                 filepath = generate_finance_report(
-                    db_manager=self.manager.data_provider.db_manager,
                     period=period
                 )
                 
@@ -1298,10 +1309,11 @@ class MainWindow(QMainWindow):
     def _load_members_list(self):
         """Carrega a lista de membros com paginação."""
         from src.data.data_provider import get_provider
-        from src import config
+        from src.services.plan_service import get_plan_service
         
-        # Popula filtro de planos
-        self.members_list_screen.populate_plan_filter(config.PLANOS)
+        # Popula filtro de planos from database (centralized source)
+        plan_service = get_plan_service()
+        self.members_list_screen.populate_plan_filter(plan_service.get_plan_names())
         
         # Carrega dados paginados
         self._on_members_list_refresh()
@@ -1349,9 +1361,9 @@ class MainWindow(QMainWindow):
         """Carrega e exibe o histórico financeiro do membro na lista."""
         try:
             from src.data.data_provider import get_provider
-            db_manager = get_provider().db_manager
-            if db_manager and db_manager.connection:
-                payments = db_manager.get_member_payment_history(member_id)
+            provider = get_provider()
+            if provider:
+                payments = provider.get_member_payment_history(member_id)
                 self.members_list_screen.display_member_financial_history(payments)
         except Exception as e:
             print(f"Erro ao carregar histórico financeiro na lista: {e}")

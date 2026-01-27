@@ -42,6 +42,9 @@ class DatabaseMigrator:
             ("Recalculando estados de planos", self.recalculate_plan_states),
             ("Removendo check-ins duplicados", self.remove_duplicate_checkins),
             ("Criando índices de performance", self.ensure_indexes),
+            ("Garantindo coluna de créditos de voucher", self.ensure_voucher_credits_column),
+            ("Garantindo colunas quota na tabela planos", self.ensure_quota_plan_columns),
+            ("Garantindo existência de todos os planos base", self.seed_all_plans),
             ("Reprocessando pagamentos recorrentes históricos", self.backfill_plan_payments),
         ]
 
@@ -157,6 +160,94 @@ class DatabaseMigrator:
             cursor.execute("UPDATE membros SET treina = 'Não' WHERE treina IS NULL")
             cursor.close()
             self.conn.commit()
+
+    def ensure_voucher_credits_column(self) -> None:
+        """Adiciona coluna de créditos de voucher se não existir."""
+        if not self._table_exists('membros'):
+            return
+
+        info = self._get_table_info('membros')
+        if 'voucher_credits' in info:
+            return
+
+        cursor = self.conn.cursor()
+        cursor.execute("ALTER TABLE membros ADD COLUMN voucher_credits INTEGER DEFAULT 0")
+        cursor.close()
+        self.conn.commit()
+
+    def ensure_quota_plan_columns(self) -> None:
+        """Adiciona colunas is_quota e quota_amount à tabela planos se não existirem."""
+        if not self._table_exists('planos'):
+            return
+
+        info = self._get_table_info('planos')
+        missing_columns = []
+        
+        if 'is_quota' not in info:
+            missing_columns.append("ALTER TABLE planos ADD COLUMN is_quota INTEGER DEFAULT 0")
+        
+        if 'quota_amount' not in info:
+            missing_columns.append("ALTER TABLE planos ADD COLUMN quota_amount INTEGER DEFAULT 0")
+        
+        if missing_columns:
+            self._execute_many(missing_columns)
+
+    def seed_all_plans(self) -> None:
+        """Garante que todos os planos base existem no banco.
+        
+        Esta migração é idempotente - apenas CRIA planos que não existem.
+        Planos existentes NÃO são modificados (preserva configurações do usuário).
+        """
+        if not self._table_exists('planos'):
+            return
+
+        cursor = self.conn.cursor()
+        
+        # Lista completa de planos base
+        # (nome, preco, valor_por_checkin, requer_vencimento, is_quota, quota_amount)
+        base_plans = [
+            # Planos de tempo (mensalidades)
+            ('Mensal', 190.0, 0.0, True, False, 0),
+            ('Mens. c/ Treino', 280.0, 0.0, True, False, 0),
+            ('Trimestral', 500.0, 0.0, True, False, 0),
+            ('Semestral', 950.0, 0.0, True, False, 0),
+            ('Anual', 1900.0, 0.0, True, False, 0),
+            
+            # Planos por check-in
+            ('Diária', 0.0, 35.0, False, False, 0),
+            ('Gympass', 0.0, 15.0, False, False, 0),
+            ('Totalpass', 0.0, 15.0, False, False, 0),
+            
+            # Planos especiais
+            ('Cortesia', 0.0, 0.0, False, False, 0),
+            ('Escolinha 1x', 0.0, 0.0, True, False, 0),
+            ('Escolinha 2x', 0.0, 0.0, True, False, 0),
+            
+            # Planos de quota (voucher)
+            ('Voucher', 0.0, 0.0, False, True, 0),
+            ('Pacote 10', 200.0, 0.0, False, True, 10),
+        ]
+        
+        created_count = 0
+        for nome, preco, valor_checkin, req_venc, is_quota, quota_amt in base_plans:
+            # Verifica se já existe
+            cursor.execute("SELECT id FROM planos WHERE nome = ?", (nome,))
+            row = cursor.fetchone()
+            
+            if not row:
+                # Plano não existe - criar
+                cursor.execute("""
+                    INSERT INTO planos (nome, preco, valor_por_checkin, requer_vencimento, ativo, is_quota, quota_amount)
+                    VALUES (?, ?, ?, ?, 1, ?, ?)
+                """, (nome, preco, valor_checkin, req_venc, is_quota, quota_amt))
+                created_count += 1
+        
+        cursor.close()
+        self.conn.commit()
+        
+        if created_count > 0:
+            print(f"[migrations] {created_count} planos base criados na tabela planos")
+
 
     def ensure_payments_schema(self) -> None:
         cursor = self.conn.cursor()

@@ -2,17 +2,20 @@
 import os
 import sys
 from datetime import datetime
-from flask import Flask, render_template, request, jsonify, redirect, url_for, flash
+from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, g
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
 # Adiciona o diretório raiz ao PYTHONPATH para importar módulos do projeto
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
-from src.data.database_manager import DatabaseManager
+from src.data.db import get_session_factory
+from src.data.models import Membro, Plano
+from src.services.checkin_service import CheckinService
+from src.services.member_service import MemberService
 from src.core.models import Pessoa
 from src.utils.utils import calculate_new_due_date
-from src.config import PLANOS_COM_VENCIMENTO, TREINO_VALIDADE_DIAS
+from src.config import TREINO_VALIDADE_DIAS
 from datetime import timedelta
 
 app = Flask(__name__)
@@ -26,8 +29,23 @@ limiter = Limiter(
     storage_uri="memory://"
 )
 
-# Inicializa o gerenciador de banco de dados
-db_manager = DatabaseManager()
+# Session factory para SQLAlchemy
+SessionLocal = get_session_factory()
+
+
+def get_db():
+    """Obtém uma sessão do banco de dados para a requisição atual."""
+    if 'db' not in g:
+        g.db = SessionLocal()
+    return g.db
+
+
+@app.teardown_appcontext
+def close_db(exception):
+    """Fecha a sessão do banco ao final da requisição."""
+    db = g.pop('db', None)
+    if db is not None:
+        db.close()
 
 @app.route('/')
 def index():
@@ -43,22 +61,24 @@ def checkin():
         member_id = request.form.get('member_id')
         identifier = request.form.get('identifier')
         
-        # Conecta ao banco se necessário
-        if not db_manager.connection:
-            db_manager.connect()
+        # Obtém sessão do banco de dados
+        db = get_db()
+        member_service = MemberService(db_session=db)
+        checkin_service = CheckinService(db_session=db)
 
         if member_id:
             # Caso 1: ID específico fornecido (clique no botão Confirmar)
             try:
                 member_id = int(member_id)
-                member_data = db_manager.get_member_by_id(member_id)
+                member = member_service.get_by_id(member_id)
+                member_data = member.to_dict() if member else None
             except (ValueError, TypeError):
                 flash('ID de membro inválido.', 'error')
                 return redirect(url_for('checkin'))
         
         elif identifier:
             # Caso 2: Busca por nome/apelido
-            results = db_manager.find_members_by_name(identifier)
+            results = member_service.search_by_name(identifier)
             
             if not results:
                 flash('Membro não encontrado. Tente novamente ou faça seu cadastro.', 'error')
@@ -66,43 +86,35 @@ def checkin():
             
             if len(results) > 1:
                 # Se encontrou vários, mostra a lista para seleção
+                results_dicts = [m.to_dict() if hasattr(m, 'to_dict') else m for m in results]
                 flash(f'Encontramos {len(results)} membros com esse nome. Confirme quem é você:', 'warning')
-                return render_template('checkin.html', results=results, identifier=identifier)
+                return render_template('checkin.html', results=results_dicts, identifier=identifier)
 
             # Se encontrou apenas um
-            member_data = results[0]
+            member = results[0]
+            member_data = member.to_dict() if hasattr(member, 'to_dict') else member
             member_id = member_data['id']
             
         else:
             flash('Por favor, informe seu Nome ou Apelido.', 'error')
             return redirect(url_for('checkin'))
 
-        # Realiza o check-in (Lógica comum para ambos os casos)
+        # Realiza o check-in usando o serviço (Lógica comum para ambos os casos)
         if member_data:
-            try:
-                # add_checkin retorna o ID do check-in ou None em caso de erro
-                # E requer datetime.now() como segundo argumento
-                checkin_id = db_manager.add_checkin(member_id, datetime.now())
-                
-                if checkin_id:
-                    # Verifica status do plano para mensagem personalizada
-                    estado_plano = member_data.get('estado_plano', 'ATIVO')
-                    if estado_plano != 'ATIVO':
-                        flash(f'Check-in realizado, mas atenção: Seu plano está {estado_plano}!', 'warning')
-                    else:
-                        flash(f'Bem-vindo(a), {member_data["nome"]}! Bom treino!', 'success')
-                    return redirect(url_for('index'))
+            # Usa o CheckinService para realizar o check-in
+            result = checkin_service.perform_checkin(member_id, datetime.now())
+            
+            if result.success:
+                # Verifica status do plano para mensagem personalizada
+                estado_plano = member_data.get('estado_plano', 'ATIVO')
+                if estado_plano != 'ATIVO':
+                    flash(f'Check-in realizado, mas atenção: Seu plano está {estado_plano}!', 'warning')
                 else:
-                    # Se retornou None, provavelmente é check-in duplicado ou erro
-                    # Como add_checkin imprime erro mas não retorna mensagem, assumimos duplicado ou erro genérico
-                    flash('Erro ao fazer check-in. Você já fez check-in hoje?', 'error')
-                    return redirect(url_for('checkin'))
-            except ValueError as e:
-                # add_checkin pode levantar ValueError para duplicatas com mensagem específica
-                flash(str(e), 'error')
-                return redirect(url_for('checkin'))
-            except Exception as e:
-                flash(f'Erro inesperado: {str(e)}', 'error')
+                    flash(f'Bem-vindo(a), {member_data["nome"]}! Bom treino!', 'success')
+                return redirect(url_for('index'))
+            else:
+                # Erro no check-in (duplicado ou outro problema)
+                flash(result.message, 'error')
                 return redirect(url_for('checkin'))
         else:
              flash('Erro ao recuperar dados do membro.', 'error')
@@ -124,10 +136,10 @@ def register():
         if not nome or not plano:
             flash('Nome e Plano são obrigatórios.', 'error')
             return redirect(url_for('register'))
-            
-        # Conecta ao banco se necessário
-        if not db_manager.connection:
-            db_manager.connect()
+        
+        # Obtém sessão do banco de dados
+        db = get_db()
+        member_service = MemberService(db_session=db)
             
         member_data = {
             'nome': nome,
@@ -139,12 +151,15 @@ def register():
             'genero': request.form.get('genero'),
             'calcado': request.form.get('calcado'),
             'treina': request.form.get('treina', 'Não'),
-            'treina': request.form.get('treina', 'Não'),
-            'estado_plano': 'PENDENTE' # Aguarda aprovação
+            'observacoes': request.form.get('observacoes'),
+            'estado_plano': 'PENDENTE'  # Aguarda aprovação
         }
 
+        # Buscar detalhes do plano no banco
+        selected_plan_obj = db.query(Plano).filter_by(nome=plano, ativo=True).first()
+
         # Calcular vencimento do plano
-        if plano in PLANOS_COM_VENCIMENTO:
+        if selected_plan_obj and selected_plan_obj.requer_vencimento:
             new_due_date = calculate_new_due_date(plano)
             if new_due_date:
                  member_data['vencimento_plano'] = new_due_date.strftime('%d/%m/%Y')
@@ -154,26 +169,29 @@ def register():
             vencimento_treino = datetime.now() + timedelta(days=TREINO_VALIDADE_DIAS)
             member_data['vencimento_treino'] = vencimento_treino.strftime('%d/%m/%Y')
         
-        # Adiciona membro (reutilizando lógica do desktop)
+        # Adiciona membro usando o serviço
         try:
-            member_id = db_manager.add_member(member_data)
-            if member_id:
+            result = member_service.create(member_data)
+            if result.success:
                 flash('Cadastro realizado! Aguarde a aprovação do administrador para fazer check-in.', 'success')
                 return redirect(url_for('index'))
             else:
-                flash('Erro ao cadastrar. Tente novamente.', 'error')
+                flash(f'Erro ao cadastrar: {result.message}', 'error')
         except Exception as e:
             flash(f'Erro interno: {str(e)}', 'error')
             
-    # Carrega planos do config
-    from src import config
-    return render_template('register.html', planos=config.PLANOS)
+    # Carrega planos ativos do banco
+    db = get_db()
+    plans = db.query(Plano).filter(Plano.ativo == True).all()
+    plan_names = [p.nome for p in plans]
+    return render_template('register.html', planos=plan_names)
+
 
 if __name__ == '__main__':
-    # Garante que as tabelas existam
-    if not db_manager.connection:
-        db_manager.connect()
-    db_manager.create_tables()
+    # Garante que as tabelas existam usando SQLAlchemy
+    from src.data.db import init_db
+    init_db()
     
     # Roda em todas as interfaces locais na porta 5000
     app.run(host='0.0.0.0', port=5000, debug=True)
+

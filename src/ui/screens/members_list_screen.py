@@ -639,6 +639,13 @@ class MembersListScreen(QWidget):
                 <strong style="color: #333333;">Frequência (Este Mês):</strong>
                 <span style="color: #007ACC; font-weight: bold;"> {frequencia_mes_atual} check-ins</span>
             </div>
+
+            <hr style="border: none; border-top: 1px solid #DDDDDD; margin: 15px 0;">
+            
+            <div style="margin-bottom: 10px;">
+                <strong style="color: #333333; display: block; margin-bottom: 5px;">Observações:</strong>
+                <span style="color: #555555; white-space: pre-wrap;"> {member_data.get('observacoes') or '<span style="color: #888888; font-style: italic;">Nenhuma observação registrada</span>'}</span>
+            </div>
         """
         
         html += """

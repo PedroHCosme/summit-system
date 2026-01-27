@@ -157,9 +157,13 @@ class CheckinScreen(QWidget):
         email = member_data.get('email', 'N/A')
         genero = member_data.get('genero', 'N/A')
         calcado = member_data.get('calcado', 'N/A')
+        voucher_credits = member_data.get('voucher_credits', 0) or 0
         
         is_active = estado_plano.upper() == 'ATIVO'
         color = '#28a745' if is_active else '#FF6B6B'
+        
+        # Check if this is a quota-based plan (Voucher or Pacote plans)
+        is_quota_plan = plano in ('Voucher', 'Pacote 10') or (plano and 'Pacote' in plano)
         
         # Mensagem de aviso se inativo
         warning_html = ""
@@ -170,16 +174,39 @@ class CheckinScreen(QWidget):
                 <strong>⚠️ O plano desse membro está vencido</strong>
             </div>
             """
+        
+        # Aviso de saldo de voucher zerado
+        voucher_warning_html = ""
+        if is_quota_plan and voucher_credits <= 0:
+            voucher_warning_html = f"""
+            <div style='background-color: #F8D7DA; color: #721C24; padding: 10px; 
+                        border: 1px solid #F5C6CB; border-radius: 5px; margin-bottom: 15px; text-align: center;'>
+                <strong>⚠️ ALERTA: Saldo de vouchers esgotado!</strong><br>
+                O check-in será permitido, mas sem cobrança adicional.
+            </div>
+            """
+        
+        # Exibir saldo de vouchers para planos de quota
+        voucher_section = ""
+        if is_quota_plan:
+            voucher_color = '#28a745' if voucher_credits > 0 else '#dc3545'
+            voucher_section = f"""
+            <p><b>Saldo de Vouchers:</b> <span style='color: {voucher_color}; font-weight: bold; font-size: 16px;'>{voucher_credits}</span></p>
+            """
+            # Quota plans don't have expiration
+            vencimento_plano = "Não expira"
 
         html = f"""
             <div style='padding: 10px; font-size: 14px;'>
                 {warning_html}
+                {voucher_warning_html}
                 
                 <h3 style='color: #333; border-bottom: 2px solid #007ACC; padding-bottom: 5px;'>Informações Principais</h3>
                 <p><b>Nome:</b> {nome} {f"({member_data.get('apelido')})" if member_data.get('apelido') else ""}</p>
                 <p><b>Plano:</b> {plano}</p>
                 <p><b>Status:</b> <span style='color: {color}; font-weight: bold;'>{estado_plano}</span></p>
                 <p><b>Vencimento:</b> {vencimento_plano}</p>
+                {voucher_section}
                 
                 <h3 style='color: #333; border-bottom: 1px solid #ccc; padding-bottom: 5px; margin-top: 15px;'>Dados Pessoais</h3>
                 <p><b>Data de Nascimento:</b> {data_nascimento}</p>
@@ -198,7 +225,21 @@ class CheckinScreen(QWidget):
         self.confirm_button.setEnabled(True)
         self.profile_button.setEnabled(True)
         
-        if not is_active:
+        # Button styling based on plan status and voucher balance
+        if is_quota_plan and voucher_credits <= 0:
+            self.confirm_button.setText("Confirmar Check-in (Sem Saldo!)")
+            self.confirm_button.setStyleSheet("""
+                QPushButton {
+                    background-color: #dc3545; 
+                    color: #fff; 
+                    font-size: 18px; 
+                    font-weight: bold;
+                }
+                QPushButton:hover {
+                    background-color: #c82333;
+                }
+            """)
+        elif not is_active:
             self.confirm_button.setText("Confirmar Check-in (Plano Vencido)")
             self.confirm_button.setStyleSheet("""
                 QPushButton {

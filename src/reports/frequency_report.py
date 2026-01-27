@@ -194,237 +194,247 @@ def _generate_html_footer() -> str:
 """
 
 
+
+from src.data.db import create_session
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+from typing import Optional
+
 def generate_frequency_report(
-    db_manager: DatabaseManager,
+    db_session: Optional[Session] = None,
     days: int = 30
 ) -> str:
     """
     Gera relatório de frequência dos últimos N dias.
     
     Args:
-        db_manager: Gerenciador do banco de dados
+        db_session: Sessão SQLAlchemy (nova sessão será criada se None)
         days: Número de dias a analisar
         
     Returns:
         Caminho do arquivo HTML gerado
     """
-    if not db_manager.connection and not db_manager.connect():
-        raise RuntimeError("Não foi possível conectar ao banco de dados")
-    
-    # Período de análise
-    end_date = datetime.now()
-    start_date = end_date - timedelta(days=days)
-    
-    cursor = db_manager.connection.cursor()
-    
-    # Estatísticas gerais
-    cursor.execute("""
-        SELECT COUNT(*) as total_checkins
-        FROM frequencia
-        WHERE checkin_datetime >= ? AND checkin_datetime <= ?
-    """, (start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d')))
-    total_checkins = cursor.fetchone()[0]
-    
-    cursor.execute("""
-        SELECT COUNT(DISTINCT member_id) as unique_members
-        FROM frequencia
-        WHERE checkin_datetime >= ? AND checkin_datetime <= ?
-    """, (start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d')))
-    unique_members = cursor.fetchone()[0]
-    
-    cursor.execute("""
-        SELECT DATE(checkin_datetime) as dia, COUNT(*) as total
-        FROM frequencia
-        WHERE checkin_datetime >= ? AND checkin_datetime <= ?
-        GROUP BY DATE(checkin_datetime)
-        ORDER BY total DESC
-        LIMIT 1
-    """, (start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d')))
-    busiest_day = cursor.fetchone()
-    
-    avg_daily = total_checkins / days if days > 0 else 0
-    
-    # Top 10 membros mais frequentes
-    cursor.execute("""
-        SELECT m.nome, m.plano, COUNT(*) as total_checkins
-        FROM frequencia f
-        JOIN membros m ON f.member_id = m.id
-        WHERE f.checkin_datetime >= ? AND f.checkin_datetime <= ?
-        GROUP BY f.member_id, m.nome, m.plano
-        ORDER BY total_checkins DESC
-        LIMIT 10
-    """, (start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d')))
-    top_members = cursor.fetchall()
-    
-    # Frequência por dia da semana
-    cursor.execute("""
-        SELECT 
-            CASE CAST(strftime('%w', checkin_datetime) AS INTEGER)
-                WHEN 0 THEN 'Domingo'
-                WHEN 1 THEN 'Segunda'
-                WHEN 2 THEN 'Terça'
-                WHEN 3 THEN 'Quarta'
-                WHEN 4 THEN 'Quinta'
-                WHEN 5 THEN 'Sexta'
-                WHEN 6 THEN 'Sábado'
-            END as dia_semana,
-            COUNT(*) as total
-        FROM frequencia
-        WHERE checkin_datetime >= ? AND checkin_datetime <= ?
-        GROUP BY CAST(strftime('%w', checkin_datetime) AS INTEGER)
-        ORDER BY total DESC
-    """, (start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d')))
-    weekday_stats = cursor.fetchall()
-    
-    # Frequência por plano
-    cursor.execute("""
-        SELECT m.plano, COUNT(*) as total_checkins
-        FROM frequencia f
-        JOIN membros m ON f.member_id = m.id
-        WHERE f.checkin_datetime >= ? AND f.checkin_datetime <= ?
-        GROUP BY m.plano
-        ORDER BY total_checkins DESC
-    """, (start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d')))
-    plan_stats = cursor.fetchall()
-    
-    cursor.close()
-    
-    # Gerar HTML
-    html = _generate_html_header("Relatório de Frequência")
-    
-    html += f"""
-    <div class="container">
-        <div class="header">
-            <h1>📅 Relatório de Frequência</h1>
-            <p class="subtitle">Período: {start_date.strftime('%d/%m/%Y')} a {end_date.strftime('%d/%m/%Y')} ({days} dias)</p>
-            <p class="subtitle">Gerado em: {datetime.now().strftime('%d/%m/%Y às %H:%M')}</p>
-        </div>
+    close_session = False
+    if db_session is None:
+        db_session = create_session()
+        close_session = True
         
-        <div class="content">
-            <div class="stats-grid">
-                <div class="stat-card blue">
-                    <div class="label">Total de Check-ins</div>
-                    <div class="value">{total_checkins}</div>
-                </div>
-                
-                <div class="stat-card green">
-                    <div class="label">Membros Únicos</div>
-                    <div class="value">{unique_members}</div>
-                </div>
-                
-                <div class="stat-card purple">
-                    <div class="label">Média Diária</div>
-                    <div class="value">{avg_daily:.1f}</div>
-                </div>
-                
-                <div class="stat-card">
-                    <div class="label">Dia Mais Movimentado</div>
-                    <div class="value">{busiest_day[1] if busiest_day else 0}</div>
-                    <div class="label" style="margin-top: 5px;">{busiest_day[0] if busiest_day else 'N/A'}</div>
-                </div>
+    try:
+        # Período de análise
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=days)
+        start_str = start_date.strftime('%Y-%m-%d')
+        end_str = end_date.strftime('%Y-%m-%d')
+        
+        # Estatísticas gerais
+        result = db_session.execute(text("""
+            SELECT COUNT(*) as total_checkins
+            FROM frequencia
+            WHERE checkin_datetime >= :start AND checkin_datetime <= :end
+        """), {"start": start_str, "end": end_str})
+        total_checkins = result.scalar() or 0
+        
+        result = db_session.execute(text("""
+            SELECT COUNT(DISTINCT member_id) as unique_members
+            FROM frequencia
+            WHERE checkin_datetime >= :start AND checkin_datetime <= :end
+        """), {"start": start_str, "end": end_str})
+        unique_members = result.scalar() or 0
+        
+        result = db_session.execute(text("""
+            SELECT DATE(checkin_datetime) as dia, COUNT(*) as total
+            FROM frequencia
+            WHERE checkin_datetime >= :start AND checkin_datetime <= :end
+            GROUP BY DATE(checkin_datetime)
+            ORDER BY total DESC
+            LIMIT 1
+        """), {"start": start_str, "end": end_str})
+        busiest_day = result.fetchone()
+        
+        avg_daily = total_checkins / days if days > 0 else 0
+        
+        # Top 10 membros mais frequentes
+        result = db_session.execute(text("""
+            SELECT m.nome, m.plano, COUNT(*) as total_checkins
+            FROM frequencia f
+            JOIN membros m ON f.member_id = m.id
+            WHERE f.checkin_datetime >= :start AND f.checkin_datetime <= :end
+            GROUP BY f.member_id, m.nome, m.plano
+            ORDER BY total_checkins DESC
+            LIMIT 10
+        """), {"start": start_str, "end": end_str})
+        top_members = result.fetchall()
+        
+        # Frequência por dia da semana
+        result = db_session.execute(text("""
+            SELECT 
+                CASE CAST(strftime('%w', checkin_datetime) AS INTEGER)
+                    WHEN 0 THEN 'Domingo'
+                    WHEN 1 THEN 'Segunda'
+                    WHEN 2 THEN 'Terça'
+                    WHEN 3 THEN 'Quarta'
+                    WHEN 4 THEN 'Quinta'
+                    WHEN 5 THEN 'Sexta'
+                    WHEN 6 THEN 'Sábado'
+                END as dia_semana,
+                COUNT(*) as total
+            FROM frequencia
+            WHERE checkin_datetime >= :start AND checkin_datetime <= :end
+            GROUP BY CAST(strftime('%w', checkin_datetime) AS INTEGER)
+            ORDER BY total DESC
+        """), {"start": start_str, "end": end_str})
+        weekday_stats = result.fetchall()
+        
+        # Frequência por plano
+        result = db_session.execute(text("""
+            SELECT m.plano, COUNT(*) as total_checkins
+            FROM frequencia f
+            JOIN membros m ON f.member_id = m.id
+            WHERE f.checkin_datetime >= :start AND f.checkin_datetime <= :end
+            GROUP BY m.plano
+            ORDER BY total_checkins DESC
+        """), {"start": start_str, "end": end_str})
+        plan_stats = result.fetchall()
+        
+        # Gerar HTML
+        html = _generate_html_header("Relatório de Frequência")
+        
+        html += f"""
+        <div class="container">
+            <div class="header">
+                <h1>📅 Relatório de Frequência</h1>
+                <p class="subtitle">Período: {start_date.strftime('%d/%m/%Y')} a {end_date.strftime('%d/%m/%Y')} ({days} dias)</p>
+                <p class="subtitle">Gerado em: {datetime.now().strftime('%d/%m/%Y às %H:%M')}</p>
             </div>
             
-            <div class="section">
-                <h2>🏆 Top 10 Membros Mais Frequentes</h2>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Posição</th>
-                            <th>Nome</th>
-                            <th>Plano</th>
-                            <th>Check-ins</th>
-                            <th>Frequência</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-    """
-    
-    for idx, member in enumerate(top_members, 1):
-        freq_percentage = (member[2] / days) * 100
-        badge_class = "high" if freq_percentage > 70 else "medium" if freq_percentage > 40 else "low"
-        html += f"""
-                        <tr>
-                            <td><strong>#{idx}</strong></td>
-                            <td>{member[0]}</td>
-                            <td>{member[1]}</td>
-                            <td>{member[2]}</td>
-                            <td><span class="badge {badge_class}">{freq_percentage:.1f}%</span></td>
-                        </tr>
+            <div class="content">
+                <div class="stats-grid">
+                    <div class="stat-card blue">
+                        <div class="label">Total de Check-ins</div>
+                        <div class="value">{total_checkins}</div>
+                    </div>
+                    
+                    <div class="stat-card green">
+                        <div class="label">Membros Únicos</div>
+                        <div class="value">{unique_members}</div>
+                    </div>
+                    
+                    <div class="stat-card purple">
+                        <div class="label">Média Diária</div>
+                        <div class="value">{avg_daily:.1f}</div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="label">Dia Mais Movimentado</div>
+                        <div class="value">{busiest_day[1] if busiest_day else 0}</div>
+                        <div class="label" style="margin-top: 5px;">{busiest_day[0] if busiest_day else 'N/A'}</div>
+                    </div>
+                </div>
+                
+                <div class="section">
+                    <h2>🏆 Top 10 Membros Mais Frequentes</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Posição</th>
+                                <th>Nome</th>
+                                <th>Plano</th>
+                                <th>Check-ins</th>
+                                <th>Frequência</th>
+                            </tr>
+                        </thead>
+                        <tbody>
         """
-    
-    html += """
-                    </tbody>
-                </table>
-            </div>
-            
-            <div class="section">
-                <h2>📊 Distribuição por Dia da Semana</h2>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Dia da Semana</th>
-                            <th>Total de Check-ins</th>
-                            <th>Percentual</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-    """
-    
-    for day_stat in weekday_stats:
-        percentage = (day_stat[1] / total_checkins * 100) if total_checkins > 0 else 0
-        html += f"""
-                        <tr>
-                            <td><strong>{day_stat[0]}</strong></td>
-                            <td>{day_stat[1]}</td>
-                            <td>{percentage:.1f}%</td>
-                        </tr>
+        
+        for idx, member in enumerate(top_members, 1):
+            freq_percentage = (member[2] / days) * 100
+            badge_class = "high" if freq_percentage > 70 else "medium" if freq_percentage > 40 else "low"
+            html += f"""
+                            <tr>
+                                <td><strong>#{idx}</strong></td>
+                                <td>{member[0]}</td>
+                                <td>{member[1]}</td>
+                                <td>{member[2]}</td>
+                                <td><span class="badge {badge_class}">{freq_percentage:.1f}%</span></td>
+                            </tr>
+            """
+        
+        html += """
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="section">
+                    <h2>📊 Distribuição por Dia da Semana</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Dia da Semana</th>
+                                <th>Total de Check-ins</th>
+                                <th>Percentual</th>
+                            </tr>
+                        </thead>
+                        <tbody>
         """
-    
-    html += """
-                    </tbody>
-                </table>
-            </div>
-            
-            <div class="section">
-                <h2>💳 Frequência por Tipo de Plano</h2>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Plano</th>
-                            <th>Total de Check-ins</th>
-                            <th>Percentual</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-    """
-    
-    for plan_stat in plan_stats:
-        percentage = (plan_stat[1] / total_checkins * 100) if total_checkins > 0 else 0
-        html += f"""
-                        <tr>
-                            <td><strong>{plan_stat[0]}</strong></td>
-                            <td>{plan_stat[1]}</td>
-                            <td>{percentage:.1f}%</td>
-                        </tr>
+        
+        for day_stat in weekday_stats:
+            percentage = (day_stat[1] / total_checkins * 100) if total_checkins > 0 else 0
+            html += f"""
+                            <tr>
+                                <td><strong>{day_stat[0]}</strong></td>
+                                <td>{day_stat[1]}</td>
+                                <td>{percentage:.1f}%</td>
+                            </tr>
+            """
+        
+        html += """
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="section">
+                    <h2>💳 Frequência por Tipo de Plano</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Plano</th>
+                                <th>Total de Check-ins</th>
+                                <th>Percentual</th>
+                            </tr>
+                        </thead>
+                        <tbody>
         """
-    
-    html += """
-                    </tbody>
-                </table>
+        
+        for plan_stat in plan_stats:
+            percentage = (plan_stat[1] / total_checkins * 100) if total_checkins > 0 else 0
+            html += f"""
+                            <tr>
+                                <td><strong>{plan_stat[0]}</strong></td>
+                                <td>{plan_stat[1]}</td>
+                                <td>{percentage:.1f}%</td>
+                            </tr>
+            """
+        
+        html += """
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
-    </div>
-    """
-    
-    html += _generate_html_footer()
-    
-    # Salvar arquivo
-    reports_dir = _get_reports_dir()
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    filename = f"relatorio_frequencia_{timestamp}.html"
-    filepath = reports_dir / filename
-    
-    with open(filepath, 'w', encoding='utf-8') as f:
-        f.write(html)
-    
-    return str(filepath)
+        """
+        
+        html += _generate_html_footer()
+        
+        # Salvar arquivo
+        reports_dir = _get_reports_dir()
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f"relatorio_frequencia_{timestamp}.html"
+        filepath = reports_dir / filename
+        
+        with open(filepath, 'w', encoding='utf-8') as f:
+            f.write(html)
+        
+        return str(filepath)
+    finally:
+        if close_session:
+            db_session.close()

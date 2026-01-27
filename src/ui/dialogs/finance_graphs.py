@@ -2,6 +2,7 @@
 
 from typing import List, Dict, Any
 from datetime import datetime, timedelta
+from sqlalchemy import text
 
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, 
@@ -231,62 +232,62 @@ class FinancialGraphsDialog(QDialog):
         end_datetime = datetime.combine(end_date, datetime.max.time())
         
         # Buscar dados
-        db_manager = get_provider().db_manager
+        provider = get_provider()
+        session = provider.session
         
-        if not db_manager or not db_manager.connection:
+        try:
+            # 1. Buscar check-ins por plano
+            results = session.execute(text("""
+                SELECT m.plano, COUNT(f.id) as total_checkins
+                FROM frequencia f
+                JOIN membros m ON f.member_id = m.id
+                WHERE f.checkin_datetime BETWEEN :start_date AND :end_date
+                GROUP BY m.plano
+                ORDER BY total_checkins DESC
+            """), {
+                "start_date": start_datetime.strftime('%Y-%m-%d %H:%M:%S'), 
+                "end_date": end_datetime.strftime('%Y-%m-%d %H:%M:%S')
+            }).fetchall()
+            
+            self.plan_data = {}
+            self.total_checkins = 0
+            
+            for row in results:
+                plano = row[0] if row[0] else 'Sem Plano'
+                count = row[1]
+                self.plan_data[plano] = count
+                self.total_checkins += count
+            
+            # 2. Buscar evolução da receita
+            revenue_results = session.execute(text("""
+                SELECT DATE(data_pagamento) as data, SUM(valor) as receita_dia
+                FROM pagamentos
+                WHERE data_pagamento BETWEEN :start_date AND :end_date
+                GROUP BY DATE(data_pagamento)
+                ORDER BY data
+            """), {
+                "start_date": start_datetime.strftime('%Y-%m-%d %H:%M:%S'), 
+                "end_date": end_datetime.strftime('%Y-%m-%d %H:%M:%S')
+            }).fetchall()
+            
+            self.revenue_data = []
+            total_revenue = 0
+            for row in revenue_results:
+                date_str = row[0]
+                revenue = row[1]
+                total_revenue += revenue
+                self.revenue_data.append({
+                    'date': datetime.strptime(date_str, '%Y-%m-%d').date(),
+                    'revenue': revenue
+                })
+
+        except Exception as e:
+            print(f"Erro ao carregar dados do gráfico: {e}")
             self.plan_data = {}
             self.total_checkins = 0
             self.revenue_data = []
-            self.info_label.setText("Erro: Sem conexão com o banco de dados")
-            self._generate_chart()
-            return
-        
-        cursor = db_manager.connection.cursor()
-        
-        # 1. Buscar check-ins por plano
-        cursor.execute("""
-            SELECT m.plano, COUNT(f.id) as total_checkins
-            FROM frequencia f
-            JOIN membros m ON f.member_id = m.id
-            WHERE f.checkin_datetime BETWEEN ? AND ?
-            GROUP BY m.plano
-            ORDER BY total_checkins DESC
-        """, (start_datetime.strftime('%Y-%m-%d %H:%M:%S'), 
-              end_datetime.strftime('%Y-%m-%d %H:%M:%S')))
-        
-        results = cursor.fetchall()
-        
-        self.plan_data = {}
-        self.total_checkins = 0
-        
-        for row in results:
-            plano = row[0] if row[0] else 'Sem Plano'
-            count = row[1]
-            self.plan_data[plano] = count
-            self.total_checkins += count
-        
-        # 2. Buscar evolução da receita
-        cursor.execute("""
-            SELECT DATE(data_pagamento) as data, SUM(valor) as receita_dia
-            FROM pagamentos
-            WHERE data_pagamento BETWEEN ? AND ?
-            GROUP BY DATE(data_pagamento)
-            ORDER BY data
-        """, (start_datetime.strftime('%Y-%m-%d %H:%M:%S'), 
-              end_datetime.strftime('%Y-%m-%d %H:%M:%S')))
-        
-        revenue_results = cursor.fetchall()
-        
-        self.revenue_data = []
-        total_revenue = 0
-        for row in revenue_results:
-            date_str = row[0]
-            revenue = row[1]
-            total_revenue += revenue
-            self.revenue_data.append({
-                'date': datetime.strptime(date_str, '%Y-%m-%d').date(),
-                'revenue': revenue
-            })
+            self.info_label.setText(f"Erro ao carregar dados: {e}")
+
         
         # Atualizar label de informação
         period_text = self.period_combo.currentText()

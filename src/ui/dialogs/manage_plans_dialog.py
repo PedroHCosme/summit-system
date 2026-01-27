@@ -9,7 +9,10 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont
 
-from src.config import PLANOS_COM_VENCIMENTO  # Mantém apenas esta para verificação inicial
+from src.config import PLANOS_COM_VENCIMENTO  # Mantém para restaurar padrões
+from src.data.data_provider import get_provider
+from src.data.models import Plano
+from sqlalchemy import select
 
 
 class ManagePlansDialog(QDialog):
@@ -20,17 +23,15 @@ class ManagePlansDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("⚙️ Gerenciar Planos e Preços")
-        self.setMinimumSize(1000, 700)
-        self.resize(1100, 750)
+        self.setMinimumSize(800, 600)
+        self.resize(900, 650)
         
-        # Carregar dados dinamicamente do config para pegar atualizações
-        from src import config
-        
-        # Cópias locais dos dados (editáveis)
-        self.planos = config.PLANOS.copy()
-        self.planos_precos = config.PLANOS_PRECOS.copy()
-        self.planos_pagamento_checkin = config.PLANOS_PAGAMENTO_POR_CHECKIN.copy()
-        self.planos_com_vencimento = config.PLANOS_COM_VENCIMENTO.copy()
+        # Carregar dados serão carregados do banco em _load_data
+        self.planos = []
+        self.planos_precos = {}
+        self.planos_pagamento_checkin = {}
+        self.planos_com_vencimento = []
+
         
         # Rastrear mudanças
         self.has_changes = False
@@ -98,8 +99,8 @@ class ManagePlansDialog(QDialog):
         
         # Informação de salvamento
         info_label = QLabel(
-            "💡 Dica: As alterações são salvas em um arquivo de configuração local "
-            "e não modificam o código-fonte original."
+            "💡 Dica: As alterações são salvas diretamente no banco de dados "
+            "e aplicadas imediatamente após salvar."
         )
         info_label.setStyleSheet(
             "background-color: #E3F2FD; color: #1976D2; padding: 10px; "
@@ -374,8 +375,8 @@ class ManagePlansDialog(QDialog):
         
         return tab
     
-    def _load_data(self):
-        """Carrega os dados na tabela."""
+    def _refresh_table(self):
+        """Atualiza a tabela com os dados em memória."""
         self.plans_table.setRowCount(len(self.planos))
         
         for row, plano in enumerate(self.planos):
@@ -531,6 +532,35 @@ class ManagePlansDialog(QDialog):
         
         # Atualizar labels da tab de configurações
         self._update_config_labels()
+
+    def _load_data(self):
+        """Carrega os dados do banco de dados na memória e na tabela."""
+        provider = get_provider()
+        session = provider.session
+        
+        try:
+            # Buscar todos os planos ativos
+            stmt = select(Plano).where(Plano.ativo == True).order_by(Plano.nome)
+            db_planos = session.execute(stmt).scalars().all()
+            
+            # Limpar listas
+            self.planos = []
+            self.planos_precos = {}
+            self.planos_pagamento_checkin = {}
+            self.planos_com_vencimento = []
+            
+            # Popula estruturas locais
+            for plano in db_planos:
+                self.planos.append(plano.nome)
+                self.planos_precos[plano.nome] = plano.preco
+                self.planos_pagamento_checkin[plano.nome] = plano.valor_por_checkin
+                if plano.requer_vencimento:
+                    self.planos_com_vencimento.append(plano.nome)
+            
+            self._refresh_table()
+
+        except Exception as e:
+            QMessageBox.warning(self, "Erro", f"Erro ao carregar planos do banco: {e}")
     
     def _update_config_labels(self):
         """Atualiza os labels de configuração."""
@@ -585,7 +615,7 @@ class ManagePlansDialog(QDialog):
             self.planos_pagamento_checkin[name] = 0.0
             
             # Recarregar tabela
-            self._load_data()
+            self._refresh_table()
             self._mark_as_changed()
             
             QMessageBox.information(
@@ -618,7 +648,7 @@ class ManagePlansDialog(QDialog):
             self.planos_com_vencimento = config.PLANOS_COM_VENCIMENTO.copy()
             
             # Recarregar interface
-            self._load_data()
+            self._refresh_table()
             self._mark_as_changed()
             
             QMessageBox.information(
@@ -629,42 +659,54 @@ class ManagePlansDialog(QDialog):
             )
     
     def _save_changes(self):
-        """Salva as alterações."""
+        """Salva as alterações no banco de dados."""
         try:
-            # Coletar dados da tabela
+            # Coletar dados da tabela primeiro (ui -> dicts locais)
             self.planos_precos = {}
             self.planos_pagamento_checkin = {}
             self.planos_com_vencimento = []
             
+            current_plans_data = [] # Lista de tuples para salvar
+            
             for row in range(self.plans_table.rowCount()):
-                plano = self.plans_table.item(row, 0).text()
+                plano_nome = self.plans_table.item(row, 0).text()
                 
                 # Preço de renovação
                 price_spin = self.plans_table.cellWidget(row, 1)
-                if price_spin:
-                    self.planos_precos[plano] = price_spin.value()
+                preco = price_spin.value() if price_spin else 0.0
+                self.planos_precos[plano_nome] = preco
                 
                 # Pagamento por check-in
                 checkin_spin = self.plans_table.cellWidget(row, 2)
+                valor_checkin = 0.0
                 if checkin_spin:
-                    value = checkin_spin.value()
-                    if value > 0:
-                        self.planos_pagamento_checkin[plano] = value
+                    valor_checkin = checkin_spin.value()
+                    if valor_checkin > 0:
+                        self.planos_pagamento_checkin[plano_nome] = valor_checkin
                 
                 # Requer vencimento
                 check_widget = self.plans_table.cellWidget(row, 3)
+                requer_vencimento = False
                 if check_widget:
                     checkbox = check_widget.findChild(QCheckBox)
                     if checkbox and checkbox.isChecked():
-                        self.planos_com_vencimento.append(plano)
+                        requer_vencimento = True
+                        self.planos_com_vencimento.append(plano_nome)
+                        
+                current_plans_data.append({
+                    'nome': plano_nome,
+                    'preco': preco,
+                    'valor_por_checkin': valor_checkin,
+                    'requer_vencimento': requer_vencimento
+                })
             
-            # Salvar em arquivo
-            self._save_to_file()
+            # Salvar no Banco
+            self._save_to_db(current_plans_data)
             
             QMessageBox.information(
                 self,
                 "Salvo com Sucesso",
-                "As configurações foram salvas com sucesso!\n\n"
+                "As configurações foram salvas no banco de dados com sucesso!\n\n"
                 "As alterações já estão ativas no sistema."
             )
             
@@ -679,41 +721,33 @@ class ManagePlansDialog(QDialog):
                 f"Erro ao salvar configurações:\n\n{str(e)}"
             )
     
-    def _save_to_file(self):
-        """Salva as configurações em arquivo."""
-        import json
-        import os
-        from pathlib import Path
+    def _save_to_db(self, plans_data):
+        """Salva/Atualiza planos no banco."""
+        provider = get_provider()
+        session = provider.session
         
-        # Caminho do arquivo de configuração (raiz do projeto)
-        # __file__ = .../src/ui/dialogs/manage_plans_dialog.py
-        # .parent.parent.parent.parent = raiz do projeto
-        project_root = Path(__file__).parent.parent.parent.parent
-        config_file = project_root / "plans_config.json"
+        for p_data in plans_data:
+            # Check if exists
+            plano = session.query(Plano).filter_by(nome=p_data['nome']).first()
+            if plano:
+                # Update
+                plano.preco = p_data['preco']
+                plano.valor_por_checkin = p_data['valor_por_checkin']
+                plano.requer_vencimento = p_data['requer_vencimento']
+                plano.ativo = True # Ensure active
+            else:
+                # Insert
+                new_plano = Plano(
+                    nome=p_data['nome'],
+                    preco=p_data['preco'],
+                    valor_por_checkin=p_data['valor_por_checkin'],
+                    requer_vencimento=p_data['requer_vencimento'],
+                    ativo=True
+                )
+                session.add(new_plano)
         
-        # Preparar dados
-        config_data = {
-            "PLANOS": self.planos,
-            "PLANOS_PRECOS": self.planos_precos,
-            "PLANOS_PAGAMENTO_POR_CHECKIN": self.planos_pagamento_checkin,
-            "PLANOS_COM_VENCIMENTO": self.planos_com_vencimento,
-            "_metadata": {
-                "version": "1.0",
-                "last_updated": str(__import__('datetime').datetime.now()),
-                "description": "Configuração de planos e preços editada via UI"
-            }
-        }
-        
-        # Salvar JSON
-        with open(config_file, 'w', encoding='utf-8') as f:
-            json.dump(config_data, f, indent=4, ensure_ascii=False)
-        
-        # Atualizar config.py em memória (para aplicar imediatamente)
-        from src import config
-        config.PLANOS = self.planos.copy()
-        config.PLANOS_PRECOS = self.planos_precos.copy()
-        config.PLANOS_PAGAMENTO_POR_CHECKIN = self.planos_pagamento_checkin.copy()
-        config.PLANOS_COM_VENCIMENTO = self.planos_com_vencimento.copy()
+        session.commit()
+
     
     def closeEvent(self, event):
         """Intercepta o fechamento para confirmar se há mudanças."""

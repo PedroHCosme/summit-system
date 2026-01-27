@@ -1,41 +1,95 @@
 """
 Camada de abstração de dados.
-Decide automaticamente se busca dados do SQLite ou Google Sheets.
+Agora utiliza SQLAlchemy e serviços para acesso aos dados.
+Mantém compatibilidade com Google Sheets para modo legado.
 """
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, TYPE_CHECKING
 from datetime import datetime
 
 from src import config
-from src.data.google_sheets_service import GoogleSheetsService
-from src.data.database_manager import DatabaseManager
+from src.data.db import get_session_factory, create_session
+from src.services.member_service import MemberService
+from src.services.checkin_service import CheckinService
+from src.services.payment_service import PaymentService
+from src.services.plan_service import PlanService
 from src.utils.utils import parse_date, get_current_sheet_name
-from src.core.models import Pessoa
+
+if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
 
 
 # ============================================================================
 # FLAG DE CONTROLE PRINCIPAL
 # ============================================================================
-USE_SQLITE = True  # Comece com False. Mude para True para ativar SQLite.
+USE_SQLITE = True  # Sempre usar SQLite com SQLAlchemy agora
 # ============================================================================
 
 
 class DataProvider:
     """
     Provedor de dados unificado.
-    Abstrai a fonte de dados (SQLite ou Google Sheets).
+    Utiliza SQLAlchemy ORM e serviços para acesso aos dados.
+    Mantém compatibilidade com API existente.
     """
     
     def __init__(self):
         """Inicializa o provedor de dados."""
         self.use_sqlite = USE_SQLITE
         
-        # Inicializar conexões
-        if self.use_sqlite:
-            self.db_manager = DatabaseManager()
-            self.db_manager.connect()
-        else:
+        # SQLAlchemy session factory
+        self._session_factory = get_session_factory()
+        self._session: Optional["Session"] = None
+        
+        # Serviços (lazy initialization)
+        self._member_service: Optional[MemberService] = None
+        self._checkin_service: Optional[CheckinService] = None
+        self._payment_service: Optional[PaymentService] = None
+        self._plan_service: Optional[PlanService] = None
+        
+        # Google Sheets (para modo legado)
+        if not self.use_sqlite:
+            from src.data.google_sheets_service import GoogleSheetsService
             self.sheets_service = GoogleSheetsService(config.CREDENTIALS_PATH)
             self.sheets_service.authenticate()
+    
+    @property
+    def session(self) -> "Session":
+        """Retorna a sessão SQLAlchemy atual (lazy initialization)."""
+        if self._session is None:
+            self._session = self._session_factory()
+        return self._session
+    
+    @property
+    def member_service(self) -> MemberService:
+        """Retorna o serviço de membros (lazy initialization)."""
+        if self._member_service is None:
+            self._member_service = MemberService(db_session=self.session)
+        return self._member_service
+    
+    @property
+    def checkin_service(self) -> CheckinService:
+        """Retorna o serviço de check-in (lazy initialization)."""
+        if self._checkin_service is None:
+            self._checkin_service = CheckinService(db_session=self.session)
+        return self._checkin_service
+    
+    @property
+    def payment_service(self) -> PaymentService:
+        """Retorna o serviço de pagamentos (lazy initialization)."""
+        if self._payment_service is None:
+            self._payment_service = PaymentService(db_session=self.session)
+        return self._payment_service
+    
+    @property
+    def plan_service(self) -> PlanService:
+        """Retorna o serviço de planos (lazy initialization)."""
+        if self._plan_service is None:
+            self._plan_service = PlanService(db_session=self.session)
+        return self._plan_service
+    
+    # ========================================================================
+    # MÉTODOS DE MEMBRO
+    # ========================================================================
     
     def get_all_members(self) -> List[Dict[str, Any]]:
         """
@@ -45,7 +99,7 @@ class DataProvider:
             Lista de dicionários com dados dos membros
         """
         if self.use_sqlite:
-            return self._get_all_members_from_sqlite()
+            return self.member_service.get_all_as_dicts()
         else:
             return self._get_all_members_from_sheets()
     
@@ -66,13 +120,20 @@ class DataProvider:
             Dicionário com dados paginados
         """
         if self.use_sqlite:
-            return self.db_manager.get_members_paginated(
+            result = self.member_service.get_paginated(
                 page=page,
                 page_size=page_size,
                 filter_text=filter_text,
                 filter_plan=filter_plan,
                 filter_status=filter_status
             )
+            return {
+                'members': result.members,
+                'total': result.total,
+                'page': result.page,
+                'total_pages': result.total_pages,
+                'page_size': result.page_size
+            }
         else:
             # Para Google Sheets, retornar todos e paginar em memória
             all_members = self._get_all_members_from_sheets()
@@ -116,7 +177,7 @@ class DataProvider:
             Lista de dicionários com dados dos membros encontrados
         """
         if self.use_sqlite:
-            return self._find_members_by_name_from_sqlite(name)
+            return self.member_service.search_by_name_as_dicts(name)
         else:
             return self._find_members_by_name_from_sheets(name)
     
@@ -131,7 +192,7 @@ class DataProvider:
             Dicionário com dados do membro ou None
         """
         if self.use_sqlite:
-            return self._get_member_by_id_from_sqlite(member_id)
+            return self.member_service.get_by_id_as_dict(member_id)
         else:
             return self._get_member_by_index_from_sheets(member_id)
     
@@ -146,20 +207,15 @@ class DataProvider:
             Lista de dicionários com dados dos aniversariantes
         """
         if self.use_sqlite:
-            return self._get_birthdays_from_sqlite(month)
+            return self.member_service.get_birthdays(month)
         else:
             return self._get_birthdays_from_sheets(month)
     
-    def get_member_checkin_history(self, member_id: int) -> List[Dict[str, Any]]:
-        """Busca o histórico de check-ins de um membro."""
-        if self.db_manager:
-            return self.db_manager.get_member_checkin_history(member_id)
-        return []
-
     def add_member(self, member_data: Dict[str, Any]) -> Optional[int]:
-        """Delega a adição de um novo membro para o db_manager."""
-        if self.db_manager:
-            return self.db_manager.add_member(member_data)
+        """Adiciona um novo membro."""
+        if self.use_sqlite:
+            result = self.member_service.create(member_data)
+            return result.member_id if result.success else None
         return None
 
     def update_member(
@@ -180,38 +236,15 @@ class DataProvider:
             True se a atualização foi bem-sucedida, False caso contrário
         """
         if self.use_sqlite:
-            return self.db_manager.update_member_from_dict(
+            result = self.member_service.update_from_dict(
                 member_data, 
                 register_payment, 
                 metodo_pagamento
             )
+            return result.success
         else:
-            # Funcionalidade não suportada para Google Sheets
             print("Aviso: A funcionalidade de atualização não é suportada para Google Sheets.")
             return False
-
-    def add_checkin(
-        self,
-        member_id: int,
-        checkin_datetime: datetime,
-        plan_context: Optional[str] = None
-    ) -> Optional[int]:
-        """
-        Registra um check-in para um membro.
-        
-        Args:
-            member_id: ID do membro
-            checkin_datetime: Data e hora do check-in
-            
-        Returns:
-            ID do novo registro de check-in ou None
-        """
-        if self.use_sqlite:
-            return self.db_manager.add_checkin(member_id, checkin_datetime, plan_context)
-        else:
-            # Funcionalidade não suportada para Google Sheets
-            print("Aviso: A funcionalidade de check-in não é suportada para Google Sheets.")
-            return None
     
     def delete_member(self, member_id: int) -> bool:
         """
@@ -224,11 +257,61 @@ class DataProvider:
             True se a exclusão foi bem-sucedida, False caso contrário
         """
         if self.use_sqlite:
-            return self.db_manager.delete_member(member_id)
+            result = self.member_service.delete(member_id)
+            return result.success
         else:
-            # Funcionalidade não suportada para Google Sheets
             print("Aviso: A funcionalidade de exclusão de membro não é suportada para Google Sheets.")
             return False
+    
+    def update_expired_plans(self) -> int:
+        """Atualiza planos expirados para INATIVO."""
+        if self.use_sqlite:
+            return self.member_service.update_expired_plans()
+        return 0
+    
+    # ========================================================================
+    # MÉTODOS DE CHECK-IN
+    # ========================================================================
+    
+    def get_member_checkin_history(self, member_id: int) -> List[Dict[str, Any]]:
+        """Busca o histórico de check-ins de um membro."""
+        if self.use_sqlite:
+            return self.checkin_service.get_member_history(member_id)
+        return []
+
+    def add_checkin(
+        self,
+        member_id: int,
+        checkin_datetime: datetime,
+        plan_context: Optional[str] = None
+    ) -> Optional[int]:
+        """
+        Registra um check-in para um membro.
+        
+        Utiliza o CheckinService para validação e lógica de negócio.
+        
+        Args:
+            member_id: ID do membro
+            checkin_datetime: Data e hora do check-in
+            plan_context: Contexto de plano opcional para pagamento
+            
+        Returns:
+            ID do novo registro de check-in ou None
+            
+        Raises:
+            ValueError: Se o check-in for inválido (duplicado, membro não existe, etc.)
+        """
+        if self.use_sqlite:
+            result = self.checkin_service.perform_checkin(
+                member_id, checkin_datetime, plan_context
+            )
+            if result.success:
+                return result.checkin_id
+            else:
+                raise ValueError(result.message)
+        else:
+            print("Aviso: A funcionalidade de check-in não é suportada para Google Sheets.")
+            return None
     
     def delete_checkin(self, checkin_id: int) -> bool:
         """
@@ -241,9 +324,9 @@ class DataProvider:
             True se a exclusão foi bem-sucedida, False caso contrário
         """
         if self.use_sqlite:
-            return self.db_manager.delete_checkin(checkin_id)
+            result = self.checkin_service.delete_checkin(checkin_id)
+            return result.success
         else:
-            # Funcionalidade não suportada para Google Sheets
             print("Aviso: A funcionalidade de exclusão de check-in não é suportada para Google Sheets.")
             return False
     
@@ -259,77 +342,105 @@ class DataProvider:
             True se a atualização foi bem-sucedida, False caso contrário
         """
         if self.use_sqlite:
-            return self.db_manager.update_checkin_datetime(checkin_id, new_datetime)
+            result = self.checkin_service.update_datetime(checkin_id, new_datetime)
+            return result.success
         else:
-            # Funcionalidade não suportada para Google Sheets
             print("Aviso: A funcionalidade de edição de check-in não é suportada para Google Sheets.")
             return False
 
     def get_checkins_today(self) -> int:
         """Retorna o número de check-ins de hoje."""
         if self.use_sqlite:
-            return self.db_manager.get_checkins_today()
+            return self.checkin_service.count_today()
         return 0
 
     def get_checkins_today_details(self) -> List[Dict[str, Any]]:
         """Retorna os detalhes dos check-ins de hoje."""
         if self.use_sqlite:
-            return self.db_manager.get_checkins_today_details()
+            return self.checkin_service.get_today_details()
         return []
     
     def get_checkins_by_date(self, date_str: str) -> List[Dict[str, Any]]:
         """Retorna os detalhes dos check-ins de uma data específica."""
         if self.use_sqlite:
-            return self.db_manager.get_checkins_by_date(date_str)
+            return self.checkin_service.get_by_date(date_str)
         return []
 
     def get_last_checkins(self, limit: int = 5) -> List[Dict[str, Any]]:
         """Retorna os últimos check-ins."""
         if self.use_sqlite:
-            return self.db_manager.get_last_checkins(limit)
+            return self.checkin_service.get_recent(limit)
         return []
     
     def get_checkins_today_list(self) -> List[Dict[str, Any]]:
         """Retorna todos os check-ins de hoje."""
         if self.use_sqlite:
-            return self.db_manager.get_checkins_today_list()
+            return self.checkin_service.get_today_list()
         return []
-
-    def update_expired_plans(self):
-        """Delega a atualização de planos expirados para o db_manager."""
-        if self.db_manager:
-            return self.db_manager.update_expired_plans()
-        return 0
-
+    
     # ========================================================================
-    # MÉTODOS PRIVADOS - SQLite
+    # MÉTODOS DE PAGAMENTO
     # ========================================================================
     
-    def _get_all_members_from_sqlite(self) -> List[Dict[str, Any]]:
-        """Busca todos os membros do SQLite."""
-        return self.db_manager.get_all_members()
+    def get_member_payment_history(self, member_id: int) -> List[Dict[str, Any]]:
+        """Retorna o histórico de pagamentos de um membro."""
+        if self.use_sqlite:
+            return self.payment_service.get_member_history(member_id)
+        return []
     
-    def _find_members_by_name_from_sqlite(self, name: str) -> List[Dict[str, Any]]:
-        """Busca membros por nome no SQLite."""
-        return self.db_manager.find_members_by_name(name)
-    
-    def _get_member_by_id_from_sqlite(self, member_id: int) -> Optional[Dict[str, Any]]:
-        """Busca membro por ID no SQLite."""
-        return self.db_manager.get_member_by_id(member_id)
-    
-    def _get_birthdays_from_sqlite(self, month: int) -> List[Dict[str, Any]]:
+    def get_financial_summary(
+        self, 
+        start_date: Optional[datetime] = None, 
+        end_date: Optional[datetime] = None
+    ) -> Dict[str, Any]:
         """
-        Busca aniversariantes do mês no SQLite.
-        Delega a filtragem para o banco de dados para melhor performance.
+        Retorna um resumo financeiro para um período.
+        
+        Returns:
+            Dicionário com total_receita, total_transacoes, ticket_medio
         """
-        return self.db_manager.get_members_by_birthday_month(month)
+        if self.use_sqlite:
+            summary = self.payment_service.get_summary(start_date, end_date)
+            return {
+                'total_receita': summary.total_receita,
+                'total_transacoes': summary.total_transacoes,
+                'ticket_medio': summary.ticket_medio
+            }
+        return {'total_receita': 0, 'total_transacoes': 0, 'ticket_medio': 0}
     
-    def _get_member_checkin_history_from_sqlite(self, member_id: int) -> List[Dict[str, Any]]:
-        """Busca histórico de check-ins do membro no SQLite."""
-        return self.db_manager.get_member_checkin_history(member_id)
+    def get_revenue_breakdown(
+        self, 
+        start_date: Optional[datetime] = None, 
+        end_date: Optional[datetime] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Retorna a receita agrupada por tipo de transação.
+        """
+        if self.use_sqlite:
+            breakdown = self.payment_service.get_breakdown(start_date, end_date)
+            return [
+                {
+                    'tipo_transacao': item.tipo_transacao,
+                    'total_valor': item.total_valor,
+                    'quantidade': item.quantidade
+                }
+                for item in breakdown
+            ]
+        return []
+    
+    def get_transactions_in_range(
+        self, 
+        start_date: Optional[datetime] = None, 
+        end_date: Optional[datetime] = None,
+        limit: int = 100
+    ) -> List[Dict[str, Any]]:
+        """Retorna transações em um período."""
+        if self.use_sqlite:
+            return self.payment_service.get_transactions(start_date, end_date, limit)
+        return []
     
     # ========================================================================
-    # MÉTODOS PRIVADOS - Google Sheets
+    # MÉTODOS PRIVADOS - Google Sheets (legado)
     # ========================================================================
     
     def _get_all_members_from_sheets(self) -> List[Dict[str, Any]]:
@@ -405,14 +516,6 @@ class DataProvider:
         birthdays.sort(key=get_day)
         return birthdays
     
-    def _get_member_checkin_history_from_sheets(self, member_id: int) -> List[Dict[str, Any]]:
-        """
-        Busca histórico de check-ins do membro no Google Sheets.
-        Nota: Esta funcionalidade não está disponível para Google Sheets,
-        pois o histórico de check-ins só é armazenado no SQLite.
-        """
-        return []
-    
     def _row_to_dict(self, row: list, row_index: int) -> Dict[str, Any]:
         """
         Converte uma linha da planilha em dicionário.
@@ -430,7 +533,7 @@ class DataProvider:
             return ""
         
         return {
-            'id': row_index,  # Usar índice da linha como ID
+            'id': row_index,
             'nome': get_value(config.COL_NOME),
             'plano': get_value(config.COL_PLANO),
             'vencimento_plano': get_value(config.COL_VENCIMENTO_PLANO),
@@ -446,8 +549,9 @@ class DataProvider:
     
     def close(self):
         """Fecha conexões abertas."""
-        if self.use_sqlite and hasattr(self, 'db_manager'):
-            self.db_manager.close()
+        if self._session is not None:
+            self._session.close()
+            self._session = None
 
 
 # ============================================================================

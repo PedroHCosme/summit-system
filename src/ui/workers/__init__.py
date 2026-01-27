@@ -5,11 +5,13 @@ from .database_connection_worker import DatabaseConnectionWorker
 from .member_search_worker import MemberSearchWorker
 from .dashboard_worker import DashboardWorker
 from .sync_worker import SyncWorker
+from .checkin_worker import CheckinWorker
 
 __all__ = [
     'DataFetchWorker',
     'DatabaseConnectionWorker',
     'MemberSearchWorker',
     'DashboardWorker',
-    'SyncWorker'
+    'SyncWorker',
+    'CheckinWorker'
 ]

@@ -2,10 +2,16 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Optional, TYPE_CHECKING
 
-from src.data.database_manager import DatabaseManager
+from src.data.db import create_session
+from src.services.payment_service import PaymentService
+from src.services.member_service import MemberService
+
+if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
 
 
 def _get_reports_dir() -> Path:
@@ -404,42 +410,79 @@ def _generate_javascript(db_data: dict) -> str:
     """
 
 
-def generate_finance_report(db_manager: DatabaseManager, period: str) -> str:
+def generate_finance_report(
+    db_session: Optional["Session"] = None,
+    period: str = None
+) -> str:
     """
     Gera o relatório financeiro completo para um dado período.
     
     Args:
-        db_manager: Gerenciador do banco de dados.
-        period: String descrevendo o período (ex: "Novembro/2025").
+        db_session: Sessão SQLAlchemy (cria uma nova se não fornecida)
+        period: String descrevendo o período (ex: "Novembro/2025")
         
     Returns:
         Caminho do arquivo HTML gerado.
     """
-    if not db_manager.connection and not db_manager.connect():
-        raise RuntimeError("Não foi possível conectar ao banco de dados.")
+    # Criar sessão se não fornecida
+    close_session = False
+    if db_session is None:
+        db_session = create_session()
+        close_session = True
+    
+    try:
+        # Usar serviços para obter dados
+        payment_service = PaymentService(db_session=db_session)
+        member_service = MemberService(db_session=db_session)
+        
+        # Período padrão: mês atual
+        if period is None:
+            now = datetime.now()
+            period = now.strftime("%B/%Y")
+        
+        # Obter dados reais do banco
+        summary = payment_service.get_summary()
+        breakdown = payment_service.get_breakdown()
+        member_counts = member_service.count_by_status()
+        
+        # Calcular receitas por tipo
+        receita_mensalidades = 0
+        passes_diarios_receita = 0
+        passes_diarios_vendidos = 0
+        
+        for item in breakdown:
+            tipo = item.tipo_transacao.lower() if item.tipo_transacao else ''
+            if 'renovação' in tipo or 'plano' in tipo or 'mensalidade' in tipo:
+                receita_mensalidades += item.total_valor
+            elif 'diária' in tipo or 'gympass' in tipo or 'totalpass' in tipo:
+                passes_diarios_receita += item.total_valor
+                passes_diarios_vendidos += item.quantidade
+        
+        db_data = {
+            "receita_mensalidades": receita_mensalidades,
+            "passes_diarios_receita": passes_diarios_receita,
+            "membros_ativos": member_counts.get('ATIVO', 0),
+            "novos_membros": 0,  # TODO: calcular novos membros do período
+            "passes_diarios_vendidos": passes_diarios_vendidos,
+        }
 
-    # TODO: Implementar a lógica de busca no banco de dados baseada no período.
-    # Por enquanto, usaremos dados mocados para a estrutura.
-    db_data = {
-        "receita_mensalidades": 15000,
-        "passes_diarios_receita": 2500,
-        "membros_ativos": 150,
-        "novos_membros": 12,
-        "passes_diarios_vendidos": 50,
-    }
+        html = _generate_html_header(f"Relatório Financeiro - {period}")
+        html += _generate_report_body(period, db_data)
+        html += _generate_javascript(db_data)
+        html += _generate_html_footer()
 
-    html = _generate_html_header(f"Relatório Financeiro - {period}")
-    html += _generate_report_body(period, db_data)
-    html += _generate_javascript(db_data)
-    html += _generate_html_footer()
+        # Salvar arquivo
+        reports_dir = _get_reports_dir()
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"relatorio_financeiro_{timestamp}.html"
+        filepath = reports_dir / filename
 
-    # Salvar arquivo
-    reports_dir = _get_reports_dir()
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"relatorio_financeiro_{timestamp}.html"
-    filepath = reports_dir / filename
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(html)
 
-    with open(filepath, "w", encoding="utf-8") as f:
-        f.write(html)
+        return str(filepath)
+    
+    finally:
+        if close_session:
+            db_session.close()
 
-    return str(filepath)

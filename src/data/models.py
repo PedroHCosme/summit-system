@@ -1,0 +1,224 @@
+"""
+Modelos SQLAlchemy ORM para o banco de dados.
+
+Este módulo define as classes que mapeiam as tabelas do banco de dados
+para objetos Python, oferecendo type safety e autocomplete no IDE.
+"""
+
+from datetime import datetime
+from typing import Optional, List, TYPE_CHECKING
+
+from sqlalchemy import (
+    Column, Integer, String, Text, Float, DateTime, ForeignKey,
+    func, event, Boolean
+)
+from sqlalchemy.orm import relationship, Mapped, mapped_column, declarative_base
+
+# Base declarativa para os modelos
+Base = declarative_base()
+
+
+class Membro(Base):
+    """
+    Modelo ORM para a tabela de membros.
+    
+    Representa um membro/aluno do sistema com seus dados pessoais,
+    informações de plano e relacionamentos com check-ins e pagamentos.
+    """
+    __tablename__ = "membros"
+    
+    # Campos principais
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    nome: Mapped[str] = mapped_column(String(255), nullable=False)
+    plano: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    vencimento_plano: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    estado_plano: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    
+    # Dados pessoais
+    data_nascimento: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    whatsapp: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
+    genero: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    apelido: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    profissao: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    contato_emergencia: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    
+    # Informações adicionais
+    frequencia: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    observacoes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    calcado: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
+    voucher_credits: Mapped[int] = mapped_column(Integer, default=0)
+    
+    # Treino
+    treina: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
+    vencimento_treino: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    
+    # Timestamps
+    created_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, default=func.current_timestamp()
+    )
+    updated_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, default=func.current_timestamp(), onupdate=func.current_timestamp()
+    )
+    
+    # Relacionamentos
+    checkins: Mapped[List["Frequencia"]] = relationship(
+        "Frequencia", back_populates="membro", cascade="all, delete-orphan"
+    )
+    pagamentos: Mapped[List["Pagamento"]] = relationship(
+        "Pagamento", back_populates="membro", cascade="all, delete-orphan"
+    )
+    
+    def __repr__(self) -> str:
+        return f"<Membro(id={self.id}, nome='{self.nome}', plano='{self.plano}')>"
+    
+    def to_dict(self) -> dict:
+        """Converte o modelo para dicionário (compatibilidade com código legado)."""
+        return {
+            "id": self.id,
+            "nome": self.nome,
+            "plano": self.plano,
+            "vencimento_plano": self.vencimento_plano,
+            "estado_plano": self.estado_plano,
+            "data_nascimento": self.data_nascimento,
+            "whatsapp": self.whatsapp,
+            "genero": self.genero,
+            "email": self.email,
+            "apelido": self.apelido,
+            "profissao": self.profissao,
+            "contato_emergencia": self.contato_emergencia,
+            "frequencia": self.frequencia,
+            "observacoes": self.observacoes,
+            "calcado": self.calcado,
+            "voucher_credits": self.voucher_credits,
+            "treina": self.treina,
+            "vencimento_treino": self.vencimento_treino,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
+class Frequencia(Base):
+    """
+    Modelo ORM para a tabela de frequência (check-ins).
+    
+    Cada registro representa um check-in de um membro.
+    Regra de negócio: apenas 1 check-in por membro por dia.
+    """
+    __tablename__ = "frequencia"
+    
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    member_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("membros.id", ondelete="CASCADE"), nullable=False
+    )
+    checkin_datetime: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    created_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, default=func.current_timestamp()
+    )
+    
+    # Relacionamento com Membro
+    membro: Mapped["Membro"] = relationship("Membro", back_populates="checkins")
+    
+    def __repr__(self) -> str:
+        return f"<Frequencia(id={self.id}, member_id={self.member_id}, datetime={self.checkin_datetime})>"
+    
+    def to_dict(self) -> dict:
+        """Converte o modelo para dicionário."""
+        return {
+            "id": self.id,
+            "member_id": self.member_id,
+            "checkin_datetime": self.checkin_datetime.isoformat() if self.checkin_datetime else None,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class Pagamento(Base):
+    """
+    Modelo ORM para a tabela de pagamentos.
+    
+    Registra todas as transações financeiras do sistema,
+    incluindo renovações de plano, check-ins de diárias, etc.
+    """
+    __tablename__ = "pagamentos"
+    
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    member_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("membros.id", ondelete="SET NULL"), nullable=True
+    )
+    data_pagamento: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, default=func.current_timestamp()
+    )
+    tipo_transacao: Mapped[str] = mapped_column(String(100), nullable=False)
+    descricao: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    valor: Mapped[float] = mapped_column(Float, nullable=False)
+    metodo_pagamento: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    nova_data_vencimento: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    created_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, default=func.current_timestamp()
+    )
+    
+    # Relacionamento com Membro
+    membro: Mapped[Optional["Membro"]] = relationship("Membro", back_populates="pagamentos")
+    
+    def __repr__(self) -> str:
+        return f"<Pagamento(id={self.id}, tipo='{self.tipo_transacao}', valor={self.valor})>"
+    
+    def to_dict(self) -> dict:
+        """Converte o modelo para dicionário."""
+        return {
+            "id": self.id,
+            "member_id": self.member_id,
+            "data_pagamento": self.data_pagamento.isoformat() if self.data_pagamento else None,
+            "tipo_transacao": self.tipo_transacao,
+            "descricao": self.descricao,
+            "valor": self.valor,
+            "metodo_pagamento": self.metodo_pagamento,
+            "nova_data_vencimento": self.nova_data_vencimento,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+class Plano(Base):
+    """
+    Modelo ORM para a tabela de planos.
+    
+    Armazena as configurações de preços e regras de negócio dos planos.
+    Substitui as configurações hardcoded em src/config.py.
+    """
+    __tablename__ = "planos"
+    
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    nome: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    preco: Mapped[float] = mapped_column(Float, default=0.0)  # Preço de renovação
+    valor_por_checkin: Mapped[float] = mapped_column(Float, default=0.0)  # Preço por check-in
+    requer_vencimento: Mapped[bool] = mapped_column(Boolean, default=False)
+    ativo: Mapped[bool] = mapped_column(Boolean, default=True)
+    
+    # Quota-based plans (e.g., "Pacote 10")
+    is_quota: Mapped[bool] = mapped_column(Boolean, default=False)  # If True, plan is quantity-based
+    quota_amount: Mapped[int] = mapped_column(Integer, default=0)   # Number of credits per purchase
+    
+    # Metadata
+    created_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, default=func.current_timestamp()
+    )
+    updated_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, default=func.current_timestamp(), onupdate=func.current_timestamp()
+    )
+    
+    def __repr__(self) -> str:
+        return f"<Plano(nome='{self.nome}', preco={self.preco})>"
+    
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "nome": self.nome,
+            "preco": self.preco,
+            "valor_por_checkin": self.valor_por_checkin,
+            "requer_vencimento": self.requer_vencimento,
+            "ativo": self.ativo,
+            "is_quota": self.is_quota,
+            "quota_amount": self.quota_amount
+        }
+
+# Constantes úteis para queries
+PLANOS_POR_CHECKIN = {"Diária", "Gympass", "Totalpass"}
