@@ -33,6 +33,30 @@ class RenewPlanDialog(QDialog):
         
         self._setup_ui()
     
+    def _load_plans(self):
+        """Carrega os planos do banco de dados ou configuração."""
+        try:
+            from src.services.plan_service import get_plan_service
+            plan_service = get_plan_service()
+            
+            plans_dict = plan_service.get_plans_as_dict()
+            self.plans_cache = {name: info['preco'] for name, info in plans_dict.items()}
+            
+            # Populate combo
+            self.plan_combo.clear()
+            self.plan_combo.addItems(sorted(plan_service.get_plan_names()))
+            
+            # Set current plan if valid
+            if self.current_plan in self.plans_cache:
+                self.plan_combo.setCurrentText(self.current_plan)
+                
+        except Exception as e:
+            print(f"Erro ao carregar planos: {e}")
+            # Fallback
+            from src import config
+            self.plans_cache = config.PLANOS_PRECOS.copy()
+            self.plan_combo.addItems(sorted(config.PLANOS))
+
     def _setup_ui(self):
         """Configura a interface do diálogo."""
         layout = QVBoxLayout(self)
