@@ -18,6 +18,31 @@ class DatabaseConnectionWorker(QThread):
         """Inicializa o worker."""
         super().__init__()
     
+    def _run_migrations(self):
+        """Executa migrações do banco ANTES de usar SQLAlchemy."""
+        try:
+            from src.data.migrations import DatabaseMigrator
+            from src.data.database_manager import DatabaseManager
+            
+            print("[DatabaseConnection] Executando migrações...")
+            self.status_updated.emit("Executando migrações do banco de dados...")
+            
+            # Usar DatabaseManager direto (sem SQLAlchemy) para migrações
+            db_manager = DatabaseManager()
+            db_manager.connect()
+            
+            migrator = DatabaseMigrator(db_manager)
+            migrator.run_all()
+            
+            db_manager.close()
+            print("[DatabaseConnection] ✓ Migrações executadas")
+            return True
+        except Exception as e:
+            print(f"[DatabaseConnection] ⚠ Erro nas migrações: {e}")
+            traceback.print_exc()
+            # Não bloqueia - continua mesmo com erro nas migrações
+            return False
+    
     def run(self):
         """Executa a conexão com a fonte de dados."""
         try:
@@ -27,6 +52,11 @@ class DatabaseConnectionWorker(QThread):
             if USE_SQLITE:
                 print("[DatabaseConnection] Modo: SQLite")
                 self.status_updated.emit("Conectando ao banco de dados SQLite...")
+                
+                # IMPORTANTE: Rodar migrações ANTES de usar SQLAlchemy
+                # Isso garante que todas as colunas existem antes das queries
+                self._run_migrations()
+                
             else:
                 print("[DatabaseConnection] Modo: Google Sheets")
                 self.status_updated.emit("Verificando credenciais...")
@@ -41,7 +71,7 @@ class DatabaseConnectionWorker(QThread):
                 
                 self.status_updated.emit("Conectando ao Google Sheets...")
             
-            # Tenta inicializar o provider
+            # Tenta inicializar o provider (agora com banco migrado)
             print("[DatabaseConnection] Inicializando provider...")
             provider = get_provider()
             print(f"[DatabaseConnection] Provider criado: {type(provider).__name__}")
@@ -49,7 +79,6 @@ class DatabaseConnectionWorker(QThread):
             if USE_SQLITE:
                 self.status_updated.emit("Verificando e atualizando planos expirados...")
                 print("[DatabaseConnection] Atualizando planos expirados...")
-                # A instância do provider é o DatabaseManager
                 updated_count = provider.update_expired_plans()
                 if updated_count > 0:
                     msg = f"{updated_count} plano(s) atualizado(s) para INATIVO."
@@ -67,4 +96,5 @@ class DatabaseConnectionWorker(QThread):
             traceback.print_exc()
             self.status_updated.emit(error_msg)
             self.connection_completed.emit(False)
+
 

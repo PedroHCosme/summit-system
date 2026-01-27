@@ -31,6 +31,9 @@ class DatabaseMigrator:
     def run_all(self) -> None:
         """Executa todas as migrações de forma idempotente."""
         steps = [
+            # IMPORTANTE: ensure_all_member_columns deve ser primeiro!
+            # Garante que todas as colunas do modelo existem antes de qualquer query
+            ("Garantindo todas as colunas da tabela membros", self.ensure_all_member_columns),
             ("Garantindo coluna de e-mail", self.ensure_email_column),
             ("Garantindo colunas de treino", self.ensure_training_columns),
             ("Garantindo coluna de profissão", self.ensure_profession_column),
@@ -95,6 +98,58 @@ class DatabaseMigrator:
     # ------------------------------------------------------------------
     # Migrações individuais
     # ------------------------------------------------------------------
+    
+    def ensure_all_member_columns(self) -> None:
+        """Garante que todas as colunas do modelo Membro existem na tabela.
+        
+        Esta é a PRIMEIRA migração e deve rodar antes de qualquer query
+        SQLAlchemy para evitar erros de 'column not found'.
+        """
+        if not self._table_exists('membros'):
+            return
+
+        info = self._get_table_info('membros')
+        
+        # Lista de todas as colunas que devem existir no modelo Membro
+        # (nome_coluna, tipo_sql, valor_default)
+        required_columns = [
+            ('nome', 'TEXT', None),
+            ('plano', 'TEXT', None),
+            ('vencimento_plano', 'TEXT', None),
+            ('estado_plano', 'TEXT', None),
+            ('data_nascimento', 'TEXT', None),
+            ('whatsapp', 'TEXT', None),
+            ('genero', 'TEXT', None),
+            ('email', 'TEXT', None),
+            ('apelido', 'TEXT', None),
+            ('profissao', 'TEXT', "''"),
+            ('contato_emergencia', 'TEXT', "''"),
+            ('frequencia', 'TEXT', None),
+            ('observacoes', 'TEXT', None),
+            ('calcado', 'TEXT', None),
+            ('voucher_credits', 'INTEGER', '0'),
+            ('treina', 'TEXT', "'Não'"),
+            ('vencimento_treino', 'TEXT', None),
+            ('created_at', 'TIMESTAMP', 'CURRENT_TIMESTAMP'),
+            ('updated_at', 'TIMESTAMP', 'CURRENT_TIMESTAMP'),
+        ]
+        
+        missing_columns = []
+        for col_name, col_type, default in required_columns:
+            if col_name not in info:
+                if default is not None:
+                    missing_columns.append(
+                        f"ALTER TABLE membros ADD COLUMN {col_name} {col_type} DEFAULT {default}"
+                    )
+                else:
+                    missing_columns.append(
+                        f"ALTER TABLE membros ADD COLUMN {col_name} {col_type}"
+                    )
+        
+        if missing_columns:
+            print(f"[migrations] Adicionando {len(missing_columns)} coluna(s) faltando em membros...")
+            self._execute_many(missing_columns)
+
     def ensure_email_column(self) -> None:
         if not self._table_exists('membros'):
             return
