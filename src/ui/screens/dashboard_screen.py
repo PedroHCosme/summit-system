@@ -23,13 +23,76 @@ class DashboardScreen(QWidget):
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(20)
 
+        # Header com título e botão de refresh
+        header_layout = QHBoxLayout()
+        
         title_label = QLabel("Dashboard de Atividade")
         title_label.setObjectName("title")
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(title_label)
+        header_layout.addWidget(title_label)
+        
+        header_layout.addStretch()
+        
+        # Botão de atualização manual
+        refresh_button = QPushButton("🔄 Atualizar")
+        refresh_button.setObjectName("refresh_button")
+        refresh_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        refresh_button.setStyleSheet("""
+            QPushButton {
+                background-color: #6c757d;
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 4px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #5a6268;
+            }
+        """)
+        self.refresh_button = refresh_button
+        header_layout.addWidget(refresh_button)
+        
+        layout.addLayout(header_layout)
 
         # Layout para as estatísticas
         stats_layout = QHBoxLayout()
+        
+        # Botão de atualização manual
+        refresh_button = QPushButton("🔄 Atualizar")
+        refresh_button.setObjectName("refresh_button")
+        refresh_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        refresh_button.setStyleSheet("""
+            QPushButton {
+                background-color: #6c757d;
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 4px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #5a6268;
+            }
+        """)
+        # Nota: O clique será conectado pelo MainWindow no _connect_screen_signals ou similar,
+        # MAS como MainWindow cria a tela, podemos deixar a tela emitir um sinal ou conectar direto lá.
+        # Para facilitar, vou expor o botão.
+        self.refresh_button = refresh_button
+        
+        # Header layout para alinhar o título e o botão
+        header_layout = QHBoxLayout()
+        header_layout.addWidget(title_label)
+        header_layout.addStretch()
+        header_layout.addWidget(refresh_button)
+        
+        # Substitui o title_label original pelo header_layout
+        # Precisamos remover o widget anterior se for substituir
+        # Mas como estamos no setup_ui, vou alterar a ordem de adição:
+        
+        # Removemos title_label do layout principal (linha 29) e usamos header_layout
+        # Como replace_file_content é por bloco, vou reescrever o bloco inicial
+
 
         # Card para Check-ins Hoje
         checkins_today_card = self._create_stat_card("Check-ins Hoje", "0")

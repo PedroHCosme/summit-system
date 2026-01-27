@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import (
     QMainWindow, QStackedWidget, QMessageBox, QDialog, QInputDialog, QApplication
 )
 from PyQt6.QtGui import QAction, QIcon
+from PyQt6.QtCore import QTimer
 
 from src.core.aniversariantes_manager import AniversariantesManager
 from src.ui.html_formatter import HTMLFormatter
@@ -49,6 +50,10 @@ class MainWindow(QMainWindow):
         self.formatter = HTMLFormatter()
         self.worker = None
         self.is_connected = False
+        
+        # Timer para auto-atualização do dashboard
+        self.dashboard_timer = QTimer()
+        self.dashboard_timer.timeout.connect(self._update_dashboard)
         
         self._setup_ui()
         self._auto_connect()
@@ -98,6 +103,9 @@ class MainWindow(QMainWindow):
         self.stacked_widget.addWidget(self.financial_screen)  # 5
         self.stacked_widget.addWidget(self.members_list_screen)  # 6
         self.stacked_widget.addWidget(self.pending_members_screen)  # 7
+        
+        # Conecta botões específicos
+        self.dashboard_screen.refresh_button.clicked.connect(self._update_dashboard)
         
         # Conecta sinais das telas
         self._connect_screen_signals()
@@ -369,6 +377,9 @@ class MainWindow(QMainWindow):
                 self.tools_menu.setEnabled(True)
             
             self._show_dashboard()
+            
+            # Inicia o timer de atualização (a cada 5 segundos)
+            self.dashboard_timer.start(5000)
         else:
             self.home_screen.set_error("Falha na conexão. Verifique o console para mais detalhes.")
     
