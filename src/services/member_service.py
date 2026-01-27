@@ -605,9 +605,13 @@ class MemberService:
                         continue
                     setattr(member, field, member_data[field])
             
-            # Handle voucher_credits for non-quota plans (manual override)
-            if 'voucher_credits' in member_data and not is_new_plan_quota:
-                member.voucher_credits = member_data['voucher_credits']
+            # Handle voucher_credits manual override
+            # We effectively allow update if provided, EXCEPT if it was already handled 
+            # by the "new plan purchase" accumulation logic above (is_new_plan_quota and plan_changed)
+            if 'voucher_credits' in member_data:
+                already_handled = is_new_plan_quota and plan_changed
+                if not already_handled:
+                    member.voucher_credits = member_data['voucher_credits']
             
             member.updated_at = datetime.now()
             
