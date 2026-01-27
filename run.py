@@ -13,8 +13,40 @@ import atexit
 project_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, project_dir)
 
+from src.data.migrations import DatabaseMigrator
+from src.data.database_manager import DatabaseManager
+
 # Variável global para o processo do servidor web
 web_server_process = None
+
+
+def run_migrations():
+    """Executa migrações críticas antes de iniciar qualquer serviço."""
+    print("🔄 Verificando banco de dados...")
+    try:
+        # Instanciar DatabaseManager apenas para migrações
+        db_manager = DatabaseManager()
+        db_manager.connect()
+        
+        migrator = DatabaseMigrator(db_manager)
+        
+        # Executa APENAS a criação de tabelas e colunas críticas aqui
+        # O resto pode ser feito pela GUI depois
+        print("  - Garantindo tabelas...")
+        migrator.ensure_all_tables_exist()
+        
+        print("  - Garantindo colunas...")
+        migrator.ensure_all_member_columns()
+        
+        # Garante planos básicos para o web service não falhar ao listar planos
+        print("  - Garantindo planos base...") 
+        migrator.seed_all_plans()
+        
+        db_manager.close()
+        print("✓ Banco de dados pronto.")
+    except Exception as e:
+        print(f"⚠ Erro na preparação do banco de dados: {e}")
+        # Não abortamos, pois a GUI pode tentar corrigir ou mostrar erro melhor
 
 
 def start_web_server():
@@ -91,6 +123,9 @@ signal.signal(signal.SIGTERM, signal_handler)
 
 
 if __name__ == "__main__":
+    # 0. Preparar banco de dados (evitar erro no web service)
+    run_migrations()
+
     # 1. Iniciar servidor web em background
     start_web_server()
     
