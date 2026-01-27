@@ -357,7 +357,8 @@ class SyncWorker(QThread):
                                     self.db_manager.add_checkin(
                                         member_id,
                                         full_datetime,
-                                        plan_context=plano_na_aba
+                                        plan_context=plano_na_aba,
+                                        consume_voucher=False  # Não consumir vouchers para histórico
                                     )
                                     total_novos += 1
                                 except ValueError as e:

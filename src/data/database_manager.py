@@ -736,7 +736,8 @@ class DatabaseManager:
         self,
         member_id: int,
         checkin_datetime: datetime,
-        plan_context: Optional[str] = None
+        plan_context: Optional[str] = None,
+        consume_voucher: bool = True
     ) -> Optional[int]:
         """
         Adiciona um registro de check-in na tabela de frequência.
@@ -768,66 +769,35 @@ class DatabaseManager:
         
         if not self.connection:
             return None
+            
         try:
-            cursor = self.connection.cursor()
+            # Importação local para evitar ciclo
+            from src.services.checkin_service import CheckinService
             
-            # PROTEÇÃO: Verificar se já existe check-in no mesmo dia
-            checkin_date = checkin_datetime.date()
-            cursor.execute("""
-                SELECT id, checkin_datetime 
-                FROM frequencia
-                WHERE member_id = ?
-                AND DATE(checkin_datetime) = ?
-            """, (member_id, checkin_date.isoformat()))
+            # Instancia o serviço usando este manager
+            service = CheckinService(db_manager=self)
             
-            existing_checkin = cursor.fetchone()
-            if existing_checkin:
-                # Buscar nome do membro para mensagem de erro
-                cursor.execute("SELECT nome FROM membros WHERE id = ?", (member_id,))
-                member_result = cursor.fetchone()
-                member_name = member_result[0] if member_result else f"ID {member_id}"
+            # Executa o check-in através do serviço
+            result = service.perform_checkin(
+                member_id=member_id,
+                checkin_datetime=checkin_datetime,
+                plan_context=plan_context,
+                consume_voucher=consume_voucher
+            )
+            
+            if result.success:
+                return result.checkin_id
+            else:
+                # Se falhou devido a duplicação, lançamos ValueError para manter compatibilidade
+                # com o comportamento antigo que o SyncWorker espera
+                if "duplicado" in result.message.lower():
+                     raise ValueError(result.message)
+                print(f"Erro ao adicionar check-in via serviço: {result.message}")
+                return None
                 
-                raise ValueError(
-                    f"Check-in duplicado detectado!\n"
-                    f"Membro '{member_name}' já fez check-in hoje ({checkin_date.strftime('%d/%m/%Y')}).\n"
-                    f"Apenas 1 check-in por dia é permitido."
-                )
-            
-            # Inserir check-in
-            cursor.execute("""
-                INSERT INTO frequencia (member_id, checkin_datetime)
-                VALUES (?, ?)
-            """, (member_id, checkin_datetime.strftime('%Y-%m-%d %H:%M:%S')))
-            
-            checkin_id = cursor.lastrowid
-            
-            # Buscar plano do membro para verificar se precisa registrar pagamento
-            cursor.execute("SELECT plano, nome FROM membros WHERE id = ?", (member_id,))
-            result = cursor.fetchone()
-            
-            if result:
-                member_data = dict(result)
-                plano_atual = member_data.get('plano', '')
-                nome = member_data.get('nome', '')
-
-                plano_normalizado = (
-                    self._normalize_plan_for_checkin(plan_context)
-                    or self._normalize_plan_for_checkin(plano_atual)
-                )
-
-                self._create_checkin_payment_if_missing(
-                    member_id,
-                    checkin_datetime,
-                    plano_normalizado,
-                    member_name=nome
-                )
-            
-            self.connection.commit()
-            return checkin_id
-        except ValueError:
-            # Re-raise ValueError (validações de negócio como check-in duplicado)
-            raise
         except Exception as e:
+            if "duplicado" in str(e).lower():
+                raise
             print(f"Erro ao adicionar check-in: {e}")
             import traceback
             traceback.print_exc()

@@ -138,7 +138,8 @@ class CheckinService:
         self,
         member_id: int,
         checkin_datetime: Optional[datetime] = None,
-        plan_context: Optional[str] = None
+        plan_context: Optional[str] = None,
+        consume_voucher: bool = True
     ) -> CheckinResult:
         """
         Realiza o check-in completo de um membro.
@@ -182,7 +183,7 @@ class CheckinService:
         # Etapa 3 & 4: Inserir check-in e gerar pagamento
         if self._session is not None:
             return self._perform_checkin_sqlalchemy(
-                member_id, checkin_datetime, member_name, effective_plan
+                member_id, checkin_datetime, member_name, effective_plan, consume_voucher
             )
         else:
             return self._perform_checkin_legacy(
@@ -373,7 +374,8 @@ class CheckinService:
         member_id: int,
         checkin_datetime: datetime,
         member_name: str,
-        effective_plan: str
+        effective_plan: str,
+        consume_voucher: bool = True
     ) -> CheckinResult:
         """Implementação do check-in usando SQLAlchemy."""
         try:
@@ -393,12 +395,16 @@ class CheckinService:
             # Handle voucher credit deduction for quota plans
             if is_quota:
                 current_credits = member.voucher_credits or 0
-                if current_credits > 0:
-                    member.voucher_credits = current_credits - 1
-                    remaining_balance = member.voucher_credits
+                if consume_voucher:
+                    if current_credits > 0:
+                        member.voucher_credits = current_credits - 1
+                        remaining_balance = member.voucher_credits
+                    else:
+                        voucher_warning = True
+                        remaining_balance = 0
                 else:
-                    voucher_warning = True
-                    remaining_balance = 0
+                    # Not consuming, just reporting current balance
+                    remaining_balance = current_credits
             
             # Inserir check-in
             new_checkin = Frequencia(
