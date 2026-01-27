@@ -64,12 +64,26 @@ def get_engine(db_path: str = None):
             echo=False  # True para debugging SQL
         )
         
+        import unicodedata
+
+        def unaccent(text):
+            if text is None:
+                return None
+            if not isinstance(text, str):
+                text = str(text)
+            return ''.join(c for c in unicodedata.normalize('NFD', text)
+                          if unicodedata.category(c) != 'Mn')
+
         # Habilitar foreign keys no SQLite (desabilitado por padrão)
+        # E registrar função unaccent
         @event.listens_for(_engine, "connect")
         def set_sqlite_pragma(dbapi_connection, connection_record):
             cursor = dbapi_connection.cursor()
             cursor.execute("PRAGMA foreign_keys=ON")
             cursor.close()
+            
+            # Registrar função unaccent
+            dbapi_connection.create_function("unaccent", 1, unaccent)
     
     return _engine
 

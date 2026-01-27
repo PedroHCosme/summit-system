@@ -446,8 +446,8 @@ class MemberService:
             pattern = f"%{token}%"
             filters.append(
                 or_(
-                    Membro.nome.ilike(pattern),
-                    Membro.apelido.ilike(pattern)
+                    func.unaccent(Membro.nome).ilike(func.unaccent(pattern)),
+                    func.unaccent(Membro.apelido).ilike(func.unaccent(pattern))
                 )
             )
         
@@ -473,8 +473,8 @@ class MemberService:
                 pattern = f"%{token}%"
                 query = query.filter(
                     or_(
-                        Membro.nome.ilike(pattern),
-                        Membro.apelido.ilike(pattern)
+                        func.unaccent(Membro.nome).ilike(func.unaccent(pattern)),
+                        func.unaccent(Membro.apelido).ilike(func.unaccent(pattern))
                     )
                 )
         
