@@ -103,6 +103,51 @@ class DatabaseMigrator:
     # Migrações individuais
     # ------------------------------------------------------------------
     
+    def ensure_all_tables_exist(self) -> None:
+        """Garante que todas as tabelas (Planos, Membros, etc) existem.
+        
+        Usa o SQLAlchemy para criar tabelas que faltam com base nos Models.
+        """
+        try:
+            from src.data.db import get_engine
+            from src.data.models import Base
+            
+            # Força o engine a usar o mesmo arquivo do db_manager
+            db_path = str(self.db.db_path) if hasattr(self.db, 'db_path') else None
+            engine = get_engine(db_path)
+            
+            # Cria todas as tabelas definidas nos models (Safe: não recria se existe)               
+            Base.metadata.create_all(bind=engine)
+            
+            # Verifica se 'planos' foi criada (fallback manual se algo falhar)
+            if not self._table_exists('planos'):
+                print("[migrations] ⚠ SQLAlchemy create_all falhou silenciosamente para 'planos'. Tentando manual...")
+                self._create_planos_table_manual()
+                
+        except Exception as e:
+            print(f"[migrations] Erro ao garantir tabelas: {e}")
+            raise
+
+    def _create_planos_table_manual(self):
+        """Criação manual da tabela planos como fallback."""
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS planos (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nome TEXT NOT NULL UNIQUE,
+                preco REAL NOT NULL,
+                valor_por_checkin REAL DEFAULT 0.0,
+                requer_vencimento BOOLEAN DEFAULT 0,
+                ativo BOOLEAN DEFAULT 1,
+                is_quota BOOLEAN DEFAULT 0,
+                quota_amount INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cursor.close()
+        self.conn.commit()
+
     def ensure_all_member_columns(self) -> None:
         """Garante que todas as colunas do modelo Membro existem na tabela.
         
