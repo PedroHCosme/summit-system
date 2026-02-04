@@ -44,6 +44,5 @@ media/
 uploads/
 fotos_alunos/
 
-run_web.sh
-run.py
+# Arquivos de configuração local
 config_local.py

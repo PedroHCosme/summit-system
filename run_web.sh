@@ -8,10 +8,21 @@ fi
 # Define o PYTHONPATH para incluir a raiz do projeto
 export PYTHONPATH=$PYTHONPATH:$(pwd)
 
+# Lê configuração do config_local.py
+# Lê configuração do config_local.py, com fallback para Produção
+DEVELOPMENT_MODE=$(python3 -c "from config_local import DEVELOPMENT_MODE; print(DEVELOPMENT_MODE)" 2>/dev/null || echo "False")
+WEB_PORT=$(python3 -c "from config_local import WEB_PORT; print(WEB_PORT)" 2>/dev/null || echo "5000")
+
+if [ "$DEVELOPMENT_MODE" = "True" ]; then
+    BIND_HOST="127.0.0.1"
+else
+    BIND_HOST="0.0.0.0"
+fi
+
 echo "🚀 Iniciando Summit Mobile Pass..."
-echo "📱 Acesso local: http://localhost:5000"
+echo "📱 Acesso: http://${BIND_HOST}:${WEB_PORT}"
 echo "Press Ctrl+C to stop."
 
-# Roda com Gunicorn (Produção)
-# Workers = 2 * CPU + 1 (para um PC simples, 3 ou 4 workers está bom)
-gunicorn --reload --workers 3 --bind 0.0.0.0:5000 src.web.app:app
+# Roda com Gunicorn
+gunicorn --reload --workers 3 --bind ${BIND_HOST}:${WEB_PORT} src.web.app:app
+

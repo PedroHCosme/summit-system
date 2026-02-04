@@ -362,8 +362,9 @@ class CheckinService:
             plan = self._session.query(Plano).filter(Plano.nome == plan_name).first()
             return plan.is_quota if plan else False
         else:
-            # Fallback: check known quota plan names
-            return plan_name in ('Voucher', 'Pacote 10')
+            # Fallback: use plan_service for legacy mode
+            from src.services.plan_service import get_plan_service
+            return get_plan_service().is_quota_plan(plan_name)
     
     # =========================================================================
     # MÉTODOS PRIVADOS - IMPLEMENTAÇÃO SQLALCHEMY

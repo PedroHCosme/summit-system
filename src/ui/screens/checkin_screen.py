@@ -163,7 +163,8 @@ class CheckinScreen(QWidget):
         color = '#28a745' if is_active else '#FF6B6B'
         
         # Check if this is a quota-based plan (Voucher or Pacote plans)
-        is_quota_plan = plano in ('Voucher', 'Pacote 10') or (plano and 'Pacote' in plano)
+        from src.services.plan_service import get_plan_service
+        is_quota_plan = get_plan_service().is_quota_plan(plano)
         
         # Mensagem de aviso se inativo
         warning_html = ""
