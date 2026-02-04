@@ -43,3 +43,6 @@ backups/
 media/
 uploads/
 fotos_alunos/
+
+# Arquivos de configuração local
+config_local.py

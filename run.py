@@ -16,6 +16,16 @@ sys.path.insert(0, project_dir)
 from src.data.migrations import DatabaseMigrator
 from src.data.database_manager import DatabaseManager
 
+# Configuração do ambiente (dev = localhost, prod = 0.0.0.0)
+try:
+    from config_local import DEVELOPMENT_MODE, WEB_PORT
+except ImportError:
+    # Se não houver config local, assumimos PRODUÇÃO (acesso externo via tunnel)
+    DEVELOPMENT_MODE = False
+    WEB_PORT = 5000
+
+BIND_HOST = '127.0.0.1' if DEVELOPMENT_MODE else '0.0.0.0'
+
 # Variável global para o processo do servidor web
 web_server_process = None
 
@@ -66,7 +76,7 @@ def start_web_server():
                 [
                     'gunicorn',
                     '--workers', '2',
-                    '--bind', '0.0.0.0:5000',
+                    '--bind', f'{BIND_HOST}:{WEB_PORT}',
                     '--access-logfile', '-',
                     '--error-logfile', '-',
                     '--log-level', 'warning',
@@ -77,17 +87,17 @@ def start_web_server():
                 stdout=subprocess.DEVNULL,  # Suprimir output para não poluir console
                 stderr=subprocess.DEVNULL
             )
-            print("✓ Servidor web iniciado com Gunicorn (http://localhost:5000)")
+            print(f"✓ Servidor web iniciado com Gunicorn (http://{BIND_HOST}:{WEB_PORT})")
         except FileNotFoundError:
             # Fallback para Flask dev server
             web_server_process = subprocess.Popen(
-                [sys.executable, '-m', 'flask', 'run', '--host=0.0.0.0', '--port=5000'],
+                [sys.executable, '-m', 'flask', 'run', f'--host={BIND_HOST}', f'--port={WEB_PORT}'],
                 cwd=project_dir,
                 env={**env, 'FLASK_APP': 'src.web.app:app'},
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL
             )
-            print("✓ Servidor web iniciado com Flask dev server (http://localhost:5000)")
+            print(f"✓ Servidor web iniciado com Flask dev server (http://{BIND_HOST}:{WEB_PORT})")
             
     except Exception as e:
         print(f"⚠ Erro ao iniciar servidor web: {e}")

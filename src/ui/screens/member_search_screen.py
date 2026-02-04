@@ -532,7 +532,8 @@ class MemberSearchScreen(QWidget):
         """
         
         # 9b. Saldo de Voucher (se aplicável)
-        is_quota_plan = plano in ('Voucher', 'Pacote 10') or (plano and 'Pacote' in plano)
+        from src.services.plan_service import get_plan_service
+        is_quota_plan = get_plan_service().is_quota_plan(plano)
         if is_quota_plan:
             credits_val = member_data.get('voucher_credits', 0)
             credits_color = '#28a745' if credits_val > 0 else '#dc3545'

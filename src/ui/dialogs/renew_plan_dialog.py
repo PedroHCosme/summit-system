@@ -255,6 +255,9 @@ class RenewPlanDialog(QDialog):
         button_layout.addWidget(cancel_btn)
         button_layout.addWidget(confirm_btn)
         layout.addLayout(button_layout)
+        
+        # Initialize visibility based on current plan selection
+        self._on_plan_changed(self.plan_combo.currentText())
     
     def _on_plan_changed(self, new_plan):
         """Atualiza a interface quando o plano muda."""
