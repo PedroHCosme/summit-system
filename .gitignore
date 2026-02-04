@@ -43,3 +43,7 @@ backups/
 media/
 uploads/
 fotos_alunos/
+
+run_web.sh
+run.py
+config_local.py
