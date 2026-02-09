@@ -70,32 +70,47 @@ def start_web_server():
         env = os.environ.copy()
         env['PYTHONPATH'] = project_dir + ':' + env.get('PYTHONPATH', '')
         
-        # Tenta com gunicorn primeiro (produção)
-        try:
-            web_server_process = subprocess.Popen(
-                [
-                    'gunicorn',
-                    '--workers', '2',
-                    '--bind', f'{BIND_HOST}:{WEB_PORT}',
-                    '--access-logfile', '-',
-                    '--error-logfile', '-',
-                    '--log-level', 'warning',
-                    'src.web.app:app'
-                ],
-                cwd=project_dir,
-                env=env,
-                stdout=subprocess.DEVNULL,  # Suprimir output para não poluir console
-                stderr=subprocess.DEVNULL
-            )
-            print(f"✓ Servidor web iniciado com Gunicorn (http://{BIND_HOST}:{WEB_PORT})")
-        except FileNotFoundError:
-            # Fallback para Flask dev server
+        # Configurar logs: Mostrar no console em Dev, suprimir em Prod
+        log_output = None if DEVELOPMENT_MODE else subprocess.DEVNULL
+        
+        # Windows não suporta Gunicorn nativamente
+        is_windows = os.name == 'nt'
+        
+        # Tenta com gunicorn primeiro (apenas se não for Windows)
+        if not is_windows:
+            try:
+                web_server_process = subprocess.Popen(
+                    [
+                        'gunicorn',
+                        '--workers', '2',
+                        '--bind', f'{BIND_HOST}:{WEB_PORT}',
+                        '--access-logfile', '-',
+                        '--error-logfile', '-',
+                        '--log-level', 'warning',
+                        'src.web.app:app'
+                    ],
+                    cwd=project_dir,
+                    env=env,
+                    stdout=log_output,
+                    stderr=log_output
+                )
+                print(f"✓ Servidor web iniciado com Gunicorn (http://{BIND_HOST}:{WEB_PORT})")
+            except FileNotFoundError:
+                pass
+            except Exception as e:
+                print(f"⚠ Falha ao tentar Gunicorn: {e}")
+
+        # Fallback ou Windows: Flask dev server
+        if web_server_process is None:
+            if is_windows:
+                print("  ℹ️  Windows detectado: Usando Flask Dev Server...")
+                
             web_server_process = subprocess.Popen(
                 [sys.executable, '-m', 'flask', 'run', f'--host={BIND_HOST}', f'--port={WEB_PORT}'],
                 cwd=project_dir,
                 env={**env, 'FLASK_APP': 'src.web.app:app'},
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL
+                stdout=log_output,
+                stderr=log_output
             )
             print(f"✓ Servidor web iniciado com Flask dev server (http://{BIND_HOST}:{WEB_PORT})")
             

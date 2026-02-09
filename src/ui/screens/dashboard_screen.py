@@ -7,11 +7,14 @@ from PyQt6.QtWidgets import (
     QPushButton, QTextBrowser, QDialog, QTableWidget,
     QTableWidgetItem, QHeaderView, QMessageBox, QDateEdit
 )
-from PyQt6.QtCore import Qt, QDate
+from PyQt6.QtCore import Qt, QDate, pyqtSignal, QUrl
 
 
 class DashboardScreen(QWidget):
     """Tela do dashboard de atividade."""
+    
+    # Sinal emitido quando um membro é clicado (passa o ID do membro)
+    member_clicked = pyqtSignal(int)
     
     def __init__(self):
         super().__init__()
@@ -39,7 +42,7 @@ class DashboardScreen(QWidget):
         refresh_button.setCursor(Qt.CursorShape.PointingHandCursor)
         refresh_button.setStyleSheet("""
             QPushButton {
-                background-color: #6c757d;
+                background-color: #E67E22;
                 color: white;
                 border: none;
                 padding: 8px 16px;
@@ -47,7 +50,7 @@ class DashboardScreen(QWidget):
                 font-weight: bold;
             }
             QPushButton:hover {
-                background-color: #5a6268;
+                background-color: #D35400;
             }
         """)
         self.refresh_button = refresh_button
@@ -124,17 +127,20 @@ class DashboardScreen(QWidget):
 
         # Lista de Check-ins de Hoje
         last_checkins_label = QLabel("Check-ins de Hoje")
-        last_checkins_label.setStyleSheet("font-size: 18px; font-weight: bold; color: #333;")
+        last_checkins_label.setStyleSheet("font-size: 18px; font-weight: bold; color: #1a2540;")
         layout.addWidget(last_checkins_label)
         
         self.last_checkins_browser = QTextBrowser()
-        self.last_checkins_browser.setMinimumHeight(250)  # Aumentado para acomodar mais check-ins
+        self.last_checkins_browser.setMinimumHeight(250)
+        self.last_checkins_browser.setOpenLinks(False)  # Não abre links externos
+        self.last_checkins_browser.setOpenExternalLinks(False)  # Impede abertura externa
+        self.last_checkins_browser.anchorClicked.connect(self._on_member_link_clicked)
         layout.addWidget(self.last_checkins_browser)
 
         # Placeholder para o gráfico
         graph_label = QLabel("Gráfico de Frequência (Em breve)")
         graph_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        graph_label.setStyleSheet("font-size: 16px; color: #888;")
+        graph_label.setStyleSheet("font-size: 16px; color: #4a5568;")
         layout.addWidget(graph_label)
         layout.addStretch()
 
@@ -143,21 +149,21 @@ class DashboardScreen(QWidget):
         card = QWidget()
         card.setStyleSheet("""
             QWidget {
-                background-color: #FFFFFF;
-                border: 1px solid #DDDDDD;
-                border-radius: 8px;
-                padding: 15px;
+                background-color: #ffffff;
+                border: 1px solid #e2e8f0;
+                border-radius: 12px;
+                padding: 20px;
             }
         """)
         card_layout = QVBoxLayout(card)
         
         title_label = QLabel(title)
-        title_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #555;")
+        title_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #1a2540;")
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
         value_label = QLabel(initial_value)
         value_label.setObjectName("stat_value")
-        value_label.setStyleSheet("font-size: 36px; font-weight: bold; color: #007ACC;")
+        value_label.setStyleSheet("font-size: 42px; font-weight: bold; color: #E67E22;")
         value_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
         card_layout.addWidget(title_label)
@@ -172,20 +178,32 @@ class DashboardScreen(QWidget):
         last_checkins = data.get("last_checkins", [])
         html = ""
         if not last_checkins:
-            html = "<p style='color: #888; font-style: italic; text-align: center; padding: 20px;'>Nenhum check-in registrado hoje.</p>"
+            html = "<p style='color: #4a5568; font-style: italic; text-align: center; padding: 20px;'>Nenhum check-in registrado hoje.</p>"
         else:
             html = "<div style='padding: 10px;'>"
-            html += f"<p style='color: #555; margin-bottom: 10px;'><b>Total:</b> {len(last_checkins)} check-in(s)</p>"
+            html += f"<p style='color: #1a2540; margin-bottom: 10px;'><b>Total:</b> {len(last_checkins)} check-in(s)</p>"
             html += "<ul style='list-style-type: none; padding-left: 0;'>"
             for checkin in last_checkins:
                 nome = checkin.get('nome')
+                member_id = checkin.get('member_id', 0)
                 dt_str = checkin.get('checkin_datetime')
                 dt_obj = datetime.fromisoformat(dt_str)
                 checkin_datetime_str = dt_obj.strftime('%d/%m/%Y às %H:%M')
-                html += f"<li style='margin-bottom: 8px; padding: 8px; background: #F5F5F5; border-radius: 4px;'><b>{nome}</b> - {checkin_datetime_str}</li>"
+                # Nome clicável como link
+                html += f"<li style='margin-bottom: 8px; padding: 10px; background: #f0f4f8; border-radius: 6px; color: #1a2540;'><a href='member://{member_id}' style='color: #E67E22; font-weight: bold; text-decoration: underline; cursor: pointer;'>{nome}</a> - {checkin_datetime_str}</li>"
             html += "</ul>"
             html += "</div>"
         self.last_checkins_browser.setHtml(html)
+    
+    def _on_member_link_clicked(self, url: QUrl):
+        """Trata o clique em um link de membro."""
+        url_str = url.toString()
+        if url_str.startswith('member://'):
+            try:
+                member_id = int(url_str.replace('member://', ''))
+                self.member_clicked.emit(member_id)
+            except ValueError:
+                pass
 
     def show_error(self, error_message: str):
         """Exibe um erro no dashboard."""
@@ -223,6 +241,37 @@ class DashboardScreen(QWidget):
                     border: 2px solid #007ACC;
                     border-radius: 4px;
                     min-width: 150px;
+                    background-color: white;
+                }
+                QDateEdit::drop-down {
+                    subcontrol-origin: padding;
+                    subcontrol-position: top right;
+                    width: 30px;
+                    border-left: 1px solid #007ACC;
+                    border-top-right-radius: 3px;
+                    border-bottom-right-radius: 3px;
+                    background-color: #007ACC;
+                }
+                QDateEdit::down-arrow {
+                    image: none;
+                    width: 14px;
+                    height: 14px;
+                }
+                QDateEdit::down-arrow:on {
+                    top: 1px;
+                }
+                QCalendarWidget {
+                    background-color: white;
+                }
+                QCalendarWidget QToolButton {
+                    color: #333;
+                    background-color: #f0f0f0;
+                    border-radius: 4px;
+                    padding: 5px;
+                }
+                QCalendarWidget QToolButton:hover {
+                    background-color: #007ACC;
+                    color: white;
                 }
             """)
             header_layout.addWidget(date_edit)
@@ -265,8 +314,14 @@ class DashboardScreen(QWidget):
             
             layout.addWidget(table)
             
+            # Lista para armazenar member_ids para cada linha
+            member_ids = []
+            
             # Função para carregar os dados
             def load_checkins():
+                nonlocal member_ids
+                member_ids.clear()
+                
                 selected_date = date_edit.date()
                 date_str = selected_date.toString("yyyy-MM-dd")
                 date_display = selected_date.toString("dd/MM/yyyy")
@@ -278,13 +333,15 @@ class DashboardScreen(QWidget):
                     info_label.setStyleSheet("font-size: 13px; color: #FF6B6B; margin: 10px 0; font-weight: bold;")
                     table.setRowCount(0)
                 else:
-                    info_label.setText(f"📅 {date_display} - Total: {len(checkins)} check-in(s)")
+                    info_label.setText(f"📅 {date_display} - Total: {len(checkins)} check-in(s) (duplo clique para ver perfil)")
                     info_label.setStyleSheet("font-size: 13px; color: #28a745; margin: 10px 0; font-weight: bold;")
                     table.setRowCount(len(checkins))
                     
                     for row, checkin in enumerate(checkins):
                         nome = checkin.get('nome', 'N/A')
                         plano = checkin.get('plano', 'N/A')
+                        member_id = checkin.get('member_id', 0)
+                        member_ids.append(member_id)
                         checkin_datetime_str = checkin.get('checkin_datetime')
                         
                         if checkin_datetime_str:
@@ -295,8 +352,22 @@ class DashboardScreen(QWidget):
                             table.setItem(row, 2, QTableWidgetItem('N/A'))
                             table.setItem(row, 3, QTableWidgetItem('N/A'))
 
-                        table.setItem(row, 0, QTableWidgetItem(nome))
+                        # Nome com estilo clicável
+                        nome_item = QTableWidgetItem(nome)
+                        nome_item.setForeground(Qt.GlobalColor.blue)
+                        table.setItem(row, 0, nome_item)
                         table.setItem(row, 1, QTableWidgetItem(plano))
+            
+            # Handler para duplo clique em linha
+            def on_row_double_clicked(row, column):
+                if 0 <= row < len(member_ids):
+                    member_id = member_ids[row]
+                    if member_id > 0:
+                        dialog.close()
+                        self.member_clicked.emit(member_id)
+            
+            # Conectar duplo clique
+            table.cellDoubleClicked.connect(on_row_double_clicked)
             
             # Conectar o botão de atualizar
             update_button.clicked.connect(load_checkins)

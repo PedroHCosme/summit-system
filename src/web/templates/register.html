@@ -2,70 +2,92 @@
 
 {% block content %}
 <div class="form-container">
-    <h2 style="text-align: center; margin-bottom: 20px;">Novo Cadastro</h2>
+    <h2 style="text-align: center;">Novo Cadastro</h2>
 
     <form method="POST" action="{{ url_for('register') }}">
-        <div class="form-group">
-            <label for="nome">Nome Completo *</label>
-            <input type="text" id="nome" name="nome" required placeholder="Seu nome completo">
+
+        <!-- Card: Dados Pessoais -->
+        <div class="card">
+            <div class="card-title">Dados Pessoais</div>
+
+            <div class="form-group">
+                <label for="nome">Nome Completo *</label>
+                <input type="text" id="nome" name="nome" required placeholder="Seu nome completo">
+            </div>
+
+            <div class="form-group">
+                <label for="apelido">Apelido</label>
+                <input type="text" id="apelido" name="apelido" placeholder="Como gosta de ser chamado">
+            </div>
+
+            <div class="form-group">
+                <label for="data_nascimento">Data de Nascimento</label>
+                <input type="date" id="data_nascimento" name="data_nascimento">
+            </div>
+
+            <div class="form-group" style="margin-bottom: 0;">
+                <label for="genero">Genero</label>
+                <select id="genero" name="genero">
+                    <option value="" disabled selected>Selecione...</option>
+                    <option value="Masculino">Masculino</option>
+                    <option value="Feminino">Feminino</option>
+                    <option value="Outro">Outro</option>
+                </select>
+            </div>
         </div>
 
-        <div class="form-group">
-            <label for="apelido">Apelido (Opcional)</label>
-            <input type="text" id="apelido" name="apelido" placeholder="Como gosta de ser chamado">
-        </div>
+        <!-- Card: Plano Desejado (Opcional) -->
+        <div class="card">
+            <div class="card-title">Plano Desejado</div>
+            <p class="card-hint">Selecione o plano de seu interesse. A equipe confirmara na aprovacao do cadastro.</p>
 
-        <div class="form-group">
-            <label for="plano">Plano *</label>
-            <select id="plano" name="plano" required>
-                <option value="" disabled selected>Selecione um plano</option>
+            <div class="plan-selector">
                 {% for plano in planos %}
-                <option value="{{ plano }}">{{ plano }}</option>
+                <div class="plan-option">
+                    <input type="radio" id="plano_{{ loop.index }}" name="plano" value="{{ plano }}">
+                    <label for="plano_{{ loop.index }}">{{ plano }}</label>
+                </div>
                 {% endfor %}
-            </select>
+            </div>
         </div>
 
-        <div class="form-group">
-            <label for="whatsapp">WhatsApp</label>
-            <input type="text" id="whatsapp" name="whatsapp" placeholder="(XX) XXXXX-XXXX">
+        <!-- Card: Contato -->
+        <div class="card">
+            <div class="card-title">Contato</div>
+
+            <div class="form-group">
+                <label for="whatsapp">WhatsApp</label>
+                <input type="tel" id="whatsapp" name="whatsapp" placeholder="(XX) XXXXX-XXXX">
+            </div>
+
+            <div class="form-group" style="margin-bottom: 0;">
+                <label for="email">Email</label>
+                <input type="email" id="email" name="email" placeholder="seu@email.com">
+            </div>
         </div>
 
-        <div class="form-group">
-            <label for="data_nascimento">Data de Nascimento</label>
-            <input type="text" id="data_nascimento" name="data_nascimento" placeholder="dd/mm/aaaa">
-        </div>
+        <!-- Card: Informacoes Adicionais -->
+        <div class="card">
+            <div class="card-title">Informacoes Adicionais</div>
 
-        <div class="form-group">
-            <label for="genero">Gênero</label>
-            <select id="genero" name="genero">
-                <option value="" disabled selected>Selecione...</option>
-                <option value="Masculino">Masculino</option>
-                <option value="Feminino">Feminino</option>
-                <option value="Outro">Outro</option>
-            </select>
-        </div>
+            <div class="form-group">
+                <label for="calcado">Tamanho do Calcado</label>
+                <input type="number" id="calcado" name="calcado" placeholder="Ex: 40">
+            </div>
 
-        <div class="form-group">
-            <label for="calcado">Tamanho do Calçado</label>
-            <input type="number" id="calcado" name="calcado" placeholder="Ex: 40">
-        </div>
+            <div class="form-group">
+                <label for="treina">Treina?</label>
+                <select id="treina" name="treina">
+                    <option value="Não" selected>Nao</option>
+                    <option value="Sim">Sim</option>
+                </select>
+            </div>
 
-        <div class="form-group">
-            <label for="email">Email</label>
-            <input type="email" id="email" name="email" placeholder="seu@email.com">
-        </div>
-
-        <div class="form-group">
-            <label for="treina">Treina?</label>
-            <select id="treina" name="treina">
-                <option value="Não" selected>Não</option>
-                <option value="Sim">Sim</option>
-            </select>
-        </div>
-
-        <div class="form-group">
-            <label for="observacoes">Observações</label>
-            <textarea id="observacoes" name="observacoes" placeholder="Informações adicionais..." rows="3" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;"></textarea>
+            <div class="form-group" style="margin-bottom: 0;">
+                <label for="observacoes">Observacoes</label>
+                <textarea id="observacoes" name="observacoes" placeholder="Informacoes adicionais..."
+                    rows="3"></textarea>
+            </div>
         </div>
 
         <button type="submit" class="btn btn-primary">CADASTRAR</button>
@@ -73,4 +95,18 @@
 
     <a href="{{ url_for('index') }}" class="back-link">Voltar</a>
 </div>
+
+<script>
+    // Highlight plan option on selection
+    document.querySelectorAll('.plan-option input[type="radio"]').forEach(radio => {
+        radio.addEventListener('change', function () {
+            document.querySelectorAll('.plan-option label').forEach(label => {
+                label.style.transform = 'scale(1)';
+            });
+            if (this.checked) {
+                this.nextElementSibling.style.transform = 'scale(1.02)';
+            }
+        });
+    });
+</script>
 {% endblock %}
