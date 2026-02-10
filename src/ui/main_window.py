@@ -71,8 +71,10 @@ class MainWindow(QMainWindow):
     def _setup_ui(self):
         """Configura a interface do usuário."""
         self.setWindowTitle("Summit Escalada - Mission Control")
-        # Iniciar em modo Full Screen (solicitação do usuário para corrigir resolução em produção)
-        self.showFullScreen()
+        # Iniciar com resolução pequena (640x360) e centralizado
+        self.resize(640, 360)
+        self._center_window()
+        self.is_fullscreen = False  # Começa em modo janela
         self.setStyleSheet(STYLESHEET)
         
         # Define o ícone da janela
@@ -133,7 +135,6 @@ class MainWindow(QMainWindow):
         title_layout.addWidget(btn_min)
         
         # Maximizar / Restaurar (Toggle)
-        self.is_fullscreen = True
         btn_max = QPushButton("❐")
         btn_max.setFixedSize(45, 40)
         btn_max.clicked.connect(self._toggle_maximize_restore)
