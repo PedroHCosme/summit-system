@@ -15,6 +15,7 @@ from sqlalchemy import func, and_, desc
 from sqlalchemy.orm import Session
 
 from src.data.models import Membro, Pagamento
+from src.utils.date_utils import coerce_to_date
 
 if TYPE_CHECKING:
     from src.data.database_manager import DatabaseManager
@@ -332,7 +333,7 @@ class PaymentService:
                 descricao=descricao,
                 valor=valor,
                 metodo_pagamento=metodo_pagamento,
-                nova_data_vencimento=nova_data_vencimento
+                nova_data_vencimento=coerce_to_date(nova_data_vencimento)
             )
             
             self._session.add(new_payment)

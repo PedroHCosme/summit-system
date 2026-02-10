@@ -147,19 +147,20 @@ class CheckinScreen(QWidget):
         """Exibe dados do membro para check-in."""
         self.current_member_id = member_id
         
-        # Extrair dados
-        nome = member_data.get('nome', 'N/A')
-        plano = member_data.get('plano', 'N/A')
-        estado_plano = member_data.get('estado_plano', 'N/A')
-        vencimento_plano = member_data.get('vencimento_plano', 'N/A')
-        data_nascimento = member_data.get('data_nascimento', 'N/A')
-        whatsapp = member_data.get('whatsapp', 'N/A')
-        email = member_data.get('email', 'N/A')
-        genero = member_data.get('genero', 'N/A')
-        calcado = member_data.get('calcado', 'N/A')
+        # Extrair dados (sem default 'N/A' para facilitar verificação)
+        nome = member_data.get('nome')
+        apelido = member_data.get('apelido')
+        plano = member_data.get('plano')
+        estado_plano = member_data.get('estado_plano')
+        vencimento_plano = member_data.get('vencimento_plano')
+        data_nascimento = member_data.get('data_nascimento')
+        whatsapp = member_data.get('whatsapp')
+        email = member_data.get('email')
+        genero = member_data.get('genero')
+        calcado = member_data.get('calcado')
         voucher_credits = member_data.get('voucher_credits', 0) or 0
         
-        is_active = estado_plano.upper() == 'ATIVO'
+        is_active = str(estado_plano).upper() == 'ATIVO'
         color = '#28a745' if is_active else '#FF6B6B'
         
         # Check if this is a quota-based plan (Voucher or Pacote plans)
@@ -169,12 +170,18 @@ class CheckinScreen(QWidget):
         # Mensagem de aviso se inativo
         warning_html = ""
         if not is_active:
-            warning_html = f"""
-            <div style='background-color: #FFF3CD; color: #856404; padding: 10px; 
-                        border: 1px solid #FFEEBA; border-radius: 5px; margin-bottom: 15px; text-align: center;'>
-                <strong>⚠️ O plano desse membro está vencido</strong>
-            </div>
-            """
+            # Se for plano de cota, verificar se tem saldos
+            if is_quota_plan:
+                # Planos de cota nunca ficam "vencidos" por data, apenas sem saldo
+                # Se estado_plano não for ATIVO, pode ser erro ou regra específica
+                pass 
+            else:
+                warning_html = f"""
+                <div style='background-color: #FFF3CD; color: #856404; padding: 10px; 
+                            border: 1px solid #FFEEBA; border-radius: 5px; margin-bottom: 15px; text-align: center;'>
+                    <strong>⚠️ O plano desse membro está vencido</strong>
+                </div>
+                """
         
         # Aviso de saldo de voucher zerado
         voucher_warning_html = ""
@@ -195,30 +202,72 @@ class CheckinScreen(QWidget):
             <p><b>Saldo de Vouchers:</b> <span style='color: {voucher_color}; font-weight: bold; font-size: 16px;'>{voucher_credits}</span></p>
             """
             # Quota plans don't have expiration
-            vencimento_plano = "Não expira"
+            vencimento_plano = None  # Hide vencimento for quota plans
 
-        html = f"""
-            <div style='padding: 10px; font-size: 14px;'>
-                {warning_html}
-                {voucher_warning_html}
-                
-                <h3 style='color: #333; border-bottom: 2px solid #007ACC; padding-bottom: 5px;'>Informações Principais</h3>
-                <p><b>Nome:</b> {nome} {f"({member_data.get('apelido')})" if member_data.get('apelido') else ""}</p>
-                <p><b>Plano:</b> {plano}</p>
-                <p><b>Status:</b> <span style='color: {color}; font-weight: bold;'>{estado_plano}</span></p>
-                <p><b>Vencimento:</b> {vencimento_plano}</p>
-                {voucher_section}
-                
-                <h3 style='color: #333; border-bottom: 1px solid #ccc; padding-bottom: 5px; margin-top: 15px;'>Dados Pessoais</h3>
-                <p><b>Data de Nascimento:</b> {data_nascimento}</p>
-                <p><b>Gênero:</b> {genero}</p>
-                <p><b>Tamanho Calçado:</b> {calcado}</p>
-                
-                <h3 style='color: #333; border-bottom: 1px solid #ccc; padding-bottom: 5px; margin-top: 15px;'>Contato</h3>
-                <p><b>WhatsApp:</b> {whatsapp}</p>
-                <p><b>Email:</b> {email}</p>
-            </div>
-        """
+        # Construção do HTML condicional
+        html_parts = []
+        html_parts.append(f"<div style='padding: 10px; font-size: 14px;'>")
+        html_parts.append(warning_html)
+        html_parts.append(voucher_warning_html)
+        
+        # Seção Informações Principais
+        html_parts.append("<h3 style='color: #333; border-bottom: 2px solid #007ACC; padding-bottom: 5px;'>Informações Principais</h3>")
+        
+        if nome:
+            display_nome = f"{nome} ({apelido})" if apelido else nome
+            html_parts.append(f"<p><b>Nome:</b> {display_nome}</p>")
+            
+        if plano:
+            html_parts.append(f"<p><b>Plano:</b> {plano}</p>")
+            
+        if estado_plano:
+            html_parts.append(f"<p><b>Status:</b> <span style='color: {color}; font-weight: bold;'>{estado_plano}</span></p>")
+            
+        if vencimento_plano and str(vencimento_plano).lower() != 'none':
+            # Formatar se for objeto date
+            from datetime import date as _date
+            venc_display = vencimento_plano
+            if isinstance(vencimento_plano, _date):
+                venc_display = vencimento_plano.strftime('%d/%m/%Y')
+            html_parts.append(f"<p><b>Vencimento:</b> {venc_display}</p>")
+            
+        if voucher_section:
+            html_parts.append(voucher_section)
+        
+        # Seção Dados Pessoais - mostra cabeçalho apenas se tiver dados
+        personal_data_html = []
+        if data_nascimento and str(data_nascimento).lower() != 'none':
+            display_nasc = data_nascimento
+            from datetime import date as _date
+            if isinstance(data_nascimento, _date):
+                display_nasc = data_nascimento.strftime('%d/%m/%Y')
+            personal_data_html.append(f"<p><b>Data de Nascimento:</b> {display_nasc}</p>")
+            
+        if genero and str(genero).lower() != 'none':
+            personal_data_html.append(f"<p><b>Gênero:</b> {genero}</p>")
+            
+        if calcado and str(calcado).lower() != 'none':
+            personal_data_html.append(f"<p><b>Tamanho Calçado:</b> {calcado}</p>")
+            
+        if personal_data_html:
+            html_parts.append("<h3 style='color: #333; border-bottom: 1px solid #ccc; padding-bottom: 5px; margin-top: 15px;'>Dados Pessoais</h3>")
+            html_parts.extend(personal_data_html)
+            
+        # Seção Contato - mostra cabeçalho apenas se tiver dados
+        contact_html = []
+        if whatsapp and str(whatsapp).lower() != 'none':
+            contact_html.append(f"<p><b>WhatsApp:</b> {whatsapp}</p>")
+            
+        if email and str(email).lower() != 'none':
+            contact_html.append(f"<p><b>Email:</b> {email}</p>")
+            
+        if contact_html:
+            html_parts.append("<h3 style='color: #333; border-bottom: 1px solid #ccc; padding-bottom: 5px; margin-top: 15px;'>Contato</h3>")
+            html_parts.extend(contact_html)
+
+        html_parts.append("</div>")
+        
+        html = "".join(html_parts)
         
         self.member_details_browser.setHtml(html)
         

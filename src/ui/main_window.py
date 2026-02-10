@@ -6,7 +6,8 @@ from datetime import datetime
 import os
 
 from PyQt6.QtWidgets import (
-    QMainWindow, QStackedWidget, QMessageBox, QDialog, QInputDialog, QApplication
+    QMainWindow, QStackedWidget, QMessageBox, QDialog, QInputDialog, QApplication,
+    QWidget, QHBoxLayout
 )
 from PyQt6.QtGui import QAction, QIcon
 from PyQt6.QtCore import QTimer
@@ -32,9 +33,11 @@ from src.ui.screens import (
     FinancialScreen,
     FinancialScreen,
     MembersListScreen,
-    PendingMembersScreen
+    PendingMembersScreen,
+    PlansScreen
 )
 from src.ui.dialogs import AddMemberDialog, SyncDialog, ManagePlansDialog, ExpiringPlansDialog
+from src.ui.components import Sidebar
 
 
 class MainWindow(QMainWindow):
@@ -67,8 +70,8 @@ class MainWindow(QMainWindow):
     
     def _setup_ui(self):
         """Configura a interface do usuário."""
-        self.setWindowTitle("Sistema de Gestão de Membros")
-        self.setGeometry(100, 100, 800, 650)
+        self.setWindowTitle("Summit Escalada - Mission Control")
+        self.setGeometry(100, 100, 1100, 700)
         self.setStyleSheet(STYLESHEET)
         
         # Define o ícone da janela
@@ -77,12 +80,23 @@ class MainWindow(QMainWindow):
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
         
-        # Cria o menu
-        self._create_menu()
+        # Container principal com layout horizontal
+        main_container = QWidget()
+        main_layout = QHBoxLayout(main_container)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
         
-        # Cria o stack widget para alternar entre telas
+        # Sidebar de navegação
+        self.sidebar = Sidebar()
+        self.sidebar.set_enabled(False)  # Desabilita até conectar
+        self._connect_sidebar_signals()
+        main_layout.addWidget(self.sidebar)
+        
+        # Stack widget para as telas
         self.stacked_widget = QStackedWidget()
-        self.setCentralWidget(self.stacked_widget)
+        main_layout.addWidget(self.stacked_widget)
+        
+        self.setCentralWidget(main_container)
         
         # Cria as telas
         self.home_screen = HomeScreen()
@@ -93,6 +107,7 @@ class MainWindow(QMainWindow):
         self.financial_screen = FinancialScreen()
         self.members_list_screen = MembersListScreen()
         self.pending_members_screen = PendingMembersScreen()
+        self.plans_screen = PlansScreen()
         
         # Adiciona ao stack
         self.stacked_widget.addWidget(self.home_screen)  # 0
@@ -103,6 +118,7 @@ class MainWindow(QMainWindow):
         self.stacked_widget.addWidget(self.financial_screen)  # 5
         self.stacked_widget.addWidget(self.members_list_screen)  # 6
         self.stacked_widget.addWidget(self.pending_members_screen)  # 7
+        self.stacked_widget.addWidget(self.plans_screen)  # 8
         
         # Conecta botões específicos
         self.dashboard_screen.refresh_button.clicked.connect(self._update_dashboard)
@@ -110,8 +126,103 @@ class MainWindow(QMainWindow):
         # Conecta sinais das telas
         self._connect_screen_signals()
         
+        # Cria menu (mantido como backup para atalhos e ações avançadas)
+        self._create_menu()
+        
         # Mostra a tela de conexão
         self.stacked_widget.setCurrentIndex(0)
+    
+    def _connect_sidebar_signals(self):
+        """Conecta os sinais da sidebar aos métodos de navegação."""
+        from src.ui.components.sidebar import SidebarContext
+        
+        # === Menu Principal (HOME) ===
+        self.sidebar.home_clicked.connect(self._on_home_clicked)
+        self.sidebar.checkin_clicked.connect(self._on_checkin_section_clicked)
+        self.sidebar.members_clicked.connect(self._on_members_section_clicked)
+        self.sidebar.financial_clicked.connect(self._on_financial_section_clicked)
+        self.sidebar.settings_clicked.connect(self._on_settings_section_clicked)
+        
+        # === Submenu Membros ===
+        self.sidebar.members_list_clicked.connect(self._show_members_list_only)
+        self.sidebar.members_search_clicked.connect(self._show_member_search)
+        self.sidebar.members_add_clicked.connect(self._show_add_member_dialog)
+        self.sidebar.members_pending_clicked.connect(self._show_pending_members_only)
+        self.sidebar.members_birthday_clicked.connect(self._show_aniversariantes)
+        
+        # === Submenu Check-in ===
+        self.sidebar.checkin_register_clicked.connect(self._show_checkin_screen_only)
+        
+        # === Submenu Financeiro ===
+        self.sidebar.financial_overview_clicked.connect(self._show_financial_screen_only)
+        self.sidebar.financial_plans_clicked.connect(self._show_manage_plans_dialog)
+        self.sidebar.financial_expiring_clicked.connect(self._show_expiring_plans_dialog)
+        
+        # === Submenu Configurações ===
+        self.sidebar.settings_plans_clicked.connect(self._show_manage_plans_dialog)
+        self.sidebar.settings_backup_clicked.connect(self._create_database_backup)
+        self.sidebar.settings_sync_clicked.connect(self._show_sync_dialog)
+    
+    def _on_home_clicked(self):
+        """Volta para o Dashboard e menu principal."""
+        from src.ui.components.sidebar import SidebarContext
+        self.sidebar.set_context(SidebarContext.HOME)
+        self.sidebar.set_active(0)
+        self._show_dashboard()
+    
+    def _on_members_section_clicked(self):
+        """Entra na seção Membros."""
+        from src.ui.components.sidebar import SidebarContext
+        self.sidebar.set_context(SidebarContext.MEMBERS)
+        self.sidebar.set_active(1)  # Lista de Membros
+        self._show_members_list_only()
+    
+    def _on_checkin_section_clicked(self):
+        """Entra na seção Check-in."""
+        from src.ui.components.sidebar import SidebarContext
+        self.sidebar.set_context(SidebarContext.CHECKIN)
+        self.sidebar.set_active(1)  # Registrar Check-in
+        self._show_checkin_screen_only()
+    
+    def _on_financial_section_clicked(self):
+        """Entra na seção Financeiro."""
+        from src.ui.components.sidebar import SidebarContext
+        self.sidebar.set_context(SidebarContext.FINANCIAL)
+        self.sidebar.set_active(1)  # Visão Geral
+        self._show_financial_screen_only()
+    
+    def _on_settings_section_clicked(self):
+        """Entra na seção Configurações."""
+        from src.ui.components.sidebar import SidebarContext
+        self.sidebar.set_context(SidebarContext.SETTINGS)
+    
+    # === Métodos de navegação sem troca de contexto ===
+    def _show_members_list_only(self):
+        """Mostra lista de membros sem trocar contexto."""
+        if not self.is_connected:
+            return
+        self.stacked_widget.setCurrentIndex(6)
+        self._load_members_list()
+    
+    def _show_pending_members_only(self):
+        """Mostra pendentes sem trocar contexto."""
+        if not self.is_connected:
+            return
+        self.stacked_widget.setCurrentIndex(7)
+        self.pending_members_screen.refresh_list()
+    
+    def _show_checkin_screen_only(self):
+        """Mostra check-in sem trocar contexto."""
+        if not self.is_connected:
+            return
+        self.stacked_widget.setCurrentIndex(4)
+    
+    def _show_financial_screen_only(self):
+        """Mostra financeiro sem trocar contexto."""
+        if not self.is_connected:
+            return
+        self.stacked_widget.setCurrentIndex(5)
+        self._load_financial_data()
     
     def _create_menu(self):
         """Cria o menu superior."""
@@ -246,6 +357,9 @@ class MainWindow(QMainWindow):
         self.dashboard_screen.view_checkins_button.clicked.connect(
             self.dashboard_screen.show_checkins_details
         )
+        self.dashboard_screen.member_clicked.connect(
+            self._on_dashboard_member_clicked
+        )
         
         # Aniversariantes
         self.aniversariantes_screen.search_button.clicked.connect(
@@ -315,6 +429,28 @@ class MainWindow(QMainWindow):
         """Mostra a tela do dashboard."""
         self.stacked_widget.setCurrentIndex(1)
         self._update_dashboard()
+    
+    def _on_dashboard_member_clicked(self, member_id: int):
+        """Navega para o perfil do membro a partir do dashboard."""
+        from src.ui.components.sidebar import SidebarContext
+        from src.data.data_provider import get_member_by_id
+        
+        if not self.is_connected:
+            return
+        
+        try:
+            # Busca os dados do membro pelo ID
+            member = get_member_by_id(member_id)
+            
+            if member:
+                # Muda para o contexto de Membros e mostra o perfil
+                self.sidebar.set_context(SidebarContext.MEMBERS)
+                self.stacked_widget.setCurrentIndex(3)  # MemberSearchScreen
+                self.member_search_screen.display_member_data(member)
+            else:
+                QMessageBox.warning(self, "Aviso", "Membro não encontrado.")
+        except Exception as e:
+            QMessageBox.critical(self, "Erro", f"Erro ao buscar membro: {e}")
 
     def _show_aniversariantes(self):
         """Mostra a tela de aniversariantes."""
@@ -355,6 +491,84 @@ class MainWindow(QMainWindow):
         self.stacked_widget.setCurrentIndex(5)
         self._load_financial_data()
     
+    def _show_settings_menu(self):
+        """Mostra menu de configurações como popup."""
+        from PyQt6.QtWidgets import QMenu
+        from PyQt6.QtGui import QCursor
+        
+        menu = QMenu(self)
+        menu.setStyleSheet("""
+            QMenu {
+                background-color: #3c3f41;
+                color: #ecf0f1;
+                border: 1px solid #555555;
+                border-radius: 6px;
+                padding: 5px;
+            }
+            QMenu::item {
+                padding: 10px 30px 10px 20px;
+                border-radius: 4px;
+            }
+            QMenu::item:selected {
+                background-color: #E67E22;
+                color: #2b2d30;
+            }
+        """)
+        
+        # Opções de configurações
+        plans_action = menu.addAction("💳 Gerenciar Planos")
+        plans_action.triggered.connect(self._show_manage_plans_dialog)
+        
+        menu.addSeparator()
+        
+        backup_action = menu.addAction("💾 Backup do Banco")
+        backup_action.triggered.connect(self._create_database_backup)
+        
+        sync_action = menu.addAction("🔄 Sincronizar Sheets")
+        sync_action.triggered.connect(self._show_sync_dialog)
+        
+        menu.addSeparator()
+        
+        add_member_action = menu.addAction("➕ Novo Membro")
+        add_member_action.triggered.connect(self._show_add_member_dialog)
+        
+        # Mostra o menu na posição do cursor
+        menu.exec(QCursor.pos())
+    
+    def _show_manage_plans_dialog(self):
+        """Abre a tela de gerenciamento de planos."""
+        if not self.is_connected:
+            return
+        self.stacked_widget.setCurrentIndex(8)
+        self.plans_screen.refresh()
+    
+    def _show_add_member_dialog(self):
+        """Abre o diálogo para adicionar novo membro."""
+        try:
+            dialog = AddMemberDialog(self)
+            if dialog.exec() == QDialog.DialogCode.Accepted:
+                # Atualiza a lista de membros se estiver visível
+                if self.stacked_widget.currentIndex() == 6:
+                    self._load_members_list()
+        except Exception as e:
+            QMessageBox.critical(self, "Erro", f"Erro ao abrir formulário de novo membro: {e}")
+    
+    def _show_sync_dialog(self):
+        """Abre o diálogo de sincronização com Google Sheets."""
+        try:
+            dialog = SyncDialog(self)
+            dialog.exec()
+        except Exception as e:
+            QMessageBox.critical(self, "Erro", f"Erro ao abrir sincronização: {e}")
+    
+    def _show_expiring_plans_dialog(self):
+        """Abre o diálogo de planos a vencer."""
+        try:
+            dialog = ExpiringPlansDialog(self)
+            dialog.exec()
+        except Exception as e:
+            QMessageBox.critical(self, "Erro", f"Erro ao abrir planos a vencer: {e}")
+    
     # === Handlers de Conexão ===
     
     def _on_connection_status_updated(self, status):
@@ -368,6 +582,10 @@ class MainWindow(QMainWindow):
             
             # Executa migrações do banco de dados
             self._run_migrations()
+            
+            # Habilita a sidebar
+            self.sidebar.set_enabled(True)
+            self.sidebar.set_active(0)  # Dashboard é o primeiro item
             
             if hasattr(self, 'gestao_menu') and self.gestao_menu:
                 self.gestao_menu.setEnabled(True)
@@ -997,11 +1215,11 @@ class MainWindow(QMainWindow):
         dialog.exec()
     
     def _show_manage_plans_dialog(self):
-        """Exibe o diálogo de gerenciamento de planos."""
-        from src.ui.dialogs.manage_plans_dialog import ManagePlansDialog
-        
-        dialog = ManagePlansDialog(self)
-        dialog.exec()
+        """Exibe a tela de gerenciamento de planos."""
+        if not self.is_connected:
+            return
+        self.stacked_widget.setCurrentIndex(8)
+        self.plans_screen.refresh()
     
     def _show_expiring_plans_dialog(self):
         """Exibe o diálogo de planos a vencer."""

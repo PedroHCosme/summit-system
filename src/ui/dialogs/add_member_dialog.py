@@ -301,10 +301,10 @@ class AddMemberDialog(QDialog):
             data["estado_plano"] = "ATIVO"
         elif plano in PLANOS_COM_VENCIMENTO:
             # Para planos com vencimento, sempre incluir a data
-            data["vencimento_plano"] = self.vencimento_plano_input.date().toString("dd/MM/yyyy")
+            data["vencimento_plano"] = self.vencimento_plano_input.date().toPyDate()
         
         # Para treino ativo, incluir a data de vencimento
         if treina == "Sim":
-            data["vencimento_treino"] = self.vencimento_treino_input.date().toString("dd/MM/yyyy")
+            data["vencimento_treino"] = self.vencimento_treino_input.date().toPyDate()
         
         return data

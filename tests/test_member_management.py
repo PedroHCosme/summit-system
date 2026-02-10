@@ -93,7 +93,7 @@ class TestMemberRegistrationAdvanced:
         
     def test_add_member_with_vencimento(self, member_service):
         """Member with time-based plan gets vencimento and estado_plano set."""
-        future_date = (date.today() + timedelta(days=30)).strftime('%d/%m/%Y')
+        future_date = date.today() + timedelta(days=30)
         
         result = member_service.create({
             "nome": "Time Plan User",
@@ -108,7 +108,7 @@ class TestMemberRegistrationAdvanced:
 
     def test_add_member_with_training(self, member_service):
         """Member with training service gets treina and vencimento_treino set."""
-        future_date = (date.today() + timedelta(days=30)).strftime('%d/%m/%Y')
+        future_date = date.today() + timedelta(days=30)
         
         result = member_service.create({
             "nome": "Training User",
@@ -205,7 +205,7 @@ class TestEditMemberAdvanced:
         member_id = result.member_id
         
         # Activate training
-        future_date = (date.today() + timedelta(days=30)).strftime('%d/%m/%Y')
+        future_date = date.today() + timedelta(days=30)
         update_result = member_service.update_from_dict({
             'id': member_id,
             'treina': 'Sim',
@@ -254,7 +254,7 @@ class TestEditMemberAdvanced:
     def test_update_vencimento_extends_plan(self, member_service, db_session):
         """Updating vencimento extends the plan."""
         # Create member with short expiration
-        short_date = (date.today() + timedelta(days=5)).strftime('%d/%m/%Y')
+        short_date = date.today() + timedelta(days=5)
         result = member_service.create({
             "nome": "Extend Me",
             "plano": "Mensal",
@@ -263,7 +263,7 @@ class TestEditMemberAdvanced:
         member_id = result.member_id
         
         # Extend vencimento
-        long_date = (date.today() + timedelta(days=60)).strftime('%d/%m/%Y')
+        long_date = date.today() + timedelta(days=60)
         update_result = member_service.update_from_dict({
             'id': member_id,
             'vencimento_plano': long_date

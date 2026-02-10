@@ -2,33 +2,34 @@
 
 {% block content %}
 <div class="form-container">
-    <h2 style="text-align: center; margin-bottom: 20px;">Fazer Check-in</h2>
+    <h2 style="text-align: center;">Check-in</h2>
 
     <form method="POST" action="{{ url_for('checkin') }}">
         <div class="form-group">
             <label for="identifier">Nome ou Apelido</label>
-            <input type="text" id="identifier" name="identifier" required placeholder="Digite seu nome..."
-                value="{{ identifier or '' }}" autofocus>
+            <input type="text" id="identifier" name="identifier" class="hero-input" required
+                placeholder="Digite seu nome..." value="{{ identifier or '' }}" autocomplete="off" autofocus>
         </div>
 
         <button type="submit" class="btn btn-primary">CONFIRMAR</button>
     </form>
 
     {% if results %}
-    <div class="alert alert-warning" style="margin-top: 20px;">
-        <p>Encontramos múltiplos membros. Tente ser mais específico:</p>
-        <ul style="list-style: none; margin-top: 10px; text-align: left;">
+    <div class="alert alert-warning" style="margin-top: 20px; text-align: left;">
+        <p style="margin-bottom: 12px; font-weight: 600;">Encontramos varios membros:</p>
+        <ul class="member-list">
             {% for member in results %}
-            <li
-                style="padding: 10px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;">
-                <span>
-                    <strong>{{ member.nome }}</strong>
-                    {% if member.apelido %}({{ member.apelido }}){% endif %}
-                </span>
-                <form method="POST" action="{{ url_for('checkin') }}" style="margin: 0;" onsubmit="return confirmCheckin('{{ member.nome }}')">
+            <li>
+                <div class="member-info">
+                    <span class="member-name">{{ member.nome }}</span>
+                    {% if member.apelido %}
+                    <span class="member-nickname">{{ member.apelido }}</span>
+                    {% endif %}
+                </div>
+                <form method="POST" action="{{ url_for('checkin') }}" style="margin: 0;"
+                    onsubmit="return confirmCheckin('{{ member.nome }}')">
                     <input type="hidden" name="member_id" value="{{ member.id }}">
-                    <button type="submit" class="btn btn-sm btn-success"
-                        style="padding: 5px 10px; font-size: 0.9em;">Confirmar</button>
+                    <button type="submit" class="btn btn-success btn-sm">Confirmar</button>
                 </form>
             </li>
             {% endfor %}
@@ -39,6 +40,12 @@
     <a href="{{ url_for('index') }}" class="back-link">Voltar</a>
 </div>
 
+<!-- Success Feedback Modal -->
+<div id="successFeedback" class="feedback-success">
+    <div class="checkmark"></div>
+    <p>Check-in Realizado!</p>
+</div>
+
 <script>
     function confirmCheckin(name) {
         return confirm(`Tem certeza que deseja fazer check-in para ${name}?`);
@@ -47,12 +54,24 @@
     document.addEventListener('DOMContentLoaded', function () {
         const input = document.getElementById('identifier');
         if (input) {
-            input.addEventListener('keypress', function (event) {
-                if (event.key === 'Enter') {
-                    // Allow normal form submission for search
-                    return true;
-                }
-            });
+            // Focus and select all text on load
+            input.focus();
+            input.select();
+        }
+
+        // Check for success/warning flash messages and show feedback
+        const successAlert = document.querySelector('.alert-success');
+        const warningAlert = document.querySelector('.alert-warning:not([style*="margin-top"])');
+
+        if (successAlert) {
+            // Show success animation
+            const feedback = document.getElementById('successFeedback');
+            if (feedback) {
+                feedback.classList.add('show');
+                setTimeout(() => {
+                    feedback.classList.remove('show');
+                }, 2500);
+            }
         }
     });
 </script>

@@ -2,10 +2,11 @@
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QListWidget, QListWidgetItem,
-    QPushButton, QLabel, QMessageBox, QTextBrowser
+    QPushButton, QLabel, QMessageBox, QTextBrowser, QComboBox, QGroupBox
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from src.data.database_manager import DatabaseManager
+from src.services.plan_service import PlanService
 
 class PendingMembersScreen(QWidget):
     """Tela para aprovar ou rejeitar membros pendentes."""
@@ -18,6 +19,7 @@ class PendingMembersScreen(QWidget):
         super().__init__()
         self.db_manager = DatabaseManager()
         self.db_manager.connect()
+        self.plan_service = PlanService()  # Creates its own session
         self.current_member_data = None
         self._setup_ui()
         self.refresh_list()
@@ -55,16 +57,30 @@ class PendingMembersScreen(QWidget):
         self.details_browser.setHtml("<div style='text-align: center; color: #666; margin-top: 20px;'>Selecione um membro para ver os detalhes</div>")
         right_layout.addWidget(self.details_browser)
         
+        # Seleção de plano
+        plan_group = QGroupBox("Plano a Atribuir")
+        plan_layout = QVBoxLayout(plan_group)
+        
+        self.plan_combo = QComboBox()
+        self._populate_plans()
+        plan_layout.addWidget(self.plan_combo)
+        
+        plan_hint = QLabel("Selecione o plano antes de aprovar")
+        plan_hint.setStyleSheet("color: #666; font-size: 11px;")
+        plan_layout.addWidget(plan_hint)
+        
+        right_layout.addWidget(plan_group)
+        
         # Botões de ação
         buttons_layout = QHBoxLayout()
         
-        self.approve_button = QPushButton("✅ Aprovar")
+        self.approve_button = QPushButton("Aprovar")
         self.approve_button.setStyleSheet("background-color: #28a745; color: white; font-weight: bold; padding: 10px;")
         self.approve_button.clicked.connect(self._on_approve_clicked)
         self.approve_button.setEnabled(False)
         buttons_layout.addWidget(self.approve_button)
         
-        self.reject_button = QPushButton("❌ Rejeitar")
+        self.reject_button = QPushButton("Rejeitar")
         self.reject_button.setStyleSheet("background-color: #dc3545; color: white; font-weight: bold; padding: 10px;")
         self.reject_button.clicked.connect(self._on_reject_clicked)
         self.reject_button.setEnabled(False)
@@ -118,15 +134,23 @@ class PendingMembersScreen(QWidget):
         self.approve_button.setEnabled(True)
         self.reject_button.setEnabled(True)
         
+        # Pre-seleciona o plano desejado pelo membro (se houver)
+        desired_plan = member_data.get('plano', '')
+        if desired_plan:
+            index = self.plan_combo.findText(desired_plan)
+            if index >= 0:
+                self.plan_combo.setCurrentIndex(index)
+        
         # Formata detalhes em HTML
+        plano_label = member_data.get('plano', '-') or 'Nao informado'
         html = f"""
             <h3>{member_data['nome']}</h3>
             <p><strong>Apelido:</strong> {member_data.get('apelido', '-')}</p>
-            <p><strong>Plano:</strong> {member_data.get('plano', '-')}</p>
+            <p><strong>Plano Desejado:</strong> <span style='color: #2563eb;'>{plano_label}</span></p>
             <p><strong>Data Nascimento:</strong> {member_data.get('data_nascimento', '-')}</p>
             <p><strong>WhatsApp:</strong> {member_data.get('whatsapp', '-')}</p>
             <p><strong>Email:</strong> {member_data.get('email', '-')}</p>
-            <p><strong>Gênero:</strong> {member_data.get('genero', '-')}</p>
+            <p><strong>Genero:</strong> {member_data.get('genero', '-')}</p>
             <p><strong>Calçado:</strong> {member_data.get('calcado', '-')}</p>
             <p><strong>Treina:</strong> {member_data.get('treina', '-')}</p>
             <hr>
@@ -134,25 +158,38 @@ class PendingMembersScreen(QWidget):
         """
         self.details_browser.setHtml(html)
 
+    def _populate_plans(self):
+        """Popula o combo de planos."""
+        self.plan_combo.clear()
+        plans = self.plan_service.get_all_plans()
+        for plan in plans:
+            self.plan_combo.addItem(plan.nome, plan.nome)
+
     def _on_approve_clicked(self):
         """Aprova o membro selecionado."""
         if not self.current_member_data:
             return
+        
+        selected_plan = self.plan_combo.currentText()
+        if not selected_plan:
+            QMessageBox.warning(self, "Aviso", "Selecione um plano antes de aprovar.")
+            return
             
         confirm = QMessageBox.question(
             self, "Confirmar Aprovação",
-            f"Deseja aprovar o membro {self.current_member_data['nome']}?\n\nO status será alterado para ATIVO.",
+            f"Deseja aprovar o membro {self.current_member_data['nome']}?\n\nPlano: {selected_plan}\nO status será alterado para ATIVO.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         )
         
         if confirm == QMessageBox.StandardButton.Yes:
             success = self.db_manager.update_member(
                 self.current_member_data['id'],
+                plano=selected_plan,
                 estado_plano='ATIVO'
             )
             
             if success:
-                QMessageBox.information(self, "Sucesso", "Membro aprovado com sucesso!")
+                QMessageBox.information(self, "Sucesso", f"Membro aprovado com plano '{selected_plan}'!")
                 self.refresh_list()
                 self.member_approved.emit()
             else:
