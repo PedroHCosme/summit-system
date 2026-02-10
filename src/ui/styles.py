@@ -64,14 +64,14 @@ STYLESHEET = """
     }
     
     QLabel#title {
-        font-size: 28px;
+        font-size: 20px;
         font-weight: bold;
         color: #1a2540;
         padding-bottom: 10px;
     }
     
     QLabel#sectionTitle {
-        font-size: 16px;
+        font-size: 11px;
         font-weight: bold;
         color: #E67E22;
         text-transform: uppercase;
@@ -84,7 +84,7 @@ STYLESHEET = """
         color: #1a2540;
         border: 1px solid #e2e8f0;
         border-radius: 8px;
-        font-size: 14px;
+        font-size: 11px;
         padding: 10px;
         selection-background-color: #E67E22;
     }
@@ -93,7 +93,7 @@ STYLESHEET = """
     QPushButton {
         background-color: #ffffff;
         color: #1a2540;
-        font-size: 14px;
+        font-size: 11px;
         font-weight: bold;
         border-radius: 6px;
         padding: 10px 16px;
@@ -154,8 +154,8 @@ STYLESHEET = """
         color: #1a2540;
         border: 1px solid #e2e8f0;
         border-radius: 6px;
-        padding: 10px;
-        font-size: 14px;
+        padding: 8px;
+        font-size: 11px;
         selection-background-color: #E67E22;
     }
     
@@ -174,8 +174,8 @@ STYLESHEET = """
         color: #1a2540;
         border: 1px solid #e2e8f0;
         border-radius: 6px;
-        padding: 8px 12px;
-        font-size: 14px;
+        padding: 6px 10px;
+        font-size: 11px;
     }
     
     QComboBox:hover {
@@ -202,8 +202,8 @@ STYLESHEET = """
         color: #1a2540;
         border: 1px solid #e2e8f0;
         border-radius: 6px;
-        padding: 8px 12px;
-        font-size: 14px;
+        padding: 6px 10px;
+        font-size: 11px;
     }
     
     QDateEdit:hover {
@@ -354,6 +354,7 @@ STYLESHEET = """
         border: none;
         border-bottom: 2px solid #E67E22;
         font-weight: bold;
+        font-size: 11px;
     }
     
     /* ScrollBar Vertical */
@@ -528,13 +529,13 @@ STYLESHEET = """
     }
     
     QLabel#statValue {
-        font-size: 36px;
+        font-size: 20px;
         font-weight: bold;
         color: #E67E22;
     }
     
     QLabel#statTitle {
-        font-size: 12px;
+        font-size: 11px;
         color: #4a5568;
         text-transform: uppercase;
         letter-spacing: 1px;
@@ -591,9 +592,9 @@ SIDEBAR_BUTTON_STYLE = """
         color: #a0aec0;
         border: none;
         border-radius: 8px;
-        padding: 15px 20px;
+        padding: 12px 15px;
         text-align: left;
-        font-size: 14px;
+        font-size: 11px;
     }
     QPushButton:hover {
         background-color: #2d3748;
