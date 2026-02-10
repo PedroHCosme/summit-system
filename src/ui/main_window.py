@@ -1807,9 +1807,9 @@ def main():
     print("QApplication criada")
     
     # Define fonte global ultra-compacta com tamanha em PIXELS
-    # Segoe UI tamanho 10px
+    # Segoe UI tamanho 11px (um pouco maior que 10px)
     font = QFont("Segoe UI")
-    font.setPixelSize(10)
+    font.setPixelSize(11)
     app.setFont(font)
     
     # Aplicar estilo globalmente para todos os widgets, incluindo diálogos
