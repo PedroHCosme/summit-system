@@ -341,9 +341,9 @@ class DatabaseManager:
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     nome TEXT NOT NULL,
                     plano TEXT,
-                    vencimento_plano TEXT,
+                    vencimento_plano DATE,
                     estado_plano TEXT,
-                    data_nascimento TEXT,
+                    data_nascimento DATE,
                     whatsapp TEXT,
                     genero TEXT,
                     frequencia TEXT,
@@ -376,7 +376,7 @@ class DatabaseManager:
                     descricao TEXT,
                     valor REAL NOT NULL,
                     metodo_pagamento TEXT,
-                    nova_data_vencimento TEXT,
+                    nova_data_vencimento DATE,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (member_id) REFERENCES membros (id)
                 )

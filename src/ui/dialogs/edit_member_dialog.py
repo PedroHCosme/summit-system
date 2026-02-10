@@ -12,6 +12,7 @@ from PyQt6.QtCore import Qt, QDate, pyqtSignal
 
 from src.config import PLANOS_COM_VENCIMENTO
 from src.utils.utils import calculate_new_due_date, parse_date
+from src.utils.date_utils import coerce_to_date, format_display_date
 
 
 class EditMemberDialog(QDialog):
@@ -242,14 +243,13 @@ class EditMemberDialog(QDialog):
         if plano in self.plans_cache or self.plano_combo.findText(plano) >= 0:
             self.plano_combo.setCurrentText(plano)
         
-        # Vencimento do Plano
-        vencimento_str = self.member_data.get('vencimento_plano', '')
-        if vencimento_str:
-            vencimento_dt = parse_date(vencimento_str)
-            if vencimento_dt:
-                self.vencimento_plano_input.setDate(
-                    QDate(vencimento_dt.year, vencimento_dt.month, vencimento_dt.day)
-                )
+        # Vencimento do Plano (accepts date object or string from to_dict)
+        vencimento_val = self.member_data.get('vencimento_plano')
+        vencimento_dt = coerce_to_date(vencimento_val)
+        if vencimento_dt:
+            self.vencimento_plano_input.setDate(
+                QDate(vencimento_dt.year, vencimento_dt.month, vencimento_dt.day)
+            )
         
         # Voucher credits
         voucher_credits = self.member_data.get('voucher_credits', 0) or 0
@@ -285,14 +285,13 @@ class EditMemberDialog(QDialog):
         treina = self.member_data.get('treina', 'Não')
         self.treina_combo.setCurrentText(treina)
         
-        # Vencimento do Treino
-        vencimento_treino_str = self.member_data.get('vencimento_treino', '')
-        if vencimento_treino_str:
-            vencimento_treino_dt = parse_date(vencimento_treino_str)
-            if vencimento_treino_dt:
-                self.vencimento_treino_input.setDate(
-                    QDate(vencimento_treino_dt.year, vencimento_treino_dt.month, vencimento_treino_dt.day)
-                )
+        # Vencimento do Treino (accepts date object or string from to_dict)
+        vencimento_treino_val = self.member_data.get('vencimento_treino')
+        vencimento_treino_dt = coerce_to_date(vencimento_treino_val)
+        if vencimento_treino_dt:
+            self.vencimento_treino_input.setDate(
+                QDate(vencimento_treino_dt.year, vencimento_treino_dt.month, vencimento_treino_dt.day)
+            )
         
         # Ajusta visibilidade do campo de vencimento e voucher
         self._toggle_vencimento_visibility()
@@ -399,20 +398,16 @@ class EditMemberDialog(QDialog):
         
         return True
     
-    def _calculate_estado_plano(self, vencimento_str: Optional[str]) -> str:
+    def _calculate_estado_plano(self, vencimento: Optional['date']) -> str:
         """Calcula o estado do plano baseado na data de vencimento."""
-        if not vencimento_str:
+        if not vencimento:
             return "ATIVO"
         
-        vencimento_dt = parse_date(vencimento_str)
-        if not vencimento_dt:
-            return "ATIVO"
-        
-        hoje = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-        vencimento_dt = vencimento_dt.replace(hour=0, minute=0, second=0, microsecond=0)
+        from datetime import date as _date
+        hoje = _date.today()
         
         # Se a data de vencimento já passou, o plano está INATIVO
-        if vencimento_dt < hoje:
+        if vencimento < hoje:
             return "INATIVO"
         else:
             return "ATIVO"
@@ -425,14 +420,13 @@ class EditMemberDialog(QDialog):
         # Coleta os dados do formulário
         plano = self.plano_combo.currentText()
         
-        # Vencimento do plano (apenas se aplicável)
-        vencimento_str = None
+        # Vencimento do plano (apenas se aplicável) — produce date object
+        vencimento_date_obj = None
         if plano in PLANOS_COM_VENCIMENTO:
-            vencimento_date = self.vencimento_plano_input.date()
-            vencimento_str = vencimento_date.toString("dd/MM/yyyy")
+            vencimento_date_obj = self.vencimento_plano_input.date().toPyDate()
         
         # Calcula o estado do plano
-        estado_plano = self._calculate_estado_plano(vencimento_str)
+        estado_plano = self._calculate_estado_plano(vencimento_date_obj)
         
         # Data de Nascimento (opcional)
         data_nasc_str = self.data_nascimento_input.text().strip()
@@ -453,12 +447,11 @@ class EditMemberDialog(QDialog):
         old_plano = self.member_data.get('plano', '')
         plano_changed = plano != old_plano
         
-        # Treino e vencimento do treino
+        # Treino e vencimento do treino — produce date object
         treina = self.treina_combo.currentText()
-        vencimento_treino_str = None
+        vencimento_treino_date_obj = None
         if treina == "Sim":
-            vencimento_treino_date = self.vencimento_treino_input.date()
-            vencimento_treino_str = vencimento_treino_date.toString("dd/MM/yyyy")
+            vencimento_treino_date_obj = self.vencimento_treino_input.date().toPyDate()
         
         # Detecta mudança de treino (não treina -> treina)
         old_treina = self.member_data.get('treina', 'Não')
@@ -503,7 +496,7 @@ class EditMemberDialog(QDialog):
         
         # For quota plans, adjust vencimento and estado
         if is_quota:
-            vencimento_str = None
+            vencimento_date_obj = None
             estado_plano = 'ATIVO'
         
         # Monta o dicionário com os dados atualizados
@@ -512,7 +505,7 @@ class EditMemberDialog(QDialog):
             'nome': self.nome_input.text().strip(),
             'apelido': self.apelido_input.text().strip(),
             'plano': plano,
-            'vencimento_plano': vencimento_str,
+            'vencimento_plano': vencimento_date_obj,
             'estado_plano': estado_plano,
             'data_nascimento': data_nasc_str,
             'whatsapp': self.whatsapp_input.text().strip(),
@@ -524,7 +517,7 @@ class EditMemberDialog(QDialog):
             'email': self.email_input.text().strip(),
             'metodo_pagamento': metodo_pagamento,
             'treina': treina,
-            'vencimento_treino': vencimento_treino_str,
+            'vencimento_treino': vencimento_treino_date_obj,
             'treina_activated': treina_activated  # Flag para registrar pagamento
         }
         

@@ -15,6 +15,7 @@ from sqlalchemy import func, or_, and_
 from sqlalchemy.orm import Session
 
 from src.data.models import Membro, Frequencia, Pagamento
+from src.utils.date_utils import coerce_to_date, format_display_date
 
 if TYPE_CHECKING:
     from src.data.database_manager import DatabaseManager
@@ -386,9 +387,9 @@ class MemberService:
             new_member = Membro(
                 nome=member_data.get('nome'),
                 plano=member_data.get('plano'),
-                vencimento_plano=member_data.get('vencimento_plano'),
+                vencimento_plano=coerce_to_date(member_data.get('vencimento_plano')),
                 estado_plano=member_data.get('estado_plano', 'ATIVO'),
-                data_nascimento=member_data.get('data_nascimento'),
+                data_nascimento=coerce_to_date(member_data.get('data_nascimento')),
                 whatsapp=member_data.get('whatsapp'),
                 genero=member_data.get('genero'),
                 email=member_data.get('email'),
@@ -400,7 +401,7 @@ class MemberService:
                 calcado=member_data.get('calcado'),
                 voucher_credits=member_data.get('voucher_credits', 0),
                 treina=member_data.get('treina'),
-                vencimento_treino=member_data.get('vencimento_treino')
+                vencimento_treino=coerce_to_date(member_data.get('vencimento_treino'))
             )
             
             self._session.add(new_member)
@@ -603,7 +604,11 @@ class MemberService:
                     # Skip vencimento_plano for quota plans (already set to None above)
                     if field == 'vencimento_plano' and is_new_plan_quota:
                         continue
-                    setattr(member, field, member_data[field])
+                    value = member_data[field]
+                    # Coerce date fields from any format (str, QDate, etc.) to date
+                    if field in ('vencimento_plano', 'data_nascimento', 'vencimento_treino'):
+                        value = coerce_to_date(value)
+                    setattr(member, field, value)
             
             # Handle voucher_credits manual override
             # We effectively allow update if provided, EXCEPT if it was already handled 
@@ -645,7 +650,7 @@ class MemberService:
                         descricao=f"{new_plan} - {member.nome}",
                         valor=valor,
                         metodo_pagamento=metodo_pagamento,
-                        nova_data_vencimento=new_vencimento if not is_new_plan_quota else None
+                        nova_data_vencimento=coerce_to_date(new_vencimento) if not is_new_plan_quota else None
                     )
                     self._session.add(new_payment)
             
@@ -694,28 +699,26 @@ class MemberService:
     
     def _get_birthdays_sqlalchemy(self, month: int) -> List[Dict[str, Any]]:
         """Busca aniversariantes usando SQLAlchemy."""
-        # SQLite não tem extração de mês nativa, precisamos filtrar em Python
-        # ou usar substr para formatos conhecidos
+        # With native Date columns we can filter directly
         members = self._session.query(Membro).filter(
             Membro.data_nascimento.isnot(None)
         ).all()
         
-        from src.utils.date_utils import parse_date
-        
         birthdays = []
         for member in members:
-            if member.data_nascimento:
-                date_obj = parse_date(member.data_nascimento)
-                if date_obj and date_obj.month == month:
-                    birthdays.append(member.to_dict())
+            if member.data_nascimento and member.data_nascimento.month == month:
+                birthdays.append(member.to_dict())
         
         # Ordenar por dia
+        from src.utils.date_utils import parse_date
         birthdays.sort(key=lambda m: parse_date(m.get('data_nascimento', '')).day if parse_date(m.get('data_nascimento', '')) else 0)
         return birthdays
     
     def _update_expired_plans_sqlalchemy(self) -> int:
-        """Atualiza planos expirados usando SQLAlchemy."""
-        from src.utils.date_utils import parse_date
+        """Atualiza planos expirados usando SQLAlchemy.
+
+        With native Date columns, comparison is direct — no string parsing needed.
+        """
         from src.config import PLANOS_COM_VENCIMENTO
         
         today = date.today()
@@ -728,8 +731,7 @@ class MemberService:
         ).all()
         
         for member in members:
-            date_obj = parse_date(member.vencimento_plano)
-            if date_obj and date_obj.date() < today:
+            if member.vencimento_plano < today:
                 member.estado_plano = 'INATIVO'
                 member.updated_at = datetime.now()
                 updated_count += 1

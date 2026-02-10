@@ -106,6 +106,34 @@ def normalize_date_string(value: Optional[str], output_format: str = "%Y-%m-%d")
     return parsed.strftime(output_format)
 
 
+def coerce_to_date(value) -> Optional[date]:
+    """Convert any date-like value to a Python ``date`` object.
+
+    Accepts ``str``, ``date``, ``datetime``, Qt ``QDate``, or ``None``.
+    This is the **single entry-point** that all service / UI layers should
+    call before persisting a date column, guaranteeing a uniform type
+    regardless of input source (form field, dict, sync worker, etc.).
+    """
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    if isinstance(value, str):
+        value = value.strip()
+        if not value:
+            return None
+        return parse_date_to_date(value)
+    # QDate support (avoid hard import of PyQt)
+    if hasattr(value, 'toPyDate'):
+        try:
+            return value.toPyDate()
+        except Exception:
+            return None
+    return None
+
+
 def format_display_date(value: Optional[str | datetime | date]) -> str:
     """Return a human-friendly ``DD/MM/YYYY`` representation."""
     if isinstance(value, str):

@@ -2,8 +2,10 @@
 Modelo de dados para Pessoa/Membro.
 Implementa conceitos de OOP: Encapsulamento, Properties, Métodos de classe.
 """
-from datetime import datetime
+from datetime import datetime, date
 from typing import Optional
+
+from src.utils.date_utils import coerce_to_date, format_display_date, parse_date
 
 
 class Pessoa:
@@ -24,7 +26,7 @@ class Pessoa:
         data_nascimento: Optional[datetime],
         whatsapp: str = "",
         plano: str = "N/A",
-        vencimento_plano: str = "",
+        vencimento_plano: Optional[date] = None,
         estado_plano: str = "",
         genero: str = "",
         frequencia: str = "",
@@ -54,7 +56,7 @@ class Pessoa:
         self._data_nascimento = data_nascimento
         self._whatsapp = whatsapp.strip()
         self._plano = plano.strip()
-        self._vencimento_plano = vencimento_plano.strip()
+        self._vencimento_plano = coerce_to_date(vencimento_plano)
         self._estado_plano = estado_plano.strip()
         self._genero = genero.strip()
         self._frequencia = frequencia.strip()
@@ -86,7 +88,7 @@ class Pessoa:
         return self._plano
     
     @property
-    def vencimento_plano(self) -> str:
+    def vencimento_plano(self) -> Optional[date]:
         """Retorna o vencimento do plano."""
         return self._vencimento_plano
 
@@ -175,9 +177,9 @@ class Pessoa:
         self._plano = valor.strip()
 
     @vencimento_plano.setter
-    def vencimento_plano(self, valor: str):
+    def vencimento_plano(self, valor):
         """Define um novo vencimento de plano."""
-        self._vencimento_plano = valor.strip()
+        self._vencimento_plano = coerce_to_date(valor)
 
     @estado_plano.setter
     def estado_plano(self, valor: str):
@@ -318,7 +320,7 @@ class Pessoa:
             'idade': self.idade,
             'whatsapp': self._whatsapp,
             'plano': self._plano,
-            'vencimento_plano': self._vencimento_plano,
+            'vencimento_plano': format_display_date(self._vencimento_plano) if self._vencimento_plano else '',
             'estado_plano': self._estado_plano,
             'genero': self._genero,
             'frequencia': self._frequencia,
@@ -343,16 +345,14 @@ class Pessoa:
             Instância de Pessoa ou None se dados inválidos
         """
         try:
-            # Tenta parsear a data em diferentes formatos
+            # Tenta parsear a data de nascimento
             data_str = dados.get('data_nascimento', '')
             data_nascimento = None
             
-            for formato in ('%d/%m/%Y', '%d-%m-%Y', '%Y-%m-%d'):
-                try:
-                    data_nascimento = datetime.strptime(data_str, formato)
-                    break
-                except ValueError:
-                    continue
+            if isinstance(data_str, (datetime, date)):
+                data_nascimento = data_str if isinstance(data_str, datetime) else datetime.combine(data_str, datetime.min.time())
+            elif isinstance(data_str, str) and data_str:
+                data_nascimento = parse_date(data_str)
             
             if not data_nascimento:
                 return None
@@ -362,7 +362,7 @@ class Pessoa:
                 data_nascimento=data_nascimento,
                 whatsapp=dados.get('whatsapp', ''),
                 plano=dados.get('plano', 'N/A'),
-                vencimento_plano=dados.get('vencimento_plano', ''),
+                vencimento_plano=coerce_to_date(dados.get('vencimento_plano')),
                 estado_plano=dados.get('estado_plano', ''),
                 genero=dados.get('genero', ''),
                 frequencia=dados.get('frequencia', ''),

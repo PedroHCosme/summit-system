@@ -5,14 +5,16 @@ Este módulo define as classes que mapeiam as tabelas do banco de dados
 para objetos Python, oferecendo type safety e autocomplete no IDE.
 """
 
-from datetime import datetime
+from datetime import datetime, date
 from typing import Optional, List, TYPE_CHECKING
 
 from sqlalchemy import (
-    Column, Integer, String, Text, Float, DateTime, ForeignKey,
+    Column, Integer, String, Text, Float, DateTime, Date, ForeignKey,
     func, event, Boolean
 )
 from sqlalchemy.orm import relationship, Mapped, mapped_column, declarative_base
+
+from src.utils.date_utils import format_display_date
 
 # Base declarativa para os modelos
 Base = declarative_base()
@@ -31,11 +33,11 @@ class Membro(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     nome: Mapped[str] = mapped_column(String(255), nullable=False)
     plano: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    vencimento_plano: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    vencimento_plano: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     estado_plano: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     
     # Dados pessoais
-    data_nascimento: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    data_nascimento: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     whatsapp: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
     genero: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
@@ -51,7 +53,7 @@ class Membro(Base):
     
     # Treino
     treina: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
-    vencimento_treino: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    vencimento_treino: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     
     # Timestamps
     created_at: Mapped[Optional[datetime]] = mapped_column(
@@ -73,14 +75,17 @@ class Membro(Base):
         return f"<Membro(id={self.id}, nome='{self.nome}', plano='{self.plano}')>"
     
     def to_dict(self) -> dict:
-        """Converte o modelo para dicionário (compatibilidade com código legado)."""
+        """Converte o modelo para dicionário (compatibilidade com código legado).
+
+        Datas são convertidas para strings DD/MM/YYYY para exibição na UI.
+        """
         return {
             "id": self.id,
             "nome": self.nome,
             "plano": self.plano,
-            "vencimento_plano": self.vencimento_plano,
+            "vencimento_plano": format_display_date(self.vencimento_plano) if self.vencimento_plano else None,
             "estado_plano": self.estado_plano,
-            "data_nascimento": self.data_nascimento,
+            "data_nascimento": format_display_date(self.data_nascimento) if self.data_nascimento else None,
             "whatsapp": self.whatsapp,
             "genero": self.genero,
             "email": self.email,
@@ -92,7 +97,7 @@ class Membro(Base):
             "calcado": self.calcado,
             "voucher_credits": self.voucher_credits,
             "treina": self.treina,
-            "vencimento_treino": self.vencimento_treino,
+            "vencimento_treino": format_display_date(self.vencimento_treino) if self.vencimento_treino else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
@@ -152,7 +157,7 @@ class Pagamento(Base):
     descricao: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     valor: Mapped[float] = mapped_column(Float, nullable=False)
     metodo_pagamento: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
-    nova_data_vencimento: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    nova_data_vencimento: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     created_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime, default=func.current_timestamp()
     )
@@ -173,7 +178,7 @@ class Pagamento(Base):
             "descricao": self.descricao,
             "valor": self.valor,
             "metodo_pagamento": self.metodo_pagamento,
-            "nova_data_vencimento": self.nova_data_vencimento,
+            "nova_data_vencimento": format_display_date(self.nova_data_vencimento) if self.nova_data_vencimento else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 

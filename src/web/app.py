@@ -157,12 +157,12 @@ def register():
         if selected_plan_obj and selected_plan_obj.requer_vencimento:
             new_due_date = calculate_new_due_date(plano)
             if new_due_date:
-                 member_data['vencimento_plano'] = new_due_date.strftime('%d/%m/%Y')
+                 member_data['vencimento_plano'] = new_due_date.date() if hasattr(new_due_date, 'date') else new_due_date
         
         # Calcular vencimento do treino
         if member_data['treina'] == 'Sim':
             vencimento_treino = datetime.now() + timedelta(days=TREINO_VALIDADE_DIAS)
-            member_data['vencimento_treino'] = vencimento_treino.strftime('%d/%m/%Y')
+            member_data['vencimento_treino'] = vencimento_treino.date()
         
         # Adiciona membro usando o serviço
         try:

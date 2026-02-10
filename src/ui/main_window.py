@@ -33,7 +33,8 @@ from src.ui.screens import (
     FinancialScreen,
     FinancialScreen,
     MembersListScreen,
-    PendingMembersScreen
+    PendingMembersScreen,
+    PlansScreen
 )
 from src.ui.dialogs import AddMemberDialog, SyncDialog, ManagePlansDialog, ExpiringPlansDialog
 from src.ui.components import Sidebar
@@ -106,6 +107,7 @@ class MainWindow(QMainWindow):
         self.financial_screen = FinancialScreen()
         self.members_list_screen = MembersListScreen()
         self.pending_members_screen = PendingMembersScreen()
+        self.plans_screen = PlansScreen()
         
         # Adiciona ao stack
         self.stacked_widget.addWidget(self.home_screen)  # 0
@@ -116,6 +118,7 @@ class MainWindow(QMainWindow):
         self.stacked_widget.addWidget(self.financial_screen)  # 5
         self.stacked_widget.addWidget(self.members_list_screen)  # 6
         self.stacked_widget.addWidget(self.pending_members_screen)  # 7
+        self.stacked_widget.addWidget(self.plans_screen)  # 8
         
         # Conecta botões específicos
         self.dashboard_screen.refresh_button.clicked.connect(self._update_dashboard)
@@ -533,12 +536,11 @@ class MainWindow(QMainWindow):
         menu.exec(QCursor.pos())
     
     def _show_manage_plans_dialog(self):
-        """Abre o diálogo de gerenciamento de planos."""
-        try:
-            dialog = ManagePlansDialog(self)
-            dialog.exec()
-        except Exception as e:
-            QMessageBox.critical(self, "Erro", f"Erro ao abrir gerenciamento de planos: {e}")
+        """Abre a tela de gerenciamento de planos."""
+        if not self.is_connected:
+            return
+        self.stacked_widget.setCurrentIndex(8)
+        self.plans_screen.refresh()
     
     def _show_add_member_dialog(self):
         """Abre o diálogo para adicionar novo membro."""
@@ -1213,11 +1215,11 @@ class MainWindow(QMainWindow):
         dialog.exec()
     
     def _show_manage_plans_dialog(self):
-        """Exibe o diálogo de gerenciamento de planos."""
-        from src.ui.dialogs.manage_plans_dialog import ManagePlansDialog
-        
-        dialog = ManagePlansDialog(self)
-        dialog.exec()
+        """Exibe a tela de gerenciamento de planos."""
+        if not self.is_connected:
+            return
+        self.stacked_widget.setCurrentIndex(8)
+        self.plans_screen.refresh()
     
     def _show_expiring_plans_dialog(self):
         """Exibe o diálogo de planos a vencer."""

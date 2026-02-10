@@ -53,6 +53,7 @@ class DatabaseMigrator:
             ("Garantindo colunas quota na tabela planos", self.ensure_quota_plan_columns),
             ("Garantindo existência de todos os planos base", self.seed_all_plans),
             ("Reprocessando pagamentos recorrentes históricos", self.backfill_plan_payments),
+            ("Migrando colunas de data para formato ISO", self.migrate_date_columns_to_iso),
         ]
 
         for description, func in steps:
@@ -495,8 +496,8 @@ class DatabaseMigrator:
         cursor.execute(
             """
             UPDATE membros
-            SET data_nascimento = ''
-            WHERE data_nascimento IN ('----------', '---', '--', 'N/A', 'n/a', '#N/A')
+            SET data_nascimento = NULL
+            WHERE data_nascimento IN ('----------', '---', '--', 'N/A', 'n/a', '#N/A', '')
             """
         )
         changed = cursor.rowcount
@@ -518,15 +519,24 @@ class DatabaseMigrator:
         )
         rows = cursor.fetchall()
 
-        hoje = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        from datetime import date as _date
+        hoje = _date.today()
         updates: List[Tuple[str, int]] = []
 
         for row in rows:
             vencimento = row[1]
-            parsed = self.db._parse_date_multi_format(vencimento)  # type: ignore[attr-defined]
+            parsed = None
+
+            # Try ISO format first (YYYY-MM-DD), then DD/MM/YYYY
+            for fmt in ('%Y-%m-%d', '%d/%m/%Y'):
+                try:
+                    parsed = datetime.strptime(str(vencimento), fmt).date()
+                    break
+                except (ValueError, TypeError):
+                    continue
+
             if not parsed:
                 continue
-            parsed = parsed.replace(hour=0, minute=0, second=0, microsecond=0)
             estado_correto = 'INATIVO' if parsed < hoje else 'ATIVO'
             if estado_correto != row[2]:
                 updates.append((estado_correto, row[0]))
@@ -600,6 +610,62 @@ class DatabaseMigrator:
             print(
                 f"[migrations] Pagamentos retroativos criados: {created} (membros processados: {processed})"
             )
+    def migrate_date_columns_to_iso(self) -> None:
+        """Convert date strings from DD/MM/YYYY to YYYY-MM-DD (ISO) format.
+
+        SQLAlchemy Date columns expect ISO-formatted strings in SQLite.
+        This migration is idempotent: already-ISO values are skipped.
+        """
+        date_columns = [
+            ('membros', ['vencimento_plano', 'data_nascimento', 'vencimento_treino']),
+            ('pagamentos', ['nova_data_vencimento']),
+        ]
+
+        total_converted = 0
+        cursor = self.conn.cursor()
+
+        for table, columns in date_columns:
+            if not self._table_exists(table):
+                continue
+
+            info = self._get_table_info(table)
+            for col in columns:
+                if col not in info:
+                    continue
+
+                # Select rows where the value looks like DD/MM/YYYY
+                cursor.execute(
+                    f"SELECT id, {col} FROM {table} "
+                    f"WHERE {col} IS NOT NULL AND {col} != '' "
+                    f"AND {col} LIKE '__/__/____'"
+                )
+                rows = cursor.fetchall()
+
+                updates: list = []
+                for row_id, val in rows:
+                    try:
+                        parts = val.split('/')
+                        if len(parts) == 3:
+                            day, month, year = parts
+                            iso_val = f"{year}-{month.zfill(2)}-{day.zfill(2)}"
+                            # Basic validation
+                            datetime.strptime(iso_val, '%Y-%m-%d')
+                            updates.append((iso_val, row_id))
+                    except (ValueError, IndexError):
+                        # Invalid date — set to NULL
+                        updates.append((None, row_id))
+
+                if updates:
+                    cursor.executemany(
+                        f"UPDATE {table} SET {col} = ? WHERE id = ?",
+                        updates
+                    )
+                    total_converted += len(updates)
+
+        cursor.close()
+        if total_converted:
+            self.conn.commit()
+            print(f"[migrations] Converted {total_converted} date value(s) to ISO format")
 
 
 __all__ = ["DatabaseMigrator"]
