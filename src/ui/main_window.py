@@ -1783,11 +1783,20 @@ def main():
     
     print("Iniciando aplicação...")
     
+    # FIX: Desabilitar escala automática de High DPI (Linux Mint / 1024x768)
+    # Isso é crítico para evitar que a interface fique GIGANTE em telas de baixa resolução
+    os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "0"
+    os.environ["QT_SCALE_FACTOR"] = "1"
+    os.environ["QT_SCREEN_SCALE_FACTORS"] = "1"
+    os.environ["QT_FONT_DPI"] = "96"
+    
     app = QApplication(sys.argv)
     print("QApplication criada")
     
-    # Define fonte global compacta (9pt)
-    font = QFont("Segoe UI", 9)
+    # Define fonte global compacta com tamanha em PIXELS (independente de DPI)
+    # Segoe UI tamanho 12px (equivalente a ~9pt em 96dpi)
+    font = QFont("Segoe UI")
+    font.setPixelSize(12)
     app.setFont(font)
     
     # Aplicar estilo globalmente para todos os widgets, incluindo diálogos

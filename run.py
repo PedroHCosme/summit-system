@@ -13,6 +13,7 @@ import atexit
 os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "0"
 os.environ["QT_SCALE_FACTOR"] = "1"
 os.environ["QT_SCREEN_SCALE_FACTORS"] = "1"
+os.environ["QT_FONT_DPI"] = "96"
 
 # Adiciona o diretório do projeto ao Python path para que `src` seja um módulo
 project_dir = os.path.dirname(os.path.abspath(__file__))
