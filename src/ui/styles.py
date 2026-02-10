@@ -84,7 +84,7 @@ STYLESHEET = """
         color: #1a2540;
         border: 1px solid #e2e8f0;
         border-radius: 8px;
-        font-size: 11px;
+        font-size: 12px;
         padding: 10px;
         selection-background-color: #E67E22;
     }
@@ -93,7 +93,7 @@ STYLESHEET = """
     QPushButton {
         background-color: #ffffff;
         color: #1a2540;
-        font-size: 11px;
+        font-size: 12px;
         font-weight: bold;
         border-radius: 6px;
         padding: 10px 16px;
@@ -155,7 +155,7 @@ STYLESHEET = """
         border: 1px solid #e2e8f0;
         border-radius: 6px;
         padding: 8px;
-        font-size: 11px;
+        font-size: 12px;
         selection-background-color: #E67E22;
     }
     
@@ -354,7 +354,7 @@ STYLESHEET = """
         border: none;
         border-bottom: 2px solid #E67E22;
         font-weight: bold;
-        font-size: 11px;
+        font-size: 12px;
     }
     
     /* ScrollBar Vertical */
@@ -535,7 +535,7 @@ STYLESHEET = """
     }
     
     QLabel#statTitle {
-        font-size: 11px;
+        font-size: 12px;
         color: #4a5568;
         text-transform: uppercase;
         letter-spacing: 1px;
