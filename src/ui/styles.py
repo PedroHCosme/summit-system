@@ -486,13 +486,13 @@ STYLESHEET = """
        ===================================================== */
     
     QWidget#sidebar {
-        background-color: #1a2540;
-        border-right: 1px solid #2d3748;
+        background-color: #f1f5f9;
+        border-right: 1px solid #cbd5e0;
     }
     
     QPushButton#sidebarButton {
         background-color: transparent;
-        color: #a0aec0;
+        color: #1a2540;
         border: none;
         border-radius: 8px;
         padding: 15px;
@@ -502,8 +502,8 @@ STYLESHEET = """
     }
     
     QPushButton#sidebarButton:hover {
-        background-color: #2d3748;
-        color: #ffffff;
+        background-color: #e2e8f0;
+        color: #1a2540;
     }
     
     QPushButton#sidebarButton:checked, QPushButton#sidebarButton[active="true"] {
