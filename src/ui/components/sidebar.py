@@ -55,7 +55,7 @@ class Sidebar(QWidget):
     def __init__(self):
         super().__init__()
         self.setObjectName("sidebar")
-        self.setFixedWidth(180)  # Reduzido de 220 para 180 (compacto)
+        self.setFixedWidth(150)  # Reduzido para 150 (ultra-compacto)
         self.buttons = []
         self.current_context = SidebarContext.HOME
         self._setup_ui()
@@ -78,12 +78,12 @@ class Sidebar(QWidget):
         if os.path.exists(logo_path):
             pixmap = QPixmap(logo_path)
             # Reduz logo para caber na sidebar mais estreita
-            scaled_pixmap = pixmap.scaledToWidth(100, Qt.TransformationMode.SmoothTransformation)
+            scaled_pixmap = pixmap.scaledToWidth(80, Qt.TransformationMode.SmoothTransformation)
             logo_label.setPixmap(scaled_pixmap)
         else:
             # Fallback para texto se a logo não existir
             logo_label.setText("SUMMIT")
-            logo_label.setFont(QFont("Segoe UI", 16, QFont.Weight.Bold))
+            logo_label.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
             logo_label.setStyleSheet("color: #E67E22;")
         
         logo_label.setStyleSheet("margin-bottom: 20px;")
