@@ -509,10 +509,12 @@ class DatabaseMigrator:
         if not self._table_exists('membros'):
             return
 
+        from src.config import PLANOS_COM_VENCIMENTO
+
         cursor = self.conn.cursor()
         cursor.execute(
             """
-            SELECT id, vencimento_plano, estado_plano
+            SELECT id, vencimento_plano, estado_plano, plano
             FROM membros
             WHERE vencimento_plano IS NOT NULL AND vencimento_plano != ''
             """
@@ -524,7 +526,16 @@ class DatabaseMigrator:
         updates: List[Tuple[str, int]] = []
 
         for row in rows:
+            plano = row[3] or ''
             vencimento = row[1]
+
+            # Se o plano atual NÃO requer vencimento (Diária, Gympass, etc.),
+            # o membro deve ser ATIVO independentemente do vencimento residual
+            if plano not in PLANOS_COM_VENCIMENTO:
+                if row[2] != 'ATIVO':
+                    updates.append(('ATIVO', row[0]))
+                continue
+
             parsed = None
 
             # Try ISO format first (YYYY-MM-DD), then DD/MM/YYYY
