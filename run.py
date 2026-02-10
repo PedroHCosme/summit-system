@@ -11,7 +11,7 @@ import atexit
 
 # FIX: Desabilitar escala automática de High DPI (Linux Mint / 1024x768)
 os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "0"
-os.environ["QT_SCALE_FACTOR"] = "0.8"  # Reduzindo escala globalmente
+os.environ["QT_SCALE_FACTOR"] = "0.85"  # Reduzindo escala globalmente (15%)
 os.environ["QT_SCREEN_SCALE_FACTORS"] = "1"
 os.environ["QT_FONT_DPI"] = "96"
 

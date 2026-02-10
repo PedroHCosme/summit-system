@@ -150,25 +150,28 @@ class MainWindow(QMainWindow):
         root_layout.addWidget(self.title_bar)
         
         # --- Área de Conteúdo (Sidebar + Telas) ---
-        content_container = QWidget()
-        content_layout = QHBoxLayout(content_container)
-        content_layout.setContentsMargins(0, 0, 0, 0)
+        self.content_container = QWidget() # Tornar atributo para acesso no resizeEvent
+        content_layout = QHBoxLayout(self.content_container)
+        content_layout.setContentsMargins(50, 0, 0, 0) # Margem esquerda de 50px para a sidebar colapsada
         content_layout.setSpacing(0)
         
-        # Adiciona sidebar e stack ao layout de conteúdo
+        # Sidebar (Flutuante - não adicionada ao layout)
+        # Ela será posicionada manualmente no resizeEvent
         self.sidebar = Sidebar()
+        self.sidebar.setParent(self.content_container)
         self.sidebar.set_enabled(False)
         self._connect_sidebar_signals()
-        content_layout.addWidget(self.sidebar)
         
         self.stacked_widget = QStackedWidget()
         content_layout.addWidget(self.stacked_widget)
         
         # Adiciona contéudo ao root
-        root_layout.addWidget(content_container)
+        root_layout.addWidget(self.content_container)
         
         # Define widget central
         self.setCentralWidget(root_container)
+
+
         
         # Cria as telas
         self.home_screen = HomeScreen()
@@ -1776,6 +1779,16 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "Erro", f"Erro ao excluir membro: {str(e)}")
 
 
+    def resizeEvent(self, event):
+        """Atualiza geometria da sidebar flutuante ao redimensionar a janela."""
+        super().resizeEvent(event)
+        if hasattr(self, 'sidebar') and hasattr(self, 'content_container'):
+            # Sidebar ocupa toda a altura do container de conteúdo
+            container_height = self.content_container.height()
+            self.sidebar.setFixedHeight(container_height)
+            self.sidebar.move(0, 0)
+            self.sidebar.raise_()
+
 def main():
     """Função principal."""
     from PyQt6.QtWidgets import QApplication
@@ -1786,7 +1799,7 @@ def main():
     # FIX: Desabilitar escala automática de High DPI (Linux Mint / 1024x768)
     # Isso é crítico para evitar que a interface fique GIGANTE em telas de baixa resolução
     os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "0"
-    os.environ["QT_SCALE_FACTOR"] = "0.8"  # Reduzindo para 80% do tamanho original
+    os.environ["QT_SCALE_FACTOR"] = "0.85"  # Reduzindo para 85% do tamanho original
     os.environ["QT_SCREEN_SCALE_FACTORS"] = "1"
     os.environ["QT_FONT_DPI"] = "96"
     
