@@ -71,11 +71,11 @@ class MainWindow(QMainWindow):
     def _setup_ui(self):
         """Configura a interface do usuário."""
         self.setWindowTitle("Summit Escalada - Mission Control")
-        # Dimensionar proporcionalmente à tela (50% largura, 55% altura)
+        # Dimensionar proporcionalmente à tela (30% largura, 35% altura)
         screen = self.screen()
         size = screen.availableGeometry().size()
-        width = int(size.width() * 0.50)
-        height = int(size.height() * 0.55)
+        width = int(size.width() * 0.30)
+        height = int(size.height() * 0.35)
         self.resize(width, height)
         
         # Centralizar
