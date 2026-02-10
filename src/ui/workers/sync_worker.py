@@ -226,18 +226,24 @@ class SyncWorker(QThread):
         
         # Usa transação para garantir atomicidade
         with self.db_manager.transaction():
+            from src.config import PLANOS_COM_VENCIMENTO
+
             for nome, data_dict in consolidated_members.items():
                 vencimento = data_dict.get('vencimento_plano', '')
+                plano = data_dict.get('plano', 'N/A')
                 
-                # CORREÇÃO: Calcular estado automaticamente baseado no vencimento
-                # Ignora o estado vindo do Sheets e calcula baseado na data
-                estado_calculado = self._calculate_estado_from_vencimento(vencimento)
+                # Calcular estado baseado no tipo de plano e vencimento
+                # Planos sem vencimento (Diária, Gympass, etc.) são sempre ATIVO
+                if plano in PLANOS_COM_VENCIMENTO:
+                    estado_calculado = self._calculate_estado_from_vencimento(vencimento)
+                else:
+                    estado_calculado = 'ATIVO'
                 
                 member_data = {
                     'nome': nome,
-                    'plano': data_dict.get('plano', 'N/A'),
+                    'plano': plano,
                     'vencimento_plano': vencimento,
-                    'estado_plano': estado_calculado,  # Usar o estado calculado, não o do Sheets
+                    'estado_plano': estado_calculado,
                     'data_nascimento': data_dict.get('data_nascimento', ''),
                     'whatsapp': data_dict.get('whatsapp', ''),
                     'genero': data_dict.get('genero', ''),

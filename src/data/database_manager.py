@@ -1829,13 +1829,16 @@ class DatabaseManager:
             cursor = self.connection.cursor()
             
             # Buscar todos os membros com plano ativo e data de vencimento
-            cursor.execute("""
+            from src.config import PLANOS_COM_VENCIMENTO
+            placeholders = ','.join('?' * len(PLANOS_COM_VENCIMENTO))
+            cursor.execute(f"""
                 SELECT id, vencimento_plano
                 FROM membros
                 WHERE vencimento_plano IS NOT NULL 
                   AND vencimento_plano != ''
                   AND estado_plano = 'ATIVO'
-            """)
+                  AND plano IN ({placeholders})
+            """, PLANOS_COM_VENCIMENTO)
             
             members = cursor.fetchall()
             hoje = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
