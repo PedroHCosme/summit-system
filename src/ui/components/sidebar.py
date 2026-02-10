@@ -87,11 +87,11 @@ class Sidebar(QWidget):
     def expand(self):
         """Expande para mostrar texto."""
         self.animation.setStartValue(self.width())
-        self.animation.setEndValue(200)
+        self.animation.setEndValue(280) # Aumentado para 240px
         self.animation.start()
         
         self.max_animation.setStartValue(self.width())
-        self.max_animation.setEndValue(200)
+        self.max_animation.setEndValue(280) # Aumentado para 240px
         self.max_animation.start()
         
         # Ajusta logo se necessário (opcional, pode ser fixo pequeno)
@@ -161,7 +161,7 @@ class Sidebar(QWidget):
             if widget:
                 widget.deleteLater()
         self.buttons.clear()
-    
+
     def _create_nav_button(self, text: str, signal: pyqtSignal, is_back: bool = False) -> QPushButton:
         """Cria um botão de navegação estilizado."""
         btn = QPushButton(text)
@@ -194,7 +194,7 @@ class Sidebar(QWidget):
                     color: #a0aec0;
                     border: none;
                     border-radius: 8px;
-                    padding: 12px 15px;
+                    padding: 12px 10px; /* Padding ajustado para ícones */
                     text-align: left;
                     font-size: 14px;
                 }
@@ -220,7 +220,7 @@ class Sidebar(QWidget):
         header = QLabel(text)
         header.setStyleSheet("""
             color: #4a5568;
-            font-size: 11px;
+            font-size: 9px;  /* Reduzido de 11px */
             font-weight: bold;
             text-transform: uppercase;
             letter-spacing: 2px;
