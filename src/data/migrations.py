@@ -46,6 +46,7 @@ class DatabaseMigrator:
             ("Ajustando formato das datas de pagamento", self.ensure_payment_datetime),
             ("Ajustando timestamps sem hora", self.ensure_payment_times),
             ("Removendo datas de nascimento inválidas", self.fix_invalid_birth_dates),
+            ("Migrando colunas de data para formato ISO", self.migrate_date_columns_to_iso),
             ("Recalculando estados de planos", self.recalculate_plan_states),
             ("Removendo check-ins duplicados", self.remove_duplicate_checkins),
             ("Criando índices de performance", self.ensure_indexes),
@@ -53,7 +54,6 @@ class DatabaseMigrator:
             ("Garantindo colunas quota na tabela planos", self.ensure_quota_plan_columns),
             ("Garantindo existência de todos os planos base", self.seed_all_plans),
             ("Reprocessando pagamentos recorrentes históricos", self.backfill_plan_payments),
-            ("Migrando colunas de data para formato ISO", self.migrate_date_columns_to_iso),
         ]
 
         for description, func in steps:
@@ -622,11 +622,16 @@ class DatabaseMigrator:
                 f"[migrations] Pagamentos retroativos criados: {created} (membros processados: {processed})"
             )
     def migrate_date_columns_to_iso(self) -> None:
-        """Convert date strings from DD/MM/YYYY to YYYY-MM-DD (ISO) format.
+        """Convert date strings to YYYY-MM-DD (ISO) format.
 
         SQLAlchemy Date columns expect ISO-formatted strings in SQLite.
         This migration is idempotent: already-ISO values are skipped.
+
+        Handles all formats supported by date_utils.parse_date:
+        DD/MM/YYYY, DD/MM/YY, DD-MM-YYYY, DD-MM-YY, YY-MM-DD, YYYYMMDD
         """
+        from src.utils.date_utils import parse_date
+
         date_columns = [
             ('membros', ['vencimento_plano', 'data_nascimento', 'vencimento_treino']),
             ('pagamentos', ['nova_data_vencimento']),
@@ -644,26 +649,26 @@ class DatabaseMigrator:
                 if col not in info:
                     continue
 
-                # Select rows where the value looks like DD/MM/YYYY
+                # Select all non-null, non-empty values that are NOT already ISO
+                # ISO format is exactly YYYY-MM-DD (10 chars, pattern ____-__-__)
                 cursor.execute(
                     f"SELECT id, {col} FROM {table} "
                     f"WHERE {col} IS NOT NULL AND {col} != '' "
-                    f"AND {col} LIKE '__/__/____'"
+                    f"AND {col} NOT LIKE '____-__-__'"
                 )
                 rows = cursor.fetchall()
 
                 updates: list = []
                 for row_id, val in rows:
                     try:
-                        parts = val.split('/')
-                        if len(parts) == 3:
-                            day, month, year = parts
-                            iso_val = f"{year}-{month.zfill(2)}-{day.zfill(2)}"
-                            # Basic validation
-                            datetime.strptime(iso_val, '%Y-%m-%d')
+                        parsed = parse_date(str(val))
+                        if parsed:
+                            iso_val = parsed.strftime('%Y-%m-%d')
                             updates.append((iso_val, row_id))
-                    except (ValueError, IndexError):
-                        # Invalid date — set to NULL
+                        else:
+                            # Unparseable date — set to NULL
+                            updates.append((None, row_id))
+                    except Exception:
                         updates.append((None, row_id))
 
                 if updates:

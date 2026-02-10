@@ -71,7 +71,20 @@ class MainWindow(QMainWindow):
     def _setup_ui(self):
         """Configura a interface do usuário."""
         self.setWindowTitle("Summit Escalada - Mission Control")
-        self.setGeometry(100, 100, 1100, 700)
+        # Dimensionar proporcionalmente à tela
+        screen = self.screen()
+        size = screen.availableGeometry().size()
+        width = int(size.width() * 0.8)
+        height = int(size.height() * 0.85)
+        self.resize(width, height)
+        
+        # Centralizar
+        frame_geo = self.frameGeometry()
+        center_point = screen.availableGeometry().center()
+        frame_geo.moveCenter(center_point)
+        self.move(frame_geo.topLeft())
+        
+        self.showMaximized()
         self.setStyleSheet(STYLESHEET)
         
         # Define o ícone da janela
