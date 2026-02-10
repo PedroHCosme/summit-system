@@ -87,11 +87,11 @@ class Sidebar(QWidget):
     def expand(self):
         """Expande para mostrar texto."""
         self.animation.setStartValue(self.width())
-        self.animation.setEndValue(280) # Aumentado para 240px
+        self.animation.setEndValue(250) # Aumentado para 240px
         self.animation.start()
         
         self.max_animation.setStartValue(self.width())
-        self.max_animation.setEndValue(280) # Aumentado para 240px
+        self.max_animation.setEndValue(250) # Aumentado para 240px
         self.max_animation.start()
         
         # Ajusta logo se necessário (opcional, pode ser fixo pequeno)
@@ -144,11 +144,11 @@ class Sidebar(QWidget):
         # Espaçador
         self.layout.addSpacerItem(QSpacerItem(20, 40, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding))
         
-        # Estilo do container - Dark Navy sidebar
+        # Estilo do container - Off-White sidebar
         self.setStyleSheet("""
             QWidget#sidebar {
-                background-color: #1a2540;
-                border-right: 1px solid #2d3748;
+                background-color: #f1f5f9; /* Slate 100 */
+                border-right: 1px solid #cbd5e0;
             }
         """)
     
@@ -191,7 +191,7 @@ class Sidebar(QWidget):
             btn.setStyleSheet("""
                 QPushButton {
                     background-color: transparent;
-                    color: #a0aec0;
+                    color: #1a2540;  /* Dark Navy */
                     border: none;
                     border-radius: 8px;
                     padding: 12px 10px; /* Padding ajustado para ícones */
@@ -199,8 +199,8 @@ class Sidebar(QWidget):
                     font-size: 14px;
                 }
                 QPushButton:hover {
-                    background-color: #2d3748;
-                    color: #ffffff;
+                    background-color: #e2e8f0; /* Light Gray Hover */
+                    color: #1a2540;
                 }
                 QPushButton:checked {
                     background-color: rgba(230, 126, 34, 0.15);
@@ -219,7 +219,7 @@ class Sidebar(QWidget):
         """Adiciona um cabeçalho de seção."""
         header = QLabel(text)
         header.setStyleSheet("""
-            color: #4a5568;
+            color: #1a2540;  /* Dark Navy */
             font-size: 9px;  /* Reduzido de 11px */
             font-weight: bold;
             text-transform: uppercase;
@@ -232,7 +232,7 @@ class Sidebar(QWidget):
         """Adiciona um separador visual."""
         separator = QFrame()
         separator.setFixedHeight(1)
-        separator.setStyleSheet("background-color: #2d3748; margin: 10px 15px;")
+        separator.setStyleSheet("background-color: #cbd5e0; margin: 10px 15px;")
         self.buttons_layout.addWidget(separator)
     
     def _on_button_clicked(self, clicked_btn: QPushButton, signal: pyqtSignal):
