@@ -55,19 +55,64 @@ class Sidebar(QWidget):
     def __init__(self):
         super().__init__()
         self.setObjectName("sidebar")
-        self.setFixedWidth(150)  # Reduzido para 150 (ultra-compacto)
+        # Largura inicial: 50px (apenas ícones). Expande para 200px no hover.
+        self.setFixedWidth(50) 
         self.buttons = []
         self.current_context = SidebarContext.HOME
         self._setup_ui()
         self._build_home_menu()
-    
+        self._setup_animation()
+
+    def _setup_animation(self):
+        """Configura a animação de expansão/contração."""
+        from PyQt6.QtCore import QPropertyAnimation, QEasingCurve
+        self.animation = QPropertyAnimation(self, b"minimumWidth")
+        self.animation.setDuration(300)
+        self.animation.setEasingCurve(QEasingCurve.Type.OutQuad)
+        
+        self.max_animation = QPropertyAnimation(self, b"maximumWidth")
+        self.max_animation.setDuration(300)
+        self.max_animation.setEasingCurve(QEasingCurve.Type.OutQuad)
+
+    def enterEvent(self, event):
+        """Expande a sidebar ao passar o mouse."""
+        self.expand()
+        super().enterEvent(event)
+
+    def leaveEvent(self, event):
+        """Contrai a sidebar ao sair com o mouse."""
+        self.collapse()
+        super().leaveEvent(event)
+
+    def expand(self):
+        """Expande para mostrar texto."""
+        self.animation.setStartValue(self.width())
+        self.animation.setEndValue(200)
+        self.animation.start()
+        
+        self.max_animation.setStartValue(self.width())
+        self.max_animation.setEndValue(200)
+        self.max_animation.start()
+        
+        # Ajusta logo se necessário (opcional, pode ser fixo pequeno)
+
+    def collapse(self):
+        """Contrai para mostrar apenas ícones."""
+        self.animation.setStartValue(self.width())
+        self.animation.setEndValue(50)
+        self.animation.start()
+        
+        self.max_animation.setStartValue(self.width())
+        self.max_animation.setEndValue(50)
+        self.max_animation.start()
+
     def _setup_ui(self):
         """Configura a estrutura base da sidebar."""
         import os
         from PyQt6.QtGui import QPixmap
         
         self.layout = QVBoxLayout(self)
-        self.layout.setContentsMargins(10, 20, 10, 20)
+        self.layout.setContentsMargins(5, 20, 5, 20) # Margens reduzidas
         self.layout.setSpacing(5)
         
         # Logo
@@ -77,12 +122,12 @@ class Sidebar(QWidget):
         logo_path = os.path.join(base_path, "assets", "summit.png")
         if os.path.exists(logo_path):
             pixmap = QPixmap(logo_path)
-            # Reduz logo para caber na sidebar mais estreita
-            scaled_pixmap = pixmap.scaledToWidth(80, Qt.TransformationMode.SmoothTransformation)
+            # Logo pequena (40px) para caber no modo colapsado
+            scaled_pixmap = pixmap.scaledToWidth(40, Qt.TransformationMode.SmoothTransformation)
             logo_label.setPixmap(scaled_pixmap)
         else:
             # Fallback para texto se a logo não existir
-            logo_label.setText("SUMMIT")
+            logo_label.setText("S") # Apenas S
             logo_label.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
             logo_label.setStyleSheet("color: #E67E22;")
         

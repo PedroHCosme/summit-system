@@ -592,7 +592,7 @@ SIDEBAR_BUTTON_STYLE = """
         color: #a0aec0;
         border: none;
         border-radius: 8px;
-        padding: 12px 15px;
+        padding: 12px 10px;
         text-align: left;
         font-size: 11px;
     }
