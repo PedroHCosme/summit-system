@@ -9,6 +9,11 @@ import subprocess
 import signal
 import atexit
 
+# FIX: Desabilitar escala automática de High DPI (Linux Mint / 1024x768)
+os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "0"
+os.environ["QT_SCALE_FACTOR"] = "1"
+os.environ["QT_SCREEN_SCALE_FACTORS"] = "1"
+
 # Adiciona o diretório do projeto ao Python path para que `src` seja um módulo
 project_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, project_dir)
