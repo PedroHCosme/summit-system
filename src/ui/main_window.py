@@ -70,7 +70,7 @@ class MainWindow(QMainWindow):
     
     def _setup_ui(self):
         """Configura a interface do usuário."""
-        self.setWindowTitle("Summit Escalada - Mission Control")
+        self.setWindowTitle("Summit Escalada")
         # Iniciar em modo Full Screen (solicitação do usuário para corrigir resolução em produção)
         self.showFullScreen()
         self.is_fullscreen = True
@@ -121,7 +121,7 @@ class MainWindow(QMainWindow):
         title_layout.setSpacing(0)
         
         # Título / Logo
-        title_label = QLabel("Summit Escalada - Mission Control")
+        title_label = QLabel("Summit Escalada")
         title_layout.addWidget(title_label)
         
         title_layout.addStretch()
@@ -152,7 +152,7 @@ class MainWindow(QMainWindow):
         # --- Área de Conteúdo (Sidebar + Telas) ---
         self.content_container = QWidget() # Tornar atributo para acesso no resizeEvent
         content_layout = QHBoxLayout(self.content_container)
-        content_layout.setContentsMargins(50, 0, 0, 0) # Margem esquerda de 50px para a sidebar colapsada
+        content_layout.setContentsMargins(60, 0, 0, 0) # Margem esquerda de 60px para a sidebar colapsada
         content_layout.setSpacing(0)
         
         # Sidebar (Flutuante - não adicionada ao layout)
@@ -1799,7 +1799,7 @@ def main():
     # FIX: Desabilitar escala automática de High DPI (Linux Mint / 1024x768)
     # Isso é crítico para evitar que a interface fique GIGANTE em telas de baixa resolução
     os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "0"
-    os.environ["QT_SCALE_FACTOR"] = "0.85"  # Reduzindo para 85% do tamanho original
+    os.environ["QT_SCALE_FACTOR"] = "0.9"  # Reduzindo para 90% do tamanho original
     os.environ["QT_SCREEN_SCALE_FACTORS"] = "1"
     os.environ["QT_FONT_DPI"] = "96"
     

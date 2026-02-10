@@ -1,5 +1,5 @@
 """
-Dynamic Sidebar Navigation Component - Mission Control
+Dynamic Sidebar Navigation Component
 
 Barra lateral de navegação dinâmica que muda conforme o contexto atual.
 Suporta diferentes menus para: Home, Membros, Check-in, Financeiro, Configurações.
@@ -55,8 +55,8 @@ class Sidebar(QWidget):
     def __init__(self):
         super().__init__()
         self.setObjectName("sidebar")
-        # Largura inicial: 50px (apenas ícones). Expande para 200px no hover.
-        self.setFixedWidth(50) 
+        # Largura inicial: 60px (apenas ícones). Expande para 200px no hover.
+        self.setFixedWidth(65) 
         self.buttons = []
         self.current_context = SidebarContext.HOME
         self._setup_ui()
@@ -99,11 +99,11 @@ class Sidebar(QWidget):
     def collapse(self):
         """Contrai para mostrar apenas ícones."""
         self.animation.setStartValue(self.width())
-        self.animation.setEndValue(50)
+        self.animation.setEndValue(60)
         self.animation.start()
         
         self.max_animation.setStartValue(self.width())
-        self.max_animation.setEndValue(50)
+        self.max_animation.setEndValue(60)
         self.max_animation.start()
 
     def _setup_ui(self):
