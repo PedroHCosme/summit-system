@@ -71,10 +71,9 @@ class MainWindow(QMainWindow):
     def _setup_ui(self):
         """Configura a interface do usuário."""
         self.setWindowTitle("Summit Escalada - Mission Control")
-        # Iniciar com resolução pequena (640x360) e centralizado
-        self.resize(640, 360)
-        self._center_window()
-        self.is_fullscreen = False  # Começa em modo janela
+        # Iniciar em modo Full Screen (solicitação do usuário para corrigir resolução em produção)
+        self.showFullScreen()
+        self.is_fullscreen = True
         self.setStyleSheet(STYLESHEET)
         
         # Define o ícone da janela
@@ -1780,11 +1779,16 @@ class MainWindow(QMainWindow):
 def main():
     """Função principal."""
     from PyQt6.QtWidgets import QApplication
+    from PyQt6.QtGui import QFont
     
     print("Iniciando aplicação...")
     
     app = QApplication(sys.argv)
     print("QApplication criada")
+    
+    # Define fonte global compacta (9pt)
+    font = QFont("Segoe UI", 9)
+    app.setFont(font)
     
     # Aplicar estilo globalmente para todos os widgets, incluindo diálogos
     app.setStyleSheet(STYLESHEET)
