@@ -7,7 +7,7 @@ import os
 
 from PyQt6.QtWidgets import (
     QMainWindow, QStackedWidget, QMessageBox, QDialog, QInputDialog, QApplication,
-    QWidget, QHBoxLayout
+    QWidget, QHBoxLayout, QVBoxLayout, QLabel, QPushButton
 )
 from PyQt6.QtGui import QAction, QIcon
 from PyQt6.QtCore import QTimer
@@ -71,15 +71,8 @@ class MainWindow(QMainWindow):
     def _setup_ui(self):
         """Configura a interface do usuário."""
         self.setWindowTitle("Summit Escalada - Mission Control")
-        # Tamanho fixo seguro para 1024x768
-        self.resize(800, 600)
-        
-        # Centralizar
-        screen = self.screen()
-        frame_geo = self.frameGeometry()
-        center_point = screen.availableGeometry().center()
-        frame_geo.moveCenter(center_point)
-        self.move(frame_geo.topLeft())
+        # Iniciar em modo Full Screen (solicitação do usuário para corrigir resolução em produção)
+        self.showFullScreen()
         self.setStyleSheet(STYLESHEET)
         
         # Define o ícone da janela
@@ -88,23 +81,94 @@ class MainWindow(QMainWindow):
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
         
-        # Container principal com layout horizontal
-        main_container = QWidget()
-        main_layout = QHBoxLayout(main_container)
-        main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.setSpacing(0)
+        # Container principal (Root) com layout VERTICAL para incluir a barra de título
+        root_container = QWidget()
+        root_layout = QVBoxLayout(root_container)
+        root_layout.setContentsMargins(0, 0, 0, 0)
+        root_layout.setSpacing(0)
         
-        # Sidebar de navegação
+        # --- Barra de Título Customizada ---
+        self.title_bar = QWidget()
+        self.title_bar.setFixedHeight(40)
+        self.title_bar.setStyleSheet("""
+            QWidget {
+                background-color: #1a1a1a;
+                border-bottom: 1px solid #333;
+            }
+            QLabel {
+                color: #fff;
+                font-weight: bold;
+                padding-left: 15px;
+            }
+            QPushButton {
+                background-color: transparent;
+                border: none;
+                color: #fff;
+                font-size: 14px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #333;
+            }
+            QPushButton#close_btn:hover {
+                background-color: #e81123;
+            }
+        """)
+        
+        title_layout = QHBoxLayout(self.title_bar)
+        title_layout.setContentsMargins(0, 0, 0, 0)
+        title_layout.setSpacing(0)
+        
+        # Título / Logo
+        title_label = QLabel("Summit Escalada - Mission Control")
+        title_layout.addWidget(title_label)
+        
+        title_layout.addStretch()
+        
+        # Botões de controle
+        # Minimizar
+        btn_min = QPushButton("—")
+        btn_min.setFixedSize(45, 40)
+        btn_min.clicked.connect(self.showMinimized)
+        title_layout.addWidget(btn_min)
+        
+        # Maximizar / Restaurar (Toggle)
+        self.is_fullscreen = True
+        btn_max = QPushButton("❐")
+        btn_max.setFixedSize(45, 40)
+        btn_max.clicked.connect(self._toggle_maximize_restore)
+        title_layout.addWidget(btn_max)
+        
+        # Fechar
+        btn_close = QPushButton("✕")
+        btn_close.setObjectName("close_btn")
+        btn_close.setFixedSize(45, 40)
+        btn_close.clicked.connect(self.close)
+        title_layout.addWidget(btn_close)
+        
+        # Adiciona barra ao layout principal
+        root_layout.addWidget(self.title_bar)
+        
+        # --- Área de Conteúdo (Sidebar + Telas) ---
+        content_container = QWidget()
+        content_layout = QHBoxLayout(content_container)
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setSpacing(0)
+        
+        # Adiciona sidebar e stack ao layout de conteúdo
         self.sidebar = Sidebar()
-        self.sidebar.set_enabled(False)  # Desabilita até conectar
+        self.sidebar.set_enabled(False)
         self._connect_sidebar_signals()
-        main_layout.addWidget(self.sidebar)
+        content_layout.addWidget(self.sidebar)
         
-        # Stack widget para as telas
         self.stacked_widget = QStackedWidget()
-        main_layout.addWidget(self.stacked_widget)
+        content_layout.addWidget(self.stacked_widget)
         
-        self.setCentralWidget(main_container)
+        # Adiciona contéudo ao root
+        root_layout.addWidget(content_container)
+        
+        # Define widget central
+        self.setCentralWidget(root_container)
         
         # Cria as telas
         self.home_screen = HomeScreen()
@@ -139,6 +203,24 @@ class MainWindow(QMainWindow):
         
         # Mostra a tela de conexão
         self.stacked_widget.setCurrentIndex(0)
+    
+    def _toggle_maximize_restore(self):
+        """Alterna entre tela cheia e modo janela (800x600)."""
+        if self.isFullScreen():
+            self.showNormal()
+            self.resize(800, 600)
+            self._center_window()
+            self.is_fullscreen = False
+        else:
+            self.showFullScreen()
+            self.is_fullscreen = True
+            
+    def _center_window(self):
+        screen = self.screen()
+        frame_geo = self.frameGeometry()
+        center_point = screen.availableGeometry().center()
+        frame_geo.moveCenter(center_point)
+        self.move(frame_geo.topLeft())
     
     def _connect_sidebar_signals(self):
         """Conecta os sinais da sidebar aos métodos de navegação."""
