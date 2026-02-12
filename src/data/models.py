@@ -38,6 +38,7 @@ class Membro(Base):
     
     # Dados pessoais
     data_nascimento: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    data_cadastro: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     whatsapp: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
     genero: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
@@ -86,6 +87,7 @@ class Membro(Base):
             "vencimento_plano": format_display_date(self.vencimento_plano) if self.vencimento_plano else None,
             "estado_plano": self.estado_plano,
             "data_nascimento": format_display_date(self.data_nascimento) if self.data_nascimento else None,
+            "data_cadastro": format_display_date(self.data_cadastro) if self.data_cadastro else None,
             "whatsapp": self.whatsapp,
             "genero": self.genero,
             "email": self.email,

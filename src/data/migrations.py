@@ -168,6 +168,7 @@ class DatabaseMigrator:
             ('vencimento_plano', 'TEXT', None),
             ('estado_plano', 'TEXT', None),
             ('data_nascimento', 'TEXT', None),
+            ('data_cadastro', 'TEXT', None),
             ('whatsapp', 'TEXT', None),
             ('genero', 'TEXT', None),
             ('email', 'TEXT', None),

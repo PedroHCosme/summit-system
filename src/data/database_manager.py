@@ -582,7 +582,8 @@ class DatabaseManager:
     
     def get_members_paginated(self, page: int = 1, page_size: int = 50, 
                               filter_text: str = "", filter_plan: str = "",
-                              filter_status: str = "") -> Dict[str, Any]:
+                              filter_status: str = "",
+                              sort_by: str = "nome", sort_dir: str = "asc") -> Dict[str, Any]:
         """
         Retorna membros com paginação e filtros opcionais.
         
@@ -592,6 +593,8 @@ class DatabaseManager:
             filter_text: Texto para filtrar por nome
             filter_plan: Filtrar por plano específico
             filter_status: Filtrar por status (ATIVO/INATIVO)
+            sort_by: Coluna para ordenação (nome, data_cadastro, vencimento_plano)
+            sort_dir: Direção da ordenação (asc, desc)
             
         Returns:
             Dicionário com 'members' (lista de membros), 'total' (total de registros),
@@ -637,8 +640,16 @@ class DatabaseManager:
             page = max(1, min(page, total_pages)) if total_pages > 0 else 1
             offset = (page - 1) * page_size
             
+            # Ordenação dinâmica com validação (prevenção de SQL injection)
+            ALLOWED_COLUMNS = {'nome', 'data_cadastro', 'vencimento_plano'}
+            safe_column = sort_by if sort_by in ALLOWED_COLUMNS else 'nome'
+            safe_dir = 'DESC' if sort_dir == 'desc' else 'ASC'
+            
+            # NULLS LAST: coloca valores nulos no final
+            order_sql = f"ORDER BY CASE WHEN {safe_column} IS NULL THEN 1 ELSE 0 END, {safe_column} {safe_dir}"
+            
             # Buscar membros da página atual
-            query = f"SELECT * FROM membros{where_sql} ORDER BY nome LIMIT ? OFFSET ?"
+            query = f"SELECT * FROM membros{where_sql} {order_sql} LIMIT ? OFFSET ?"
             cursor.execute(query, params + [page_size, offset])
             rows = cursor.fetchall()
             
@@ -656,6 +667,7 @@ class DatabaseManager:
             import traceback
             traceback.print_exc()
             return {'members': [], 'total': 0, 'page': 1, 'total_pages': 0}
+
     
     def _normalize_plan_for_checkin(self, plan_name: Optional[str]) -> Optional[str]:
         """Normaliza o nome do plano para fins de cobrança por check-in."""

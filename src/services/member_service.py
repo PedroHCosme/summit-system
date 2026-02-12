@@ -205,7 +205,9 @@ class MemberService:
         page_size: int = 50,
         filter_text: str = "",
         filter_plan: str = "",
-        filter_status: str = ""
+        filter_status: str = "",
+        sort_by: str = "nome",
+        sort_dir: str = "asc"
     ) -> PaginatedResult:
         """
         Retorna membros com paginação e filtros.
@@ -216,17 +218,21 @@ class MemberService:
             filter_text: Texto para filtrar por nome
             filter_plan: Filtrar por plano específico
             filter_status: Filtrar por status (ATIVO/INATIVO)
+            sort_by: Coluna para ordenação (nome, data_cadastro, vencimento_plano)
+            sort_dir: Direção da ordenação (asc, desc)
             
         Returns:
             PaginatedResult com os membros e metadados de paginação
         """
         if self._session is not None:
             return self._get_paginated_sqlalchemy(
-                page, page_size, filter_text, filter_plan, filter_status
+                page, page_size, filter_text, filter_plan, filter_status,
+                sort_by, sort_dir
             )
         else:
             result = self._db_manager.get_members_paginated(
-                page, page_size, filter_text, filter_plan, filter_status
+                page, page_size, filter_text, filter_plan, filter_status,
+                sort_by, sort_dir
             )
             return PaginatedResult(
                 members=result['members'],
@@ -235,6 +241,7 @@ class MemberService:
                 total_pages=result['total_pages'],
                 page_size=result['page_size']
             )
+
     
     def update(self, member_id: int, **kwargs) -> MemberResult:
         """
@@ -386,6 +393,7 @@ class MemberService:
         try:
             new_member = Membro(
                 nome=member_data.get('nome'),
+                data_cadastro=date.today(),
                 plano=member_data.get('plano'),
                 vencimento_plano=coerce_to_date(member_data.get('vencimento_plano')),
                 estado_plano=member_data.get('estado_plano', 'ATIVO'),
@@ -462,7 +470,9 @@ class MemberService:
         page_size: int,
         filter_text: str,
         filter_plan: str,
-        filter_status: str
+        filter_status: str,
+        sort_by: str = "nome",
+        sort_dir: str = "asc"
     ) -> PaginatedResult:
         """Busca paginada usando SQLAlchemy."""
         query = self._session.query(Membro)
@@ -493,8 +503,21 @@ class MemberService:
         page = max(1, min(page, total_pages)) if total_pages > 0 else 1
         offset = (page - 1) * page_size
         
+        # Ordenação dinâmica com validação
+        ALLOWED_SORT_COLUMNS = {
+            'nome': Membro.nome,
+            'data_cadastro': Membro.data_cadastro,
+            'vencimento_plano': Membro.vencimento_plano,
+        }
+        sort_column = ALLOWED_SORT_COLUMNS.get(sort_by, Membro.nome)
+        
+        if sort_dir == "desc":
+            order_clause = sort_column.desc().nulls_last()
+        else:
+            order_clause = sort_column.asc().nulls_last()
+        
         # Buscar membros da página
-        members = query.order_by(Membro.nome).offset(offset).limit(page_size).all()
+        members = query.order_by(order_clause).offset(offset).limit(page_size).all()
         
         return PaginatedResult(
             members=[m.to_dict() for m in members],
@@ -503,6 +526,7 @@ class MemberService:
             total_pages=total_pages,
             page_size=page_size
         )
+
     
     def _update_sqlalchemy(self, member_id: int, **kwargs) -> MemberResult:
         """Atualiza um membro usando SQLAlchemy."""
