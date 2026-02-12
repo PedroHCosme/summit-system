@@ -204,72 +204,16 @@ class CheckinScreen(QWidget):
             # Quota plans don't have expiration
             vencimento_plano = None  # Hide vencimento for quota plans
 
-        # Construção do HTML condicional
-        html_parts = []
-        html_parts.append(f"<div style='padding: 10px; font-size: 14px;'>")
-        html_parts.append(warning_html)
-        html_parts.append(voucher_warning_html)
+        # Construir HTML do perfil usando módulo unificado
+        from src.ui.components.member_info_formatter import format_member_data, calculate_monthly_frequency
+        freq = calculate_monthly_frequency(member_id)
+        profile_html = format_member_data(member_data, freq)
         
-        # Seção Informações Principais
-        html_parts.append("<h3 style='color: #333; border-bottom: 2px solid #007ACC; padding-bottom: 5px;'>Informações Principais</h3>")
-        
-        if nome:
-            display_nome = f"{nome} ({apelido})" if apelido else nome
-            html_parts.append(f"<p><b>Nome:</b> {display_nome}</p>")
-            
-        if plano:
-            html_parts.append(f"<p><b>Plano:</b> {plano}</p>")
-            
-        if estado_plano:
-            html_parts.append(f"<p><b>Status:</b> <span style='color: {color}; font-weight: bold;'>{estado_plano}</span></p>")
-            
-        if vencimento_plano and str(vencimento_plano).lower() != 'none':
-            # Formatar se for objeto date
-            from datetime import date as _date
-            venc_display = vencimento_plano
-            if isinstance(vencimento_plano, _date):
-                venc_display = vencimento_plano.strftime('%d/%m/%Y')
-            html_parts.append(f"<p><b>Vencimento:</b> {venc_display}</p>")
-            
-        if voucher_section:
-            html_parts.append(voucher_section)
-        
-        # Seção Dados Pessoais - mostra cabeçalho apenas se tiver dados
-        personal_data_html = []
-        if data_nascimento and str(data_nascimento).lower() != 'none':
-            display_nasc = data_nascimento
-            from datetime import date as _date
-            if isinstance(data_nascimento, _date):
-                display_nasc = data_nascimento.strftime('%d/%m/%Y')
-            personal_data_html.append(f"<p><b>Data de Nascimento:</b> {display_nasc}</p>")
-            
-        if genero and str(genero).lower() != 'none':
-            personal_data_html.append(f"<p><b>Gênero:</b> {genero}</p>")
-            
-        if calcado and str(calcado).lower() != 'none':
-            personal_data_html.append(f"<p><b>Tamanho Calçado:</b> {calcado}</p>")
-            
-        if personal_data_html:
-            html_parts.append("<h3 style='color: #333; border-bottom: 1px solid #ccc; padding-bottom: 5px; margin-top: 15px;'>Dados Pessoais</h3>")
-            html_parts.extend(personal_data_html)
-            
-        # Seção Contato - mostra cabeçalho apenas se tiver dados
-        contact_html = []
-        if whatsapp and str(whatsapp).lower() != 'none':
-            contact_html.append(f"<p><b>WhatsApp:</b> {whatsapp}</p>")
-            
-        if email and str(email).lower() != 'none':
-            contact_html.append(f"<p><b>Email:</b> {email}</p>")
-            
-        if contact_html:
-            html_parts.append("<h3 style='color: #333; border-bottom: 1px solid #ccc; padding-bottom: 5px; margin-top: 15px;'>Contato</h3>")
-            html_parts.extend(contact_html)
-
-        html_parts.append("</div>")
-        
-        html = "".join(html_parts)
+        # Combinar avisos + perfil
+        html = f"<div style='padding: 10px; font-size: 14px;'>{warning_html}{voucher_warning_html}</div>{profile_html}"
         
         self.member_details_browser.setHtml(html)
+
         
         # Habilita o botão mesmo se inativo, mas muda o texto/estilo se necessário
         self.confirm_button.setEnabled(True)

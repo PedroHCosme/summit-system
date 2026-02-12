@@ -9,7 +9,7 @@ from PyQt6.QtWidgets import (
     QMainWindow, QStackedWidget, QMessageBox, QDialog, QInputDialog, QApplication,
     QWidget, QHBoxLayout, QVBoxLayout, QLabel, QPushButton
 )
-from PyQt6.QtGui import QAction, QIcon
+from PyQt6.QtGui import QIcon
 from PyQt6.QtCore import QTimer
 
 from src.core.aniversariantes_manager import AniversariantesManager
@@ -75,6 +75,9 @@ class MainWindow(QMainWindow):
         self.showFullScreen()
         self.is_fullscreen = True
         self.setStyleSheet(STYLESHEET)
+        
+        # Esconde a barra de menu padrão do QMainWindow
+        self.menuBar().hide()
         
         # Define o ícone da janela
         base_path = os.path.dirname(__file__)
@@ -200,9 +203,7 @@ class MainWindow(QMainWindow):
         
         # Conecta sinais das telas
         self._connect_screen_signals()
-        
-        # Cria menu (mantido como backup para atalhos e ações avançadas)
-        self._create_menu()
+
         
         # Mostra a tela de conexão
         self.stacked_widget.setCurrentIndex(0)
@@ -317,132 +318,7 @@ class MainWindow(QMainWindow):
         self.stacked_widget.setCurrentIndex(5)
         self._load_financial_data()
     
-    def _create_menu(self):
-        """Cria o menu superior."""
-        self.menubar = self.menuBar()
-        if not self.menubar:
-            return
 
-        # Menu Gestão
-        self.gestao_menu = self.menubar.addMenu("📋 Gestão")
-        if self.gestao_menu:
-            self.gestao_menu.setEnabled(False)
-
-            # === SUBMENU: Membros ===
-            membros_menu = self.gestao_menu.addMenu("👥 Membros")
-            
-            add_member_action = QAction("➕ Adicionar Membro", self)
-            add_member_action.setShortcut("Ctrl+N")
-            add_member_action.triggered.connect(self._show_add_member_dialog)
-            membros_menu.addAction(add_member_action)
-
-            list_members_action = QAction("📋 Lista de Membros", self)
-            list_members_action.setShortcut("Ctrl+L")
-            list_members_action.triggered.connect(self._show_members_list)
-            membros_menu.addAction(list_members_action)
-
-            buscar_action = QAction("🔍 Buscar Membro", self)
-            buscar_action.setShortcut("Ctrl+F")
-            buscar_action.triggered.connect(self._show_member_search)
-            buscar_action.triggered.connect(self._show_member_search)
-            membros_menu.addAction(buscar_action)
-
-            pending_members_action = QAction("⏳ Aprovar Novos Membros", self)
-            pending_members_action.triggered.connect(self._show_pending_members)
-            membros_menu.addAction(pending_members_action)
-
-            aniversariantes_action = QAction("🎂 Aniversariantes do Mês", self)
-            aniversariantes_action.triggered.connect(self._show_aniversariantes)
-            membros_menu.addAction(aniversariantes_action)
-            
-            membros_menu.addSeparator()
-            
-            # Placeholder para ações em lote (futuro)
-            bulk_action = QAction("⚡ Ações em Lote...", self)
-            bulk_action.setEnabled(False)  # Desabilitado por enquanto
-            bulk_action.setToolTip("Em breve: renovação em lote, mudança de status, etc.")
-            membros_menu.addAction(bulk_action)
-            
-            # === SUBMENU: Planos ===
-            planos_menu = self.gestao_menu.addMenu("💳 Planos")
-            
-            manage_plans_action = QAction("⚙️ Gerenciar Planos e Preços", self)
-            manage_plans_action.triggered.connect(self._show_manage_plans_dialog)
-            planos_menu.addAction(manage_plans_action)
-            
-            plan_distribution_action = QAction("📊 Distribuição de Planos", self)
-            plan_distribution_action.triggered.connect(self._show_plan_distribution_dialog)
-            planos_menu.addAction(plan_distribution_action)
-            
-            planos_menu.addSeparator()
-            
-            expiring_plans_action = QAction("⏰ Planos a Vencer", self)
-            expiring_plans_action.triggered.connect(self._show_expiring_plans_dialog)
-            expiring_plans_action.setToolTip("Visualizar planos com vencimento próximo")
-            planos_menu.addAction(expiring_plans_action)
-            
-            # === SUBMENU: Pagamentos ===
-            pagamentos_menu = self.gestao_menu.addMenu("💰 Pagamentos")
-            
-            financial_action = QAction("📈 Visão Financeira", self)
-            financial_action.setShortcut("Ctrl+$")
-            financial_action.triggered.connect(self._show_financial_screen)
-            pagamentos_menu.addAction(financial_action)
-            
-            pagamentos_menu.addSeparator()
-            
-            # Placeholder para relatórios (futuro)
-            export_financial_action = QAction("📄 Exportar Relatório Financeiro", self)
-            export_financial_action.triggered.connect(self._generate_financial_report)
-            export_financial_action.setToolTip("Gera um relatório financeiro detalhado em HTML")
-            pagamentos_menu.addAction(export_financial_action)
-            
-            # === SUBMENU: Relatórios ===
-            relatorios_menu = self.gestao_menu.addMenu("📊 Relatórios")
-            
-            freq_report_action = QAction("📅 Relatório de Frequência", self)
-            freq_report_action.triggered.connect(self._generate_frequency_report)
-            relatorios_menu.addAction(freq_report_action)
-            
-            member_report_action = QAction("👤 Relatório de Membros", self)
-            member_report_action.triggered.connect(self._generate_members_report)
-            relatorios_menu.addAction(member_report_action)
-            
-            # === SEPARADOR ===
-            self.gestao_menu.addSeparator()
-            
-            # === SUBMENU: Banco de Dados ===
-            database_menu = self.gestao_menu.addMenu("🗄️ Banco de Dados")
-            
-            backup_action = QAction("💾 Backup do Banco", self)
-            backup_action.triggered.connect(self._create_database_backup)
-            database_menu.addAction(backup_action)
-
-        # Menu Atividade
-        self.atividade_menu = self.menubar.addMenu("Atividade")
-        if self.atividade_menu:
-            self.atividade_menu.setEnabled(False)
-
-            dashboard_action = QAction("Dashboard", self)
-            dashboard_action.triggered.connect(self._show_dashboard)
-            self.atividade_menu.addAction(dashboard_action)
-
-            checkin_action = QAction("Check-in", self)
-            checkin_action.triggered.connect(self._show_checkin_screen)
-            self.atividade_menu.addAction(checkin_action)
-            
-            financeiro_action = QAction("Financeiro", self)
-            financeiro_action.triggered.connect(self._show_financial_screen)
-            self.atividade_menu.addAction(financeiro_action)
-        
-        # Menu Ferramentas
-        self.tools_menu = self.menubar.addMenu("Ferramentas")
-        if self.tools_menu:
-            self.tools_menu.setEnabled(False)
-            
-            sync_action = QAction("🔄 Sincronizar com Google Sheets", self)
-            sync_action.triggered.connect(self._show_sync_dialog)
-            self.tools_menu.addAction(sync_action)
     
     def _connect_screen_signals(self):
         """Conecta sinais das telas."""
@@ -1652,7 +1528,9 @@ class MainWindow(QMainWindow):
             page_size=self.members_list_screen.page_size,
             filter_text=filters['text'],
             filter_plan=filters['plan'],
-            filter_status=filters['status']
+            filter_status=filters['status'],
+            sort_by=filters.get('sort_by', 'nome'),
+            sort_dir=filters.get('sort_dir', 'asc')
         )
         
         self.members_list_screen.update_data(data)

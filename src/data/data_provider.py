@@ -105,7 +105,8 @@ class DataProvider:
     
     def get_members_paginated(self, page: int = 1, page_size: int = 50,
                               filter_text: str = "", filter_plan: str = "",
-                              filter_status: str = "") -> Dict[str, Any]:
+                              filter_status: str = "",
+                              sort_by: str = "nome", sort_dir: str = "asc") -> Dict[str, Any]:
         """
         Retorna membros com paginação e filtros.
         
@@ -115,6 +116,8 @@ class DataProvider:
             filter_text: Texto para filtrar por nome
             filter_plan: Filtrar por plano específico
             filter_status: Filtrar por status (ATIVO/INATIVO)
+            sort_by: Coluna para ordenação (nome, data_cadastro, vencimento_plano)
+            sort_dir: Direção da ordenação (asc, desc)
             
         Returns:
             Dicionário com dados paginados
@@ -125,7 +128,9 @@ class DataProvider:
                 page_size=page_size,
                 filter_text=filter_text,
                 filter_plan=filter_plan,
-                filter_status=filter_status
+                filter_status=filter_status,
+                sort_by=sort_by,
+                sort_dir=sort_dir
             )
             return {
                 'members': result.members,
@@ -148,8 +153,9 @@ class DataProvider:
             if filter_status:
                 filtered = [m for m in filtered if m.get('estado_plano') == filter_status]
             
-            # Ordenar por nome
-            filtered.sort(key=lambda x: x.get('nome', ''))
+            # Ordenar por coluna selecionada
+            reverse = (sort_dir == "desc")
+            filtered.sort(key=lambda x: (x.get(sort_by) is None, x.get(sort_by, '')), reverse=reverse)
             
             # Paginar
             total = len(filtered)
@@ -165,6 +171,7 @@ class DataProvider:
                 'total_pages': total_pages,
                 'page_size': page_size
             }
+
     
     def find_members_by_name(self, name: str) -> List[Dict[str, Any]]:
         """
