@@ -35,7 +35,8 @@ from src.ui.screens import (
     FinancialScreen,
     MembersListScreen,
     PendingMembersScreen,
-    PlansScreen
+    PlansScreen,
+    NotesScreen
 )
 from src.ui.dialogs import AddMemberDialog, SyncDialog, ManagePlansDialog, ExpiringPlansDialog
 from src.ui.components import Sidebar
@@ -198,6 +199,9 @@ class MainWindow(QMainWindow):
         self.stacked_widget.addWidget(self.members_list_screen)  # 6
         self.stacked_widget.addWidget(self.pending_members_screen)  # 7
         self.stacked_widget.addWidget(self.plans_screen)  # 8
+
+        self.notes_screen = NotesScreen()
+        self.stacked_widget.addWidget(self.notes_screen)  # 9
         
         # Conecta botões específicos
         self.dashboard_screen.refresh_button.clicked.connect(self._update_dashboard)
@@ -262,6 +266,9 @@ class MainWindow(QMainWindow):
         self.sidebar.reports_clicked.connect(self._on_reports_section_clicked)
         self.sidebar.reports_members_clicked.connect(self._generate_members_report)
         self.sidebar.reports_financial_clicked.connect(self._generate_financial_report)
+
+        # === Bloco de Notas ===
+        self.sidebar.notes_clicked.connect(self._show_notes_screen)
     
     def _on_home_clicked(self):
         """Volta para o Dashboard e menu principal."""
@@ -300,6 +307,13 @@ class MainWindow(QMainWindow):
         """Entra na seção Relatórios."""
         from src.ui.components.sidebar import SidebarContext
         self.sidebar.set_context(SidebarContext.REPORTS)
+
+    def _show_notes_screen(self):
+        """Abre a tela do Bloco de Notas."""
+        if not self.is_connected:
+            return
+        self.stacked_widget.setCurrentIndex(9)
+        self.notes_screen.refresh()
 
     def _generate_members_report(self):
         """Gera e abre o relatório de membros."""

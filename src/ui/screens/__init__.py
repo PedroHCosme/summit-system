@@ -9,6 +9,7 @@ from .financial_screen import FinancialScreen
 from .members_list_screen import MembersListScreen
 from .pending_members_screen import PendingMembersScreen
 from .plans_screen import PlansScreen
+from .notes_screen import NotesScreen
 
 __all__ = [
     'DashboardScreen',
@@ -19,5 +20,7 @@ __all__ = [
     'FinancialScreen',
     'MembersListScreen',
     'PendingMembersScreen',
-    'PlansScreen'
+    'PlansScreen',
+    'NotesScreen',
 ]
+
