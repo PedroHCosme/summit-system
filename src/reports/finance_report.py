@@ -412,7 +412,9 @@ def _generate_javascript(db_data: dict) -> str:
 
 def generate_finance_report(
     db_session: Optional["Session"] = None,
-    period: str = None
+    period: str = None,
+    start_date = None,
+    end_date = None,
 ) -> str:
     """
     Gera o relatório financeiro completo para um dado período.
@@ -420,6 +422,8 @@ def generate_finance_report(
     Args:
         db_session: Sessão SQLAlchemy (cria uma nova se não fornecida)
         period: String descrevendo o período (ex: "Novembro/2025")
+        start_date: Data inicial do período (date ou datetime)
+        end_date: Data final do período (date ou datetime)
         
     Returns:
         Caminho do arquivo HTML gerado.
@@ -439,10 +443,18 @@ def generate_finance_report(
         if period is None:
             now = datetime.now()
             period = now.strftime("%B/%Y")
+
+        # Converter date -> datetime se necessário para o serviço
+        filter_start = None
+        filter_end = None
+        if start_date is not None:
+            filter_start = datetime.combine(start_date, datetime.min.time()) if not isinstance(start_date, datetime) else start_date
+        if end_date is not None:
+            filter_end = datetime.combine(end_date, datetime.max.time().replace(microsecond=0)) if not isinstance(end_date, datetime) else end_date
         
-        # Obter dados reais do banco
-        summary = payment_service.get_summary()
-        breakdown = payment_service.get_breakdown()
+        # Obter dados reais do banco (filtrados pelo período)
+        summary = payment_service.get_summary(start_date=filter_start, end_date=filter_end)
+        breakdown = payment_service.get_breakdown(start_date=filter_start, end_date=filter_end)
         member_counts = member_service.count_by_status()
         
         # Calcular receitas por tipo
@@ -485,4 +497,5 @@ def generate_finance_report(
     finally:
         if close_session:
             db_session.close()
+
 
