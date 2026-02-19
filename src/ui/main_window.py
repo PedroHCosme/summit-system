@@ -16,6 +16,7 @@ from src.core.aniversariantes_manager import AniversariantesManager
 from src.ui.html_formatter import HTMLFormatter
 from src.core.member_search_service import MemberSearchService
 from src.reports.finance_report import generate_finance_report
+from src.reports.members_report import generate_members_report
 from src.ui.styles import STYLESHEET
 
 from src.ui.workers import (
@@ -256,6 +257,11 @@ class MainWindow(QMainWindow):
         self.sidebar.settings_plans_clicked.connect(self._show_manage_plans_dialog)
         self.sidebar.settings_backup_clicked.connect(self._create_database_backup)
         self.sidebar.settings_sync_clicked.connect(self._show_sync_dialog)
+
+        # === Submenu Relatórios ===
+        self.sidebar.reports_clicked.connect(self._on_reports_section_clicked)
+        self.sidebar.reports_members_clicked.connect(self._generate_members_report)
+        self.sidebar.reports_financial_clicked.connect(self._generate_financial_report)
     
     def _on_home_clicked(self):
         """Volta para o Dashboard e menu principal."""
@@ -289,6 +295,55 @@ class MainWindow(QMainWindow):
         """Entra na seção Configurações."""
         from src.ui.components.sidebar import SidebarContext
         self.sidebar.set_context(SidebarContext.SETTINGS)
+
+    def _on_reports_section_clicked(self):
+        """Entra na seção Relatórios."""
+        from src.ui.components.sidebar import SidebarContext
+        self.sidebar.set_context(SidebarContext.REPORTS)
+
+    def _generate_members_report(self):
+        """Gera e abre o relatório de membros."""
+        if not self.is_connected:
+            return
+
+        from src.ui.dialogs.report_period_dialog import ReportPeriodDialog
+
+        dialog = ReportPeriodDialog("Relatório de Membros", self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        start_date, end_date = dialog.get_period()
+        period_label = dialog.get_period_label()
+
+        try:
+            report_path = generate_members_report(
+                start_date=start_date, end_date=end_date, period_label=period_label
+            )
+            webbrowser.open(f"file://{report_path}")
+        except Exception as e:
+            QMessageBox.critical(self, "Erro", f"Erro ao gerar relatório de membros: {e}")
+
+    def _generate_financial_report(self):
+        """Gera e abre o relatório financeiro."""
+        if not self.is_connected:
+            return
+
+        from src.ui.dialogs.report_period_dialog import ReportPeriodDialog
+
+        dialog = ReportPeriodDialog("Relatório Financeiro", self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        start_date, end_date = dialog.get_period()
+        period_label = dialog.get_period_label()
+
+        try:
+            report_path = generate_finance_report(
+                period=period_label, start_date=start_date, end_date=end_date
+            )
+            webbrowser.open(f"file://{report_path}")
+        except Exception as e:
+            QMessageBox.critical(self, "Erro", f"Erro ao gerar relatório financeiro: {e}")
     
     # === Métodos de navegação sem troca de contexto ===
     def _show_members_list_only(self):
@@ -1304,82 +1359,6 @@ class MainWindow(QMainWindow):
                 f"Erro ao gerar relatório de frequência:\n\n{str(e)}"
             )
     
-    def _generate_members_report(self):
-        """Gera relatório de membros em HTML."""
-        if not self.is_connected:
-            QMessageBox.warning(
-                self,
-                "Banco Desconectado",
-                "Conecte-se ao banco de dados antes de gerar relatórios."
-            )
-            return
-        
-        try:
-            from src.reports.members_report import generate_members_report
-            import webbrowser
-            
-            # Gerar relatório
-            filepath = generate_members_report()
-            
-            # Abrir no navegador
-            webbrowser.open(f'file://{filepath}')
-            
-            QMessageBox.information(
-                self,
-                "Relatório Gerado",
-                f"Relatório de membros gerado com sucesso!\n\n"
-                f"O arquivo foi aberto no navegador e salvo em:\n"
-                f"relatorios/"
-            )
-            
-        except Exception as e:
-            QMessageBox.critical(
-                self,
-                "Erro ao Gerar Relatório",
-                f"Erro ao gerar relatório de membros:\n\n{str(e)}"
-            )
-    
-    def _generate_financial_report(self):
-        """Gera o relatório financeiro em HTML."""
-        if not self.is_connected:
-            QMessageBox.warning(
-                self,
-                "Banco Desconectado",
-                "Conecte-se ao banco de dados antes de gerar relatórios."
-            )
-            return
-
-        # Solicitar o período ao usuário
-        period, ok = QInputDialog.getText(
-            self, 
-            "Período do Relatório", 
-            "Digite o período (ex: '10/2025' para mensal ou 'T4/2025' para trimestral):"
-        )
-
-        if ok and period:
-            try:
-                # Gerar o relatório
-                filepath = generate_finance_report(
-                    period=period
-                )
-                
-                # Abrir no navegador
-                webbrowser.open(f'file://{filepath}')
-                
-                QMessageBox.information(
-                    self,
-                    "Relatório Gerado",
-                    f"Relatório financeiro para o período '{period}' gerado com sucesso!\n\n"
-                    f"O arquivo foi aberto no navegador e salvo em:\n"
-                    f"relatorios/"
-                )
-                
-            except Exception as e:
-                QMessageBox.critical(
-                    self,
-                    "Erro ao Gerar Relatório",
-                    f"Erro ao gerar relatório financeiro:\n\n{str(e)}"
-                )
     
     def _optimize_database(self):
         """Otimiza o banco de dados criando índices e executando VACUUM."""

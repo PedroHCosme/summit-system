@@ -20,6 +20,7 @@ class SidebarContext(Enum):
     CHECKIN = "checkin"
     FINANCIAL = "financial"
     SETTINGS = "settings"
+    REPORTS = "reports"
 
 
 class Sidebar(QWidget):
@@ -51,6 +52,11 @@ class Sidebar(QWidget):
     settings_plans_clicked = pyqtSignal()
     settings_backup_clicked = pyqtSignal()
     settings_sync_clicked = pyqtSignal()
+
+    # Sinais específicos do contexto Relatórios
+    reports_clicked = pyqtSignal()      # Botão no menu principal
+    reports_members_clicked = pyqtSignal()  # Submenu: Membros
+    reports_financial_clicked = pyqtSignal() # Submenu: Financeiro
     
     def __init__(self):
         super().__init__()
@@ -262,6 +268,7 @@ class Sidebar(QWidget):
             ("✅  Check-in", self.checkin_clicked),
             ("👥  Membros", self.members_clicked),
             ("💰  Financeiro", self.financial_clicked),
+            ("📊  Relatórios", self.reports_clicked),
         ]
         
         for text, signal in nav_items:
@@ -367,6 +374,28 @@ class Sidebar(QWidget):
             self.buttons_layout.addWidget(btn)
             self.buttons.append(btn)
     
+    def _build_reports_menu(self):
+        """Constrói o menu de Relatórios."""
+        self._clear_buttons()
+        self.current_context = SidebarContext.REPORTS
+        
+        # Botão de voltar
+        back_btn = self._create_nav_button("🏠 Dashboard", self.home_clicked, is_back=True)
+        self.buttons_layout.addWidget(back_btn)
+        self.buttons.append(back_btn)
+        
+        self._add_section_header("RELATÓRIOS")
+        
+        nav_items = [
+            ("👥  Membros", self.reports_members_clicked),
+            ("💰  Financeiro", self.reports_financial_clicked),
+        ]
+        
+        for text, signal in nav_items:
+            btn = self._create_nav_button(text, signal)
+            self.buttons_layout.addWidget(btn)
+            self.buttons.append(btn)
+
     # =========================================================================
     # API PÚBLICA
     # =========================================================================
@@ -383,6 +412,8 @@ class Sidebar(QWidget):
             self._build_financial_menu()
         elif context == SidebarContext.SETTINGS:
             self._build_settings_menu()
+        elif context == SidebarContext.REPORTS:
+            self._build_reports_menu()
     
     def go_home(self):
         """Volta para o menu principal."""

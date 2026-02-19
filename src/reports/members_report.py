@@ -409,12 +409,20 @@ def _get_status_info(vencimento_str: str) -> tuple[str, str]:
         return ("Ativo", "active")
 
 
-def generate_members_report(db_session: Optional[Session] = None) -> str:
+def generate_members_report(
+    db_session: Optional[Session] = None,
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+    period_label: Optional[str] = None,
+) -> str:
     """
     Gera relatório completo de membros.
     
     Args:
         db_session: Sessão SQLAlchemy (nova sessão será criada se None)
+        start_date: Data inicial do período (opcional)
+        end_date: Data final do período (opcional)
+        period_label: Rótulo legível do período (opcional)
         
     Returns:
         Caminho do arquivo HTML gerado
@@ -423,6 +431,17 @@ def generate_members_report(db_session: Optional[Session] = None) -> str:
     if db_session is None:
         db_session = create_session()
         close_session = True
+
+    # Resolver período padrão
+    if start_date is None:
+        start_date = date(2000, 1, 1)
+    if end_date is None:
+        end_date = date.today()
+    if period_label is None:
+        period_label = f"{start_date.strftime('%d/%m/%Y')} a {end_date.strftime('%d/%m/%Y')}"
+    
+    start_str = start_date.strftime('%Y-%m-%d')
+    end_str = end_date.strftime('%Y-%m-%d')
 
     try:
         # Estatísticas gerais
@@ -516,7 +535,9 @@ def generate_members_report(db_session: Optional[Session] = None) -> str:
             SELECT member_id, checkin_datetime
             FROM frequencia
             WHERE checkin_datetime IS NOT NULL
-        """)).fetchall()
+              AND DATE(checkin_datetime) >= :start
+              AND DATE(checkin_datetime) <= :end
+        """), {"start": start_str, "end": end_str}).fetchall()
         
         print(f"[DEBUG] Total de check-ins retornados: {len(raw_checkins)}")
         if raw_checkins:
@@ -614,23 +635,23 @@ def generate_members_report(db_session: Optional[Session] = None) -> str:
                     # Converter result para tupla/lista e adicionar days_remaining
                     expiring_members_details.append((*result, days_remaining))
         
-        # Análise de conversão por plano (últimos 30 dias)
-        thirty_days_ago = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
+        # Análise de conversão por plano (dentro do período selecionado)
         new_members_by_plan = db_session.execute(text("""
             SELECT plano, COUNT(*) as novos_membros
             FROM membros
-            WHERE created_at >= :date
+            WHERE DATE(created_at) >= :start AND DATE(created_at) <= :end
             GROUP BY plano
             ORDER BY novos_membros DESC
-        """), {"date": thirty_days_ago}).fetchall()
+        """), {"start": start_str, "end": end_str}).fetchall()
         
         # Gerar HTML
-        html = _generate_html_header("Relatório de Membros")
+        html = _generate_html_header(f"Relatório de Membros — {period_label}")
         
         html += f"""
         <div class="container">
             <div class="header">
                 <h1>👤 Relatório de Membros</h1>
+                <p class="subtitle">Período: {period_label}</p>
                 <p class="subtitle">Gerado em: {datetime.now().strftime('%d/%m/%Y às %H:%M')}</p>
             </div>
             
