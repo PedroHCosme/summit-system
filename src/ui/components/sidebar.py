@@ -21,6 +21,7 @@ class SidebarContext(Enum):
     FINANCIAL = "financial"
     SETTINGS = "settings"
     REPORTS = "reports"
+    NOTES = "notes"
 
 
 class Sidebar(QWidget):
@@ -57,6 +58,9 @@ class Sidebar(QWidget):
     reports_clicked = pyqtSignal()      # Botão no menu principal
     reports_members_clicked = pyqtSignal()  # Submenu: Membros
     reports_financial_clicked = pyqtSignal() # Submenu: Financeiro
+
+    # Sinais específicos do contexto Bloco de Notas
+    notes_clicked = pyqtSignal()
     
     def __init__(self):
         super().__init__()
@@ -269,6 +273,7 @@ class Sidebar(QWidget):
             ("👥  Membros", self.members_clicked),
             ("💰  Financeiro", self.financial_clicked),
             ("📊  Relatórios", self.reports_clicked),
+            ("📝  Bloco de Notas", self.notes_clicked),
         ]
         
         for text, signal in nav_items:
@@ -414,6 +419,9 @@ class Sidebar(QWidget):
             self._build_settings_menu()
         elif context == SidebarContext.REPORTS:
             self._build_reports_menu()
+        elif context == SidebarContext.NOTES:
+            # Notas não tem submenu, apenas emite o sinal
+            pass
     
     def go_home(self):
         """Volta para o menu principal."""

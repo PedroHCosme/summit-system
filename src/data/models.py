@@ -227,5 +227,41 @@ class Plano(Base):
             "quota_amount": self.quota_amount
         }
 
+class Nota(Base):
+    """
+    Modelo ORM para a tabela de notas (Bloco de Notas).
+
+    Armazena anotações do usuário (bugs, ideias, outros) que podem
+    ser enviadas por e-mail ao desenvolvedor.
+    """
+    __tablename__ = "notas"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    titulo: Mapped[str] = mapped_column(String(255), nullable=False, default="Nova Nota")
+    conteudo: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    tipo: Mapped[str] = mapped_column(String(20), nullable=False, default="outro")  # bug, ideia, outro
+    enviada: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, default=func.current_timestamp()
+    )
+    updated_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, default=func.current_timestamp(), onupdate=func.current_timestamp()
+    )
+
+    def __repr__(self) -> str:
+        return f"<Nota(id={self.id}, titulo='{self.titulo}', tipo='{self.tipo}')>"
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "titulo": self.titulo,
+            "conteudo": self.conteudo,
+            "tipo": self.tipo,
+            "enviada": self.enviada,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
 # Constantes úteis para queries
 PLANOS_POR_CHECKIN = {"Diária", "Gympass", "Totalpass"}
