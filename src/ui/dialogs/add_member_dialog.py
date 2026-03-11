@@ -63,6 +63,9 @@ class AddMemberDialog(QDialog):
         
         # Campos
         self.nome_input = QLineEdit()
+        self.nome_input.setPlaceholderText("Primeiro nome")
+        self.sobrenome_input = QLineEdit()
+        self.sobrenome_input.setPlaceholderText("Sobrenome")
         self.apelido_input = QLineEdit()
         self.apelido_input.setPlaceholderText("Opcional")
         
@@ -142,6 +145,7 @@ class AddMemberDialog(QDialog):
 
         # Adiciona campos ao formulário
         self.form_layout.addRow("Nome (*):", self.nome_input)
+        self.form_layout.addRow("Sobrenome (*):", self.sobrenome_input)
         self.form_layout.addRow("Apelido:", self.apelido_input)
         self.form_layout.addRow("Plano (*):", self.plano_combo)
         self.vencimento_row = self.form_layout.addRow("Vencimento do Plano:", self.vencimento_plano_input)
@@ -207,18 +211,33 @@ class AddMemberDialog(QDialog):
 
     def _on_save(self):
         """Valida os dados e salva."""
-        # Validar data de nascimento
+        from PyQt6.QtWidgets import QMessageBox
+        from src.utils.utils import parse_date
+        from datetime import date
+        
+        # Validar nome e sobrenome
+        if not self.nome_input.text().strip():
+            QMessageBox.warning(self, "Atenção", "Por favor, informe o nome.")
+            return
+        
+        if not self.sobrenome_input.text().strip():
+            QMessageBox.warning(self, "Atenção", "Por favor, informe o sobrenome.")
+            return
+        
         # Validar data de nascimento
         data_nasc_text = self.data_nascimento_input.text().strip()
         if not data_nasc_text:
-            from PyQt6.QtWidgets import QMessageBox
             QMessageBox.warning(self, "Atenção", "Por favor, informe a data de nascimento.")
             return
 
-        from src.utils.utils import parse_date
-        if not parse_date(data_nasc_text):
-            from PyQt6.QtWidgets import QMessageBox
+        data_nasc = parse_date(data_nasc_text)
+        if not data_nasc:
             QMessageBox.warning(self, "Atenção", "Data de nascimento inválida. Use o formato dd/mm/aaaa.")
+            return
+        
+        # Não permitir data de nascimento igual à data atual
+        if data_nasc.date() == date.today() if hasattr(data_nasc, 'date') else data_nasc == date.today():
+            QMessageBox.warning(self, "Atenção", "A data de nascimento não pode ser a data de hoje.")
             return
             
         self.accept()
@@ -278,8 +297,11 @@ class AddMemberDialog(QDialog):
         if plano in self.plans_cache:
             is_quota = self.plans_cache[plano].get('is_quota', False)
         
+        # Concatena nome + sobrenome para salvar como campo único no banco
+        nome_completo = f"{self.nome_input.text().strip()} {self.sobrenome_input.text().strip()}".strip()
+        
         data = {
-            "nome": self.nome_input.text().strip(),
+            "nome": nome_completo,
             "apelido": self.apelido_input.text().strip(),
             "plano": plano,
             "data_nascimento": self.data_nascimento_input.text().strip(),
