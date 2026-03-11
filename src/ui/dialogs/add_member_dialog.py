@@ -235,9 +235,10 @@ class AddMemberDialog(QDialog):
             QMessageBox.warning(self, "Atenção", "Data de nascimento inválida. Use o formato dd/mm/aaaa.")
             return
         
-        # Não permitir data de nascimento igual à data atual
-        if data_nasc.date() == date.today() if hasattr(data_nasc, 'date') else data_nasc == date.today():
-            QMessageBox.warning(self, "Atenção", "A data de nascimento não pode ser a data de hoje.")
+        # Não permitir data de nascimento hoje ou no futuro (>= data atual)
+        data_nasc_date = data_nasc.date() if hasattr(data_nasc, 'date') else data_nasc
+        if data_nasc_date >= date.today():
+            QMessageBox.warning(self, "Atenção", "A data de nascimento não pode ser hoje ou uma data futura.")
             return
             
         self.accept()
