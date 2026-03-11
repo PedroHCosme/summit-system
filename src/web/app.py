@@ -123,25 +123,46 @@ def register():
     """Página e processamento de Cadastro."""
     if request.method == 'POST':
         # Coleta dados do formulário
-        nome = request.form.get('nome')
+        nome = request.form.get('nome', '').strip()
+        sobrenome = request.form.get('sobrenome', '').strip()
         apelido = request.form.get('apelido')
         whatsapp = request.form.get('whatsapp')
         plano = request.form.get('plano')
         
-        if not nome or not plano:
-            flash('Nome e Plano são obrigatórios.', 'error')
+        if not nome or not sobrenome:
+            flash('Nome e Sobrenome são obrigatórios.', 'error')
             return redirect(url_for('register'))
+        
+        if not plano:
+            flash('Plano é obrigatório.', 'error')
+            return redirect(url_for('register'))
+        
+        # Validar data de nascimento (não pode ser hoje)
+        data_nascimento = request.form.get('data_nascimento')
+        if data_nascimento:
+            from datetime import date as date_cls
+            try:
+                dt_nasc = datetime.strptime(data_nascimento, '%Y-%m-%d').date()
+                if dt_nasc >= date_cls.today():
+                    flash('A data de nascimento não pode ser a data de hoje ou uma data futura.', 'error')
+                    return redirect(url_for('register'))
+            except ValueError:
+                flash('Data de nascimento inválida.', 'error')
+                return redirect(url_for('register'))
+        
+        # Concatena nome + sobrenome para armazenar no banco
+        nome_completo = f"{nome} {sobrenome}"
         
         # Obtém sessão do banco de dados
         db = get_db()
         member_service = MemberService(db_session=db)
             
         member_data = {
-            'nome': nome,
+            'nome': nome_completo,
             'apelido': apelido,
             'whatsapp': whatsapp,
             'plano': plano,
-            'data_nascimento': request.form.get('data_nascimento'),
+            'data_nascimento': data_nascimento,
             'email': request.form.get('email'),
             'genero': request.form.get('genero'),
             'calcado': request.form.get('calcado'),

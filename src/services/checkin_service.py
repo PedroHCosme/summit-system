@@ -703,7 +703,7 @@ class CheckinService:
         
         if self._session is not None:
             results = self._session.query(
-                Frequencia, Membro.nome, Membro.plano
+                Frequencia, Membro.nome, Membro.plano, Membro.estado_plano
             ).join(Membro, Frequencia.member_id == Membro.id).filter(
                 func.date(Frequencia.checkin_datetime) == today
             ).order_by(Frequencia.checkin_datetime.desc()).all()
@@ -714,9 +714,10 @@ class CheckinService:
                     'member_id': f.member_id,
                     'nome': nome,
                     'plano': plano,
+                    'estado_plano': estado_plano,
                     'checkin_datetime': f.checkin_datetime.isoformat() if f.checkin_datetime else None
                 }
-                for f, nome, plano in results
+                for f, nome, plano, estado_plano in results
             ]
         else:
             return self._db_manager.get_checkins_today_details()
@@ -738,7 +739,7 @@ class CheckinService:
                 return []
             
             results = self._session.query(
-                Frequencia, Membro.nome, Membro.plano
+                Frequencia, Membro.nome, Membro.plano, Membro.estado_plano
             ).join(Membro, Frequencia.member_id == Membro.id).filter(
                 func.date(Frequencia.checkin_datetime) == target_date
             ).order_by(Frequencia.checkin_datetime.desc()).all()
@@ -749,9 +750,10 @@ class CheckinService:
                     'member_id': f.member_id,
                     'nome': nome,
                     'plano': plano,
+                    'estado_plano': estado_plano,
                     'checkin_datetime': f.checkin_datetime.isoformat() if f.checkin_datetime else None
                 }
-                for f, nome, plano in results
+                for f, nome, plano, estado_plano in results
             ]
         else:
             return self._db_manager.get_checkins_by_date(date_str)
@@ -768,7 +770,7 @@ class CheckinService:
         """
         if self._session is not None:
             results = self._session.query(
-                Frequencia, Membro.nome, Membro.plano
+                Frequencia, Membro.nome, Membro.plano, Membro.estado_plano
             ).join(Membro, Frequencia.member_id == Membro.id).order_by(
                 Frequencia.checkin_datetime.desc()
             ).limit(limit).all()
@@ -779,9 +781,10 @@ class CheckinService:
                     'member_id': f.member_id,
                     'nome': nome,
                     'plano': plano,
+                    'estado_plano': estado_plano,
                     'checkin_datetime': f.checkin_datetime.isoformat() if f.checkin_datetime else None
                 }
-                for f, nome, plano in results
+                for f, nome, plano, estado_plano in results
             ]
         else:
             return self._db_manager.get_last_checkins(limit)

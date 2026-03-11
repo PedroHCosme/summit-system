@@ -186,11 +186,22 @@ class DashboardScreen(QWidget):
             for checkin in last_checkins:
                 nome = checkin.get('nome')
                 member_id = checkin.get('member_id', 0)
+                estado_plano = checkin.get('estado_plano', '')
                 dt_str = checkin.get('checkin_datetime')
                 dt_obj = datetime.fromisoformat(dt_str)
                 checkin_datetime_str = dt_obj.strftime('%d/%m/%Y às %H:%M')
+                
+                cor_nome = '#E67E22'
+                nome_display = nome
+                
+                if estado_plano == 'ATIVO':
+                    cor_nome = 'blue'
+                elif estado_plano in ('VENCIDO', 'INATIVO'):
+                    cor_nome = '#FF0000' # Vermelho vivo
+                    nome_display = f"{nome} (Plano vencido)"
+                
                 # Nome clicável como link
-                html += f"<li style='margin-bottom: 8px; padding: 10px; background: #f0f4f8; border-radius: 6px; color: #1a2540;'><a href='member://{member_id}' style='color: #E67E22; font-weight: bold; text-decoration: underline; cursor: pointer;'>{nome}</a> - {checkin_datetime_str}</li>"
+                html += f"<li style='margin-bottom: 8px; padding: 10px; background: #f0f4f8; border-radius: 6px; color: #1a2540;'><a href='member://{member_id}' style='color: {cor_nome}; font-weight: bold; text-decoration: underline; cursor: pointer;'>{nome_display}</a> - {checkin_datetime_str}</li>"
             html += "</ul>"
             html += "</div>"
         self.last_checkins_browser.setHtml(html)
@@ -341,6 +352,7 @@ class DashboardScreen(QWidget):
                         nome = checkin.get('nome', 'N/A')
                         plano = checkin.get('plano', 'N/A')
                         member_id = checkin.get('member_id', 0)
+                        estado_plano = checkin.get('estado_plano', '')
                         member_ids.append(member_id)
                         checkin_datetime_str = checkin.get('checkin_datetime')
                         
@@ -352,9 +364,18 @@ class DashboardScreen(QWidget):
                             table.setItem(row, 2, QTableWidgetItem('N/A'))
                             table.setItem(row, 3, QTableWidgetItem('N/A'))
 
+                        nome_display = nome
+                        cor = Qt.GlobalColor.darkYellow
+                        
+                        if estado_plano == 'ATIVO':
+                            cor = Qt.GlobalColor.blue
+                        elif estado_plano in ('VENCIDO', 'INATIVO'):
+                            cor = Qt.GlobalColor.red
+                            nome_display = f"{nome} (Plano vencido)"
+
                         # Nome com estilo clicável
-                        nome_item = QTableWidgetItem(nome)
-                        nome_item.setForeground(Qt.GlobalColor.blue)
+                        nome_item = QTableWidgetItem(nome_display)
+                        nome_item.setForeground(cor)
                         table.setItem(row, 0, nome_item)
                         table.setItem(row, 1, QTableWidgetItem(plano))
             
