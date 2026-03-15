@@ -9,6 +9,8 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QDate, pyqtSignal, QUrl
 
+from src.core.plan_status import is_active as plan_is_active
+
 
 class DashboardScreen(QWidget):
     """Tela do dashboard de atividade."""
@@ -194,9 +196,9 @@ class DashboardScreen(QWidget):
                 cor_nome = '#E67E22'
                 nome_display = nome
                 
-                if estado_plano == 'ATIVO':
+                if plan_is_active(estado_plano):
                     cor_nome = 'blue'
-                elif estado_plano in ('VENCIDO', 'INATIVO'):
+                elif not plan_is_active(estado_plano):
                     cor_nome = '#FF0000' # Vermelho vivo
                     nome_display = f"{nome} (Plano vencido)"
                 
@@ -367,9 +369,9 @@ class DashboardScreen(QWidget):
                         nome_display = nome
                         cor = Qt.GlobalColor.darkYellow
                         
-                        if estado_plano == 'ATIVO':
+                        if plan_is_active(estado_plano):
                             cor = Qt.GlobalColor.blue
-                        elif estado_plano in ('VENCIDO', 'INATIVO'):
+                        elif not plan_is_active(estado_plano):
                             cor = Qt.GlobalColor.red
                             nome_display = f"{nome} (Plano vencido)"
 

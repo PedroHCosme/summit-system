@@ -640,22 +640,22 @@ class MainWindow(QMainWindow):
             self.home_screen.set_error("Falha na conexão. Verifique o console para mais detalhes.")
     
     def _run_migrations(self):
-        """Executa as migrações do banco de dados automaticamente."""
+        """Executa as migrações do banco de dados via Alembic."""
         try:
-            from src.data.migrations import DatabaseMigrator
-            from src.data.database_manager import DatabaseManager
+            import os
+            from alembic import command
+            from alembic.config import Config
             
-            # Instanciar DatabaseManager apenas para migrações
-            db_manager = DatabaseManager()
-            db_manager.connect()
+            project_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            alembic_ini_path = os.path.join(project_dir, "alembic.ini")
             
-            migrator = DatabaseMigrator(db_manager)
-            migrator.run_all()
+            alembic_cfg = Config(alembic_ini_path)
+            alembic_cfg.set_main_option("script_location", os.path.join(project_dir, "alembic_migrations"))
             
-            db_manager.close()
-            print("✓ Migrações do banco de dados executadas com sucesso")
+            command.upgrade(alembic_cfg, "head")
+            print("✓ Migrações do banco de dados (Alembic) executadas com sucesso")
         except Exception as e:
-            print(f"⚠ Erro ao executar migrações: {e}")
+            print(f"⚠ Erro ao executar migrações Alembic: {e}")
             # Não bloqueia a aplicação se houver erro nas migrações
     
     # === Dashboard ===
@@ -1200,7 +1200,7 @@ class MainWindow(QMainWindow):
     # === Financeiro ===
     
     def _load_financial_data(self):
-        """Carrega os dados financeiros com base no período selecionado."""
+        """Carrega os dados financeiros com base no período selecionado rodando em background."""
         try:
             # Mostra estado de carregamento
             self.financial_screen.show_loading()
@@ -1214,37 +1214,56 @@ class MainWindow(QMainWindow):
             start_datetime = datetime.combine(start_date, time.min)
             end_datetime = datetime.combine(end_date, time.max)
             
-            # Obter resumo
-            summary = self.manager.data_provider.get_financial_summary(
-                start_datetime, end_datetime
+            # Instanciar e iniciar Worker para não travar a UI
+            from src.ui.workers.financial_worker import FinancialDataWorker
+            
+            # Desativar botões ou evitar múltiplas requisições se necessário aqui
+            self._financial_worker = FinancialDataWorker(
+                self.manager.data_provider, 
+                start_datetime, 
+                end_datetime
             )
             
-            # Atualizar cards de resumo
-            self.financial_screen.update_summary(
-                summary['total_receita'],
-                summary['total_transacoes'],
-                summary['ticket_medio']
-            )
+            self._financial_worker.data_loaded.connect(self._on_financial_data_loaded)
+            self._financial_worker.error_occurred.connect(self._on_financial_data_error)
             
-            # Obter breakdown por tipo
-            breakdown = self.manager.data_provider.get_revenue_breakdown(
-                start_datetime, end_datetime
-            )
-            self.financial_screen.update_breakdown(breakdown)
-            
-            # Obter transações
-            transactions = self.manager.data_provider.get_transactions_in_range(
-                start_datetime, end_datetime
-            )
-            self.financial_screen.update_transactions(transactions)
+            # Iniciar thread
+            self._financial_worker.start()
             
         except Exception as e:
             QMessageBox.critical(
                 self,
                 "Erro",
-                f"Erro ao carregar dados financeiros: {str(e)}"
+                f"Erro ao iniciar carregamento financeiro: {str(e)}"
             )
-    
+            
+    def _on_financial_data_loaded(self, result: dict):
+        """Callback invocado quando o worker financeiro conclui com sucesso."""
+        try:
+            summary = result.get('summary', {})
+            # Atualizar cards de resumo
+            self.financial_screen.update_summary(
+                summary.get('total_receita', 0.0),
+                summary.get('total_transacoes', 0),
+                summary.get('ticket_medio', 0.0)
+            )
+            
+            breakdown = result.get('breakdown', {})
+            self.financial_screen.update_breakdown(breakdown)
+            
+            transactions = result.get('transactions', [])
+            self.financial_screen.update_transactions(transactions)
+            
+        except Exception as e:
+            QMessageBox.warning(self, "Aviso", f"Erro processando os dados financeiros: {str(e)}")
+            
+    def _on_financial_data_error(self, error_msg: str):
+        """Callback invocado quando o worker financeiro encontra erro."""
+        QMessageBox.critical(
+            self,
+            "Erro de Banco de Dados",
+            f"Falha gravíssima ao carregar as métricas financeiras:\n\n{error_msg}"
+        )
     def _show_plan_distribution_dialog(self):
         """Abre o diálogo de gráficos financeiros."""
         from src.ui.dialogs.finance_graphs import FinancialGraphsDialog
@@ -1309,7 +1328,8 @@ class MainWindow(QMainWindow):
                 
                 # Caminho do banco de dados
                 project_root = Path(__file__).parent.parent.parent
-                db_path = os.path.join(project_root, "gym_database.db")
+                from src.config import DB_FILENAME
+                db_path = os.path.join(project_root, DB_FILENAME)
                 backup_dir = os.path.join(project_root, "backups")
                 
                 # Criar diretório de backup se não existir

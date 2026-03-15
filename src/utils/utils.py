@@ -155,30 +155,23 @@ def calculate_new_due_date(plan_name: str, start_date: Optional[datetime] = None
     Returns:
         Objeto datetime com a nova data de vencimento ou None para planos sem vencimento.
     """
-    # Usa a data atual se start_date não for fornecida
+    # Mapa centralizado: nome do plano → duração (kwargs para relativedelta)
+    # Fonte de verdade para durações de planos.
+    PLAN_DURATION_MAP = {
+        "Mensal": {"months": 1},
+        "Mens. c/ Treino": {"months": 1},
+        "Escolinha 1x": {"months": 1},
+        "Escolinha 2x": {"months": 1},
+        "Trimestral": {"months": 3},
+        "Semestral": {"months": 6},
+        "Anual": {"years": 1},
+        "Diária": {"days": 1},
+        "Diária Boulder": {"days": 1},
+    }
+
+    duration = PLAN_DURATION_MAP.get(plan_name)
+    if duration is None:
+        return None  # Planos sem vencimento (Gympass, Totalpass, Cortesia, etc.)
+
     base_date = start_date if start_date else datetime.now()
-    
-    # Planos mensais (1 mês)
-    # Planos mensais (1 mês)
-    if plan_name in ["Mensal", "Mens. c/ Treino", "Escolhinha", "Escolhinha 1x", "Escolhinha 2x", "Escolinha 1x", "Escolinha 2x"]:
-        return base_date + relativedelta(months=1)
-    
-    # Plano trimestral (3 meses)
-    elif plan_name == "Trimestral":
-        return base_date + relativedelta(months=3)
-    
-    # Plano semestral (6 meses)
-    elif plan_name == "Semestral":
-        return base_date + relativedelta(months=6)
-    
-    # Plano anual (1 ano)
-    elif plan_name == "Anual":
-        return base_date + relativedelta(years=1)
-    
-    # Planos diários (1 dia)
-    elif plan_name in ["Diária", "Diária Boulder"]:
-        return base_date + relativedelta(days=1)
-    
-    # Planos sem vencimento (Gympass, Totalpass, Cortesia, etc.)
-    else:
-        return None
+    return base_date + relativedelta(**duration)

@@ -50,47 +50,33 @@ class CheckinService:
     
     def __init__(
         self, 
-        db_session: Optional[Session] = None,
-        db_manager: Optional["DatabaseManager"] = None
+        db_session: Session
     ):
         """
-        Inicializa o serviço de check-in.
+        Inicializa o serviço de check-in usando obrigatoriamente SQLAlchemy.
         
         Args:
-            db_session: Sessão SQLAlchemy para acesso aos dados (preferencial)
-            db_manager: Instância do DatabaseManager legado (compatibilidade)
-        
-        Raises:
-            ValueError: Se nenhum dos parâmetros for fornecido
+            db_session: Sessão SQLAlchemy para acesso aos dados
         """
+        if db_session is None:
+            raise ValueError("CheckinService requer db_session (SQLAlchemy)")
         self._session = db_session
-        self._db_manager = db_manager
-        
-        if db_session is None and db_manager is None:
-            raise ValueError(
-                "CheckinService requer db_session (SQLAlchemy) ou db_manager (legado)"
-            )
     
     @property
-    def session(self) -> Optional[Session]:
-        """Retorna a sessão SQLAlchemy se disponível."""
+    def session(self) -> Session:
+        """Retorna a sessão SQLAlchemy."""
         return self._session
     
     @property
     def per_checkin_plans(self) -> dict:
         """Retorna os planos que cobram por check-in (lazy loading do banco)."""
         if self._per_checkin_plans is None:
-            if self.session:
-                # Buscar do banco de dados (prioridade)
-                plans = self.session.query(Plano).filter(
-                    Plano.valor_por_checkin > 0,
-                    Plano.ativo == True
-                ).all()
-                self._per_checkin_plans = {p.nome: p.valor_por_checkin for p in plans}
-            else:
-                # Fallback para config (modo legado)
-                from src.config import PLANOS_PAGAMENTO_POR_CHECKIN
-                self._per_checkin_plans = PLANOS_PAGAMENTO_POR_CHECKIN
+            # Buscar do banco de dados (prioridade)
+            plans = self.session.query(Plano).filter(
+                Plano.valor_por_checkin > 0,
+                Plano.ativo == True
+            ).all()
+            self._per_checkin_plans = {p.nome: p.valor_por_checkin for p in plans}
         return self._per_checkin_plans
     
     # =========================================================================
@@ -104,21 +90,13 @@ class CheckinService:
     ) -> Tuple[bool, str]:
         """
         Valida se um check-in pode ser realizado.
-        
-        Args:
-            member_id: ID do membro
-            checkin_datetime: Data e hora do check-in
-            
-        Returns:
-            Tupla (is_valid, error_message)
         """
         # Verificar se o membro existe
         member = self._get_member(member_id)
         if not member:
             return False, f"Membro com ID {member_id} não encontrado."
         
-        # Obter nome do membro (suporta dict ou ORM)
-        member_name = self._get_member_name(member, member_id)
+        member_name = member.nome
         
         # Verificar se já existe check-in no mesmo dia
         if self._has_checkin_today(member_id, checkin_datetime):
@@ -128,9 +106,6 @@ class CheckinService:
                 f"Membro '{member_name}' já fez check-in hoje ({checkin_date_str}).\n"
                 f"Apenas 1 check-in por dia é permitido."
             )
-        
-        # For quota plans, we allow check-in even with zero balance (per business rule)
-        # The warning will be shown in the result message, not as a validation error
         
         return True, ""
     
@@ -143,20 +118,6 @@ class CheckinService:
     ) -> CheckinResult:
         """
         Realiza o check-in completo de um membro.
-        
-        Esta é a operação principal que:
-        1. Valida se o check-in é permitido
-        2. Insere o registro de frequência
-        3. Gera pagamento automático se necessário (planos por check-in)
-        
-        Args:
-            member_id: ID do membro
-            checkin_datetime: Data/hora do check-in (default: agora)
-            plan_context: Opcional - plano a considerar para pagamento
-                         (sobrepõe o plano atual do membro)
-        
-        Returns:
-            CheckinResult com o resultado da operação
         """
         if checkin_datetime is None:
             checkin_datetime = datetime.now()
@@ -174,21 +135,16 @@ class CheckinService:
                 message=f"Membro com ID {member_id} não encontrado."
             )
         
-        member_name = self._get_member_name(member, member_id)
-        member_plan = self._get_member_plan(member)
+        member_name = member.nome
+        member_plan = member.plano
         
         # Determinar qual plano usar para pagamento
         effective_plan = plan_context or member_plan
         
-        # Etapa 3 & 4: Inserir check-in e gerar pagamento
-        if self._session is not None:
-            return self._perform_checkin_sqlalchemy(
-                member_id, checkin_datetime, member_name, effective_plan, consume_voucher
-            )
-        else:
-            return self._perform_checkin_legacy(
-                member_id, checkin_datetime, member_name, effective_plan
-            )
+        # Etapa 3 & 4: Inserir check-in e gerar pagamento usando ORM
+        return self._perform_checkin_sqlalchemy(
+            member_id, checkin_datetime, member_name, effective_plan, consume_voucher
+        )
     
     def ensure_payment_for_checkin(
         self,
@@ -198,22 +154,12 @@ class CheckinService:
     ) -> bool:
         """
         Garante que existe um pagamento registrado para o check-in informado.
-        
-        Útil para backfill ou correção de dados.
-        
-        Args:
-            member_id: ID do membro
-            checkin_datetime: Data/hora do check-in
-            plan_context: Opcional - plano a considerar
-            
-        Returns:
-            True se pagamento foi criado ou já existia
         """
         member = self._get_member(member_id)
         if not member:
             return False
         
-        member_plan = self._get_member_plan(member)
+        member_plan = member.plano
         effective_plan = plan_context or member_plan
         should_pay, normalized_plan, amount = self._should_generate_payment(effective_plan)
         
@@ -224,7 +170,7 @@ class CheckinService:
             return True  # Já existe
         
         # Criar pagamento
-        member_name = self._get_member_name(member, member_id)
+        member_name = member.nome
         descricao = f"Check-in - {normalized_plan}"
         if member_name:
             descricao += f" ({member_name})"
@@ -243,12 +189,9 @@ class CheckinService:
     # MÉTODOS PRIVADOS - ABSTRAÇÃO DE DADOS
     # =========================================================================
     
-    def _get_member(self, member_id: int) -> Optional[Union[Membro, dict]]:
-        """Obtém um membro por ID (SQLAlchemy ou legado)."""
-        if self._session is not None:
-            return self._session.query(Membro).filter(Membro.id == member_id).first()
-        else:
-            return self._db_manager.get_member_by_id(member_id)
+    def _get_member(self, member_id: int) -> Optional[Membro]:
+        """Obtém um membro por ID (SQLAlchemy)."""
+        return self._session.query(Membro).filter(Membro.id == member_id).first()
     
     def _get_member_name(self, member: Union[Membro, dict], member_id: int) -> str:
         """Extrai o nome do membro (suporta ORM ou dict)."""
@@ -289,28 +232,15 @@ class CheckinService:
     
     def _payment_exists_for_checkin(self, member_id: int, checkin_datetime: datetime) -> bool:
         """Verifica se já existe um pagamento registrado para este check-in."""
+        from src.core.payment_constants import METODO_CHECKIN
         checkin_date = checkin_datetime.date()
         
-        if self._session is not None:
-            # SQLAlchemy
-            count = self._session.query(Pagamento).filter(
-                Pagamento.member_id == member_id,
-                func.date(Pagamento.data_pagamento) == checkin_date,
-                Pagamento.metodo_pagamento == "Check-in"
-            ).count()
-            return count > 0
-        else:
-            # Legado
-            if not self._db_manager.connection:
-                return False
-            cursor = self._db_manager.connection.cursor()
-            cursor.execute("""
-                SELECT id FROM pagamentos
-                WHERE member_id = ?
-                AND DATE(data_pagamento) = DATE(?)
-                AND metodo_pagamento = 'Check-in'
-            """, (member_id, checkin_datetime.strftime('%Y-%m-%d %H:%M:%S')))
-            return cursor.fetchone() is not None
+        count = self._session.query(Pagamento).filter(
+            Pagamento.member_id == member_id,
+            func.date(Pagamento.data_pagamento) == checkin_date,
+            Pagamento.metodo_pagamento == METODO_CHECKIN
+        ).count()
+        return count > 0
     
     # =========================================================================
     # MÉTODOS PRIVADOS - LÓGICA DE NEGÓCIO
@@ -318,27 +248,8 @@ class CheckinService:
     
     def _normalize_plan_for_payment(self, plan_name: Optional[str]) -> Optional[str]:
         """Normaliza o nome do plano para fins de cobrança por check-in."""
-        if not plan_name:
-            return None
-            
-        plan_name = plan_name.strip()
-        if not plan_name:
-            return None
-        
-        # Verificar se é exatamente um plano por check-in
-        if plan_name in self.per_checkin_plans:
-            return plan_name
-        
-        # Tentar normalizar por palavras-chave
-        lowered = plan_name.lower()
-        if 'diária' in lowered:
-            return 'Diária'
-        if 'gympass' in lowered:
-            return 'Gympass'
-        if 'totalpass' in lowered:
-            return 'Totalpass'
-        
-        return None
+        from src.core.plan_utils import normalize_plan_for_payment
+        return normalize_plan_for_payment(plan_name, self.per_checkin_plans)
     
     def _should_generate_payment(
         self, plan_name: Optional[str]
@@ -358,13 +269,8 @@ class CheckinService:
         if not plan_name:
             return False
         
-        if self._session is not None:
-            plan = self._session.query(Plano).filter(Plano.nome == plan_name).first()
-            return plan.is_quota if plan else False
-        else:
-            # Fallback: use plan_service for legacy mode
-            from src.services.plan_service import get_plan_service
-            return get_plan_service().is_quota_plan(plan_name)
+        plan = self._session.query(Plano).filter(Plano.nome == plan_name).first()
+        return plan.is_quota if plan else False
     
     # =========================================================================
     # MÉTODOS PRIVADOS - IMPLEMENTAÇÃO SQLALCHEMY
@@ -379,6 +285,7 @@ class CheckinService:
         consume_voucher: bool = True
     ) -> CheckinResult:
         """Implementação do check-in usando SQLAlchemy."""
+        from src.core.payment_constants import METODO_CHECKIN
         try:
             # Fetch member first to check quota status
             member = self._session.query(Membro).filter(Membro.id == member_id).first()
@@ -435,7 +342,7 @@ class CheckinService:
                         tipo_transacao=normalized_plan,
                         descricao=descricao,
                         valor=amount,
-                        metodo_pagamento="Check-in"
+                        metodo_pagamento=METODO_CHECKIN
                     )
                     self._session.add(new_payment)
                     payment_generated = True
@@ -468,65 +375,8 @@ class CheckinService:
             )
     
     # =========================================================================
-    # MÉTODOS PRIVADOS - IMPLEMENTAÇÃO LEGADO
+    # MÉTODOS PRIVADOS - CRIAÇÃO DE PAGAMENTO
     # =========================================================================
-    
-    def _perform_checkin_legacy(
-        self,
-        member_id: int,
-        checkin_datetime: datetime,
-        member_name: str,
-        effective_plan: str
-    ) -> CheckinResult:
-        """Implementação do check-in usando DatabaseManager legado."""
-        try:
-            cursor = self._db_manager.connection.cursor()
-            cursor.execute("""
-                INSERT INTO frequencia (member_id, checkin_datetime)
-                VALUES (?, ?)
-            """, (member_id, checkin_datetime.strftime('%Y-%m-%d %H:%M:%S')))
-            
-            checkin_id = cursor.lastrowid
-            
-            # Verificar se precisa gerar pagamento
-            payment_generated = False
-            payment_amount = None
-            
-            should_pay, normalized_plan, amount = self._should_generate_payment(effective_plan)
-            
-            if should_pay and not self._payment_exists_for_checkin(member_id, checkin_datetime):
-                descricao = f"Check-in - {normalized_plan}"
-                if member_name:
-                    descricao += f" ({member_name})"
-                
-                self._db_manager.add_payment(
-                    member_id=member_id,
-                    data_pagamento=checkin_datetime,
-                    tipo_transacao=normalized_plan,
-                    descricao=descricao,
-                    valor=amount,
-                    metodo_pagamento="Check-in"
-                )
-                payment_generated = True
-                payment_amount = amount
-            
-            self._db_manager.connection.commit()
-            
-            return CheckinResult(
-                success=True,
-                checkin_id=checkin_id,
-                message="Check-in registrado com sucesso!",
-                payment_generated=payment_generated,
-                payment_amount=payment_amount
-            )
-            
-        except Exception as e:
-            if self._db_manager.connection:
-                self._db_manager.connection.rollback()
-            return CheckinResult(
-                success=False,
-                message=f"Erro ao registrar check-in: {str(e)}"
-            )
     
     def _create_payment(
         self,
@@ -536,29 +386,18 @@ class CheckinService:
         descricao: str,
         valor: float
     ) -> None:
-        """Cria um pagamento (SQLAlchemy ou legado)."""
-        if self._session is not None:
-            new_payment = Pagamento(
-                member_id=member_id,
-                data_pagamento=checkin_datetime,
-                tipo_transacao=tipo_transacao,
-                descricao=descricao,
-                valor=valor,
-                metodo_pagamento="Check-in"
-            )
-            self._session.add(new_payment)
-            self._session.commit()
-        else:
-            self._db_manager.add_payment(
-                member_id=member_id,
-                data_pagamento=checkin_datetime,
-                tipo_transacao=tipo_transacao,
-                descricao=descricao,
-                valor=valor,
-                metodo_pagamento="Check-in"
-            )
-            if self._db_manager.connection:
-                self._db_manager.connection.commit()
+        """Cria um pagamento (SQLAlchemy)."""
+        from src.core.payment_constants import METODO_CHECKIN
+        new_payment = Pagamento(
+            member_id=member_id,
+            data_pagamento=checkin_datetime,
+            tipo_transacao=tipo_transacao,
+            descricao=descricao,
+            valor=valor,
+            metodo_pagamento=METODO_CHECKIN
+        )
+        self._session.add(new_payment)
+        self._session.commit()
     
     # =========================================================================
     # MÉTODOS ADICIONAIS DE CHECK-IN
@@ -567,45 +406,31 @@ class CheckinService:
     def delete_checkin(self, checkin_id: int) -> CheckinResult:
         """
         Remove um registro de check-in.
-        
-        Args:
-            checkin_id: ID do check-in a ser removido
-            
-        Returns:
-            CheckinResult com o resultado da operação
         """
-        if self._session is not None:
-            try:
-                checkin = self._session.query(Frequencia).filter(
-                    Frequencia.id == checkin_id
-                ).first()
-                
-                if not checkin:
-                    return CheckinResult(
-                        success=False,
-                        message=f"Check-in com ID {checkin_id} não encontrado."
-                    )
-                
-                self._session.delete(checkin)
-                self._session.commit()
-                
-                return CheckinResult(
-                    success=True,
-                    checkin_id=checkin_id,
-                    message="Check-in removido com sucesso."
-                )
-            except Exception as e:
-                self._session.rollback()
+        try:
+            checkin = self._session.query(Frequencia).filter(
+                Frequencia.id == checkin_id
+            ).first()
+            
+            if not checkin:
                 return CheckinResult(
                     success=False,
-                    message=f"Erro ao remover check-in: {str(e)}"
+                    message=f"Check-in com ID {checkin_id} não encontrado."
                 )
-        else:
-            success = self._db_manager.delete_checkin(checkin_id)
+            
+            self._session.delete(checkin)
+            self._session.commit()
+            
             return CheckinResult(
-                success=success,
+                success=True,
                 checkin_id=checkin_id,
-                message="Check-in removido." if success else "Erro ao remover check-in."
+                message="Check-in removido com sucesso."
+            )
+        except Exception as e:
+            self._session.rollback()
+            return CheckinResult(
+                success=False,
+                message=f"Erro ao remover check-in: {str(e)}"
             )
     
     def update_datetime(
@@ -615,46 +440,31 @@ class CheckinService:
     ) -> CheckinResult:
         """
         Atualiza a data/hora de um check-in existente.
-        
-        Args:
-            checkin_id: ID do check-in a ser atualizado
-            new_datetime: Nova data/hora para o check-in
-            
-        Returns:
-            CheckinResult com o resultado da operação
         """
-        if self._session is not None:
-            try:
-                checkin = self._session.query(Frequencia).filter(
-                    Frequencia.id == checkin_id
-                ).first()
-                
-                if not checkin:
-                    return CheckinResult(
-                        success=False,
-                        message=f"Check-in com ID {checkin_id} não encontrado."
-                    )
-                
-                checkin.checkin_datetime = new_datetime
-                self._session.commit()
-                
-                return CheckinResult(
-                    success=True,
-                    checkin_id=checkin_id,
-                    message="Check-in atualizado com sucesso."
-                )
-            except Exception as e:
-                self._session.rollback()
+        try:
+            checkin = self._session.query(Frequencia).filter(
+                Frequencia.id == checkin_id
+            ).first()
+            
+            if not checkin:
                 return CheckinResult(
                     success=False,
-                    message=f"Erro ao atualizar check-in: {str(e)}"
+                    message=f"Check-in com ID {checkin_id} não encontrado."
                 )
-        else:
-            success = self._db_manager.update_checkin_datetime(checkin_id, new_datetime)
+            
+            checkin.checkin_datetime = new_datetime
+            self._session.commit()
+            
             return CheckinResult(
-                success=success,
+                success=True,
                 checkin_id=checkin_id,
-                message="Check-in atualizado." if success else "Erro ao atualizar check-in."
+                message="Check-in atualizado com sucesso."
+            )
+        except Exception as e:
+            self._session.rollback()
+            return CheckinResult(
+                success=False,
+                message=f"Erro ao atualizar check-in: {str(e)}"
             )
     
     def get_member_history(self, member_id: int) -> list:
@@ -679,84 +489,63 @@ class CheckinService:
     def count_today(self) -> int:
         """
         Conta o número de check-ins realizados hoje.
-        
-        Returns:
-            Número de check-ins de hoje
         """
         today = date.today()
         
-        if self._session is not None:
-            return self._session.query(Frequencia).filter(
-                func.date(Frequencia.checkin_datetime) == today
-            ).count()
-        else:
-            return self._db_manager.get_checkins_today()
+        return self._session.query(Frequencia).filter(
+            func.date(Frequencia.checkin_datetime) == today
+        ).count()
     
     def get_today_details(self) -> list:
         """
         Busca os detalhes de todos os check-ins de hoje.
-        
-        Returns:
-            Lista de dicionários com nome, plano e horário
         """
         today = date.today()
         
-        if self._session is not None:
-            results = self._session.query(
-                Frequencia, Membro.nome, Membro.plano, Membro.estado_plano
-            ).join(Membro, Frequencia.member_id == Membro.id).filter(
-                func.date(Frequencia.checkin_datetime) == today
-            ).order_by(Frequencia.checkin_datetime.desc()).all()
-            
-            return [
-                {
-                    'id': f.id,
-                    'member_id': f.member_id,
-                    'nome': nome,
-                    'plano': plano,
-                    'estado_plano': estado_plano,
-                    'checkin_datetime': f.checkin_datetime.isoformat() if f.checkin_datetime else None
-                }
-                for f, nome, plano, estado_plano in results
-            ]
-        else:
-            return self._db_manager.get_checkins_today_details()
+        results = self._session.query(
+            Frequencia, Membro.nome, Membro.plano, Membro.estado_plano
+        ).join(Membro, Frequencia.member_id == Membro.id).filter(
+            func.date(Frequencia.checkin_datetime) == today
+        ).order_by(Frequencia.checkin_datetime.desc()).all()
+        
+        return [
+            {
+                'id': f.id,
+                'member_id': f.member_id,
+                'nome': nome,
+                'plano': plano,
+                'estado_plano': estado_plano,
+                'checkin_datetime': f.checkin_datetime.isoformat() if f.checkin_datetime else None
+            }
+            for f, nome, plano, estado_plano in results
+        ]
     
     def get_by_date(self, date_str: str) -> list:
         """
         Busca check-ins de uma data específica.
-        
-        Args:
-            date_str: Data no formato 'YYYY-MM-DD'
-            
-        Returns:
-            Lista de check-ins dessa data
         """
-        if self._session is not None:
-            try:
-                target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
-            except ValueError:
-                return []
-            
-            results = self._session.query(
-                Frequencia, Membro.nome, Membro.plano, Membro.estado_plano
-            ).join(Membro, Frequencia.member_id == Membro.id).filter(
-                func.date(Frequencia.checkin_datetime) == target_date
-            ).order_by(Frequencia.checkin_datetime.desc()).all()
-            
-            return [
-                {
-                    'id': f.id,
-                    'member_id': f.member_id,
-                    'nome': nome,
-                    'plano': plano,
-                    'estado_plano': estado_plano,
-                    'checkin_datetime': f.checkin_datetime.isoformat() if f.checkin_datetime else None
-                }
-                for f, nome, plano, estado_plano in results
-            ]
-        else:
-            return self._db_manager.get_checkins_by_date(date_str)
+        try:
+            target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+        except ValueError:
+            return []
+        
+        results = self._session.query(
+            Frequencia, Membro.nome, Membro.plano, Membro.estado_plano
+        ).join(Membro, Frequencia.member_id == Membro.id).filter(
+            func.date(Frequencia.checkin_datetime) == target_date
+        ).order_by(Frequencia.checkin_datetime.desc()).all()
+        
+        return [
+            {
+                'id': f.id,
+                'member_id': f.member_id,
+                'nome': nome,
+                'plano': plano,
+                'estado_plano': estado_plano,
+                'checkin_datetime': f.checkin_datetime.isoformat() if f.checkin_datetime else None
+            }
+            for f, nome, plano, estado_plano in results
+        ]
     
     def get_recent(self, limit: int = 5) -> list:
         """
@@ -768,26 +557,23 @@ class CheckinService:
         Returns:
             Lista dos últimos check-ins
         """
-        if self._session is not None:
-            results = self._session.query(
-                Frequencia, Membro.nome, Membro.plano, Membro.estado_plano
-            ).join(Membro, Frequencia.member_id == Membro.id).order_by(
-                Frequencia.checkin_datetime.desc()
-            ).limit(limit).all()
-            
-            return [
-                {
-                    'id': f.id,
-                    'member_id': f.member_id,
-                    'nome': nome,
-                    'plano': plano,
-                    'estado_plano': estado_plano,
-                    'checkin_datetime': f.checkin_datetime.isoformat() if f.checkin_datetime else None
-                }
-                for f, nome, plano, estado_plano in results
-            ]
-        else:
-            return self._db_manager.get_last_checkins(limit)
+        results = self._session.query(
+            Frequencia, Membro.nome, Membro.plano, Membro.estado_plano
+        ).join(Membro, Frequencia.member_id == Membro.id).order_by(
+            Frequencia.checkin_datetime.desc()
+        ).limit(limit).all()
+        
+        return [
+            {
+                'id': f.id,
+                'member_id': f.member_id,
+                'nome': nome,
+                'plano': plano,
+                'estado_plano': estado_plano,
+                'checkin_datetime': f.checkin_datetime.isoformat() if f.checkin_datetime else None
+            }
+            for f, nome, plano, estado_plano in results
+        ]
     
     def get_today_list(self) -> list:
         """

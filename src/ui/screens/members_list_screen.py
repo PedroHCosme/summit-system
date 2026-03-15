@@ -11,6 +11,7 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor
 
 from src.config import PLANOS_COM_VENCIMENTO
+from src.core.plan_status import ATIVO, INATIVO
 
 
 class MembersListScreen(QWidget):
@@ -64,7 +65,7 @@ class MembersListScreen(QWidget):
         # Filtro por status
         filters_layout.addWidget(QLabel("Status:"))
         self.status_filter = QComboBox()
-        self.status_filter.addItems(["Todos", "ATIVO", "INATIVO"])
+        self.status_filter.addItems(["Todos", ATIVO, INATIVO])
         self.status_filter.setMaximumWidth(120)
         filters_layout.addWidget(self.status_filter)
         
@@ -470,10 +471,9 @@ class MembersListScreen(QWidget):
         self.delete_button.setVisible(True)
         
         # Mostrar botão de renovar apenas para planos renováveis
-        from src.config import PLANOS_COM_VENCIMENTO
+        from src.config import PLANOS_COM_VENCIMENTO, PLANOS_NAO_RENOVAVEIS
         plano = member_data.get('plano', '')
-        planos_nao_renovaveis = ["Diária", "Diária Boulder", "Gympass", "Totalpass", "Cortesia"]
-        is_renewable = plano not in planos_nao_renovaveis and plano in PLANOS_COM_VENCIMENTO
+        is_renewable = plano not in PLANOS_NAO_RENOVAVEIS and plano in PLANOS_COM_VENCIMENTO
         self.renew_button.setVisible(is_renewable)
 
     def display_member_history(self, history: list):

@@ -285,7 +285,8 @@ class ExpiringPlansDialog(QDialog):
                 
                 # Estado (CORRIGIDO: usar estado calculado, não do banco)
                 # Se o vencimento ainda não chegou, deve estar ATIVO
-                estado_correto = 'ATIVO' if days_remaining >= 0 else 'INATIVO'
+                from src.core.plan_status import ATIVO as _ATIVO, INATIVO as _INATIVO
+                estado_correto = _ATIVO if days_remaining >= 0 else _INATIVO
                 
                 estado_item = QTableWidgetItem(estado_correto)
                 estado_item.setFont(font)

@@ -44,7 +44,7 @@ class Pessoa:
             whatsapp: Número de WhatsApp (opcional)
             plano: Plano contratado (opcional)
             vencimento_plano: Data de vencimento do plano (opcional)
-            estado_plano: Estado do plano (Ativo/Inativo) (opcional)
+            estado_plano: Estado do plano — ver src/core/plan_status.py (ATIVO/INATIVO)
             genero: Gênero do membro (opcional)
             frequencia: Frequência de treinos (opcional)
             calcado: Numeração de calçado (opcional)

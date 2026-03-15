@@ -271,7 +271,7 @@ class DataProvider:
             return False
     
     def update_expired_plans(self) -> int:
-        """Atualiza planos expirados para INATIVO."""
+        """Atualiza planos expirados para INATIVO (ver plan_status.py)."""
         if self.use_sqlite:
             return self.member_service.update_expired_plans()
         return 0
