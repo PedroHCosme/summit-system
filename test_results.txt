@@ -1,0 +1,1108 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.9, pytest-8.4.2, pluggy-1.5.0 -- C:\ProgramData\anaconda3\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\Usuario\pedrocosme\dev\summit-system
+plugins: anyio-4.10.0
+collecting ... collected 67 items
+
+tests/test_checkin.py::TestCheckinFunctionality::test_valid_checkin PASSED [  1%]
+tests/test_checkin.py::TestCheckinFunctionality::test_duplicate_checkin_same_day PASSED [  2%]
+tests/test_checkin.py::TestCheckinFunctionality::test_checkin_nonexistent_member PASSED [  4%]
+tests/test_checkin.py::TestCheckinFunctionality::test_checkin_with_payment_generation PASSED [  5%]
+tests/test_checkin.py::TestVoucherPlanFunctionality::test_voucher_checkin_deducts_balance PASSED [  7%]
+tests/test_checkin.py::TestVoucherPlanFunctionality::test_voucher_zero_balance_allows_checkin PASSED [  8%]
+tests/test_checkin.py::TestVoucherPlanFunctionality::test_voucher_no_payment_generated PASSED [ 10%]
+tests/test_checkin.py::TestVoucherPlanFunctionality::test_quota_plan_accumulates_credits PASSED [ 11%]
+tests/test_checkin.py::TestVoucherPlanFunctionality::test_switch_to_time_plan_resets_credits PASSED [ 13%]
+tests/test_financial.py::TestFinancialRules::test_register_payment PASSED [ 14%]
+tests/test_financial.py::TestFinancialRules::test_revenue_calculation PASSED [ 16%]
+tests/test_financial.py::TestFinancialRules::test_transaction_history PASSED [ 17%]
+tests/test_financial.py::TestFinancialAdvanced::test_payment_on_plan_renewal PASSED [ 19%]
+tests/test_financial.py::TestFinancialAdvanced::test_payment_date_range_filter PASSED [ 20%]
+tests/test_financial.py::TestFinancialAdvanced::test_payment_breakdown_by_type PASSED [ 22%]
+tests/test_financial.py::TestFinancialAdvanced::test_payment_with_null_member_id PASSED [ 23%]
+tests/test_financial.py::TestFinancialAdvanced::test_ticket_medio_calculation PASSED [ 25%]
+tests/test_financial.py::TestFinancialAdvanced::test_training_payment_registration PASSED [ 26%]
+tests/test_member_management.py::TestMemberManagement::test_add_member_required_fields PASSED [ 28%]
+tests/test_member_management.py::TestMemberManagement::test_add_member_success PASSED [ 29%]
+tests/test_member_management.py::TestMemberManagement::test_update_member_info PASSED [ 31%]
+tests/test_member_management.py::TestMemberManagement::test_delete_member PASSED [ 32%]
+tests/test_member_management.py::TestMemberRegistrationAdvanced::test_add_member_with_quota_plan PASSED [ 34%]
+tests/test_member_management.py::TestMemberRegistrationAdvanced::test_add_member_with_vencimento PASSED [ 35%]
+tests/test_member_management.py::TestMemberRegistrationAdvanced::test_add_member_with_training PASSED [ 37%]
+tests/test_member_management.py::TestEditMemberAdvanced::test_update_plan_with_payment PASSED [ 38%]
+tests/test_member_management.py::TestEditMemberAdvanced::test_update_to_quota_plan PASSED [ 40%]
+tests/test_member_management.py::TestEditMemberAdvanced::test_update_training_activation PASSED [ 41%]
+tests/test_member_management.py::TestEditMemberAdvanced::test_update_all_fields PASSED [ 43%]
+tests/test_member_management.py::TestEditMemberAdvanced::test_update_vencimento_extends_plan PASSED [ 44%]
+tests/test_member_search.py::TestMemberSearch::test_search_exact_match FAILED [ 46%]
+tests/test_member_search.py::TestMemberSearch::test_search_partial_match FAILED [ 47%]
+tests/test_member_search.py::TestMemberSearch::test_search_case_insensitive FAILED [ 49%]
+tests/test_member_search.py::TestMemberSearch::test_search_multiple_tokens FAILED [ 50%]
+tests/test_member_search.py::TestMemberSearch::test_search_no_results FAILED [ 52%]
+tests/test_plan_status.py::TestPlanStatusConstants::test_ativo_value PASSED [ 53%]
+tests/test_plan_status.py::TestPlanStatusConstants::test_inativo_value PASSED [ 55%]
+tests/test_plan_status.py::TestPlanStatusConstants::test_valid_states_contains_only_two PASSED [ 56%]
+tests/test_plan_status.py::TestPlanStatusConstants::test_valid_states_is_immutable PASSED [ 58%]
+tests/test_plan_status.py::TestIsActive::test_ativo_returns_true PASSED  [ 59%]
+tests/test_plan_status.py::TestIsActive::test_inativo_returns_false PASSED [ 61%]
+tests/test_plan_status.py::TestIsActive::test_case_insensitive_ativo PASSED [ 62%]
+tests/test_plan_status.py::TestIsActive::test_case_insensitive_inativo PASSED [ 64%]
+tests/test_plan_status.py::TestIsActive::test_whitespace_handling PASSED [ 65%]
+tests/test_plan_status.py::TestIsActive::test_empty_string_returns_false PASSED [ 67%]
+tests/test_plan_status.py::TestIsActive::test_none_returns_false PASSED  [ 68%]
+tests/test_plan_status.py::TestIsActive::test_vencido_returns_false PASSED [ 70%]
+tests/test_plan_status.py::TestIsActive::test_arbitrary_string_returns_false PASSED [ 71%]
+tests/test_plan_status.py::TestDisplayLabel::test_ativo_display PASSED   [ 73%]
+tests/test_plan_status.py::TestDisplayLabel::test_inativo_display PASSED [ 74%]
+tests/test_plan_status.py::TestDisplayLabel::test_empty_display PASSED   [ 76%]
+tests/test_plan_status.py::TestDisplayLabel::test_none_display PASSED    [ 77%]
+tests/test_plan_status.py::TestDatabaseIntegrity::test_all_members_have_valid_status PASSED [ 79%]
+tests/test_plans.py::TestSubscriptionPlans::test_plan_expiration_logic PASSED [ 80%]
+tests/test_plans.py::TestSubscriptionPlans::test_active_plan_not_expired PASSED [ 82%]
+tests/test_plans.py::TestPlanCRUD::test_create_plan PASSED               [ 83%]
+tests/test_plans.py::TestPlanCRUD::test_update_plan_price PASSED         [ 85%]
+tests/test_plans.py::TestPlanCRUD::test_create_quota_plan PASSED         [ 86%]
+tests/test_plans.py::TestPlanCRUD::test_deactivate_plan PASSED           [ 88%]
+tests/test_plans.py::TestPlanCRUD::test_create_per_checkin_plan PASSED   [ 89%]
+tests/test_plans.py::TestPlanService::test_get_plan_names PASSED         [ 91%]
+tests/test_plans.py::TestPlanService::test_get_quota_plans PASSED        [ 92%]
+tests/test_plans.py::TestPlanService::test_is_quota_plan PASSED          [ 94%]
+tests/test_plans.py::TestPlanService::test_requires_vencimento PASSED    [ 95%]
+tests/test_plans.py::TestPlanService::test_get_checkin_payment_plans PASSED [ 97%]
+tests/test_plans.py::TestPlanService::test_get_plans_as_dict PASSED      [ 98%]
+tests/test_plans.py::TestPlanService::test_get_plan_price PASSED         [100%]
+
+================================== FAILURES ===================================
+__________________ TestMemberSearch.test_search_exact_match ___________________
+
+self = <sqlalchemy.engine.base.Connection object at 0x00000218E9F84410>
+dialect = <sqlalchemy.dialects.sqlite.pysqlite.SQLiteDialect_pysqlite object at 0x00000218E9F60A50>
+context = <sqlalchemy.dialects.sqlite.base.SQLiteExecutionContext object at 0x00000218E9F5D1D0>
+statement = <sqlalchemy.dialects.sqlite.base.SQLiteCompiler object at 0x00000218E9F60910>
+parameters = [('%John%', '%John%', '%Doe%', '%Doe%')]
+
+    def _exec_single_context(
+        self,
+        dialect: Dialect,
+        context: ExecutionContext,
+        statement: Union[str, Compiled],
+        parameters: Optional[_AnyMultiExecuteParams],
+    ) -> CursorResult[Any]:
+        """continue the _execute_context() method for a single DBAPI
+        cursor.execute() or cursor.executemany() call.
+    
+        """
+        if dialect.bind_typing is BindTyping.SETINPUTSIZES:
+            generic_setinputsizes = context._prepare_set_input_sizes()
+    
+            if generic_setinputsizes:
+                try:
+                    dialect.do_set_input_sizes(
+                        context.cursor, generic_setinputsizes, context
+                    )
+                except BaseException as e:
+                    self._handle_dbapi_exception(
+                        e, str(statement), parameters, None, context
+                    )
+    
+        cursor, str_statement, parameters = (
+            context.cursor,
+            context.statement,
+            context.parameters,
+        )
+    
+        effective_parameters: Optional[_AnyExecuteParams]
+    
+        if not context.executemany:
+            effective_parameters = parameters[0]
+        else:
+            effective_parameters = parameters
+    
+        if self._has_events or self.engine._has_events:
+            for fn in self.dispatch.before_cursor_execute:
+                str_statement, effective_parameters = fn(
+                    self,
+                    cursor,
+                    str_statement,
+                    effective_parameters,
+                    context,
+                    context.executemany,
+                )
+    
+        if self._echo:
+            self._log_info(str_statement)
+    
+            stats = context._get_cache_stats()
+    
+            if not self.engine.hide_parameters:
+                self._log_info(
+                    "[%s] %r",
+                    stats,
+                    sql_util._repr_params(
+                        effective_parameters,
+                        batches=10,
+                        ismulti=context.executemany,
+                    ),
+                )
+            else:
+                self._log_info(
+                    "[%s] [SQL parameters hidden due to hide_parameters=True]",
+                    stats,
+                )
+    
+        evt_handled: bool = False
+        try:
+            if context.execute_style is ExecuteStyle.EXECUTEMANY:
+                effective_parameters = cast(
+                    "_CoreMultiExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_executemany:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_executemany(
+                        cursor,
+                        str_statement,
+                        effective_parameters,
+                        context,
+                    )
+            elif not effective_parameters and context.no_parameters:
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute_no_params:
+                        if fn(cursor, str_statement, context):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_execute_no_params(
+                        cursor, str_statement, context
+                    )
+            else:
+                effective_parameters = cast(
+                    "_CoreSingleExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+>                   self.dialect.do_execute(
+                        cursor, str_statement, effective_parameters, context
+                    )
+
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\engine\base.py:1967: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <sqlalchemy.dialects.sqlite.pysqlite.SQLiteDialect_pysqlite object at 0x00000218E9F60A50>
+cursor = <sqlite3.Cursor object at 0x00000218E8D344C0>
+statement = 'SELECT membros.id AS membros_id, membros.nome AS membros_nome, membros.plano AS membros_plano, membros.vencimento_pla...bros.nome)) LIKE lower(unaccent(?)) OR lower(unaccent(membros.apelido)) LIKE lower(unaccent(?))) ORDER BY membros.nome'
+parameters = ('%John%', '%John%', '%Doe%', '%Doe%')
+context = <sqlalchemy.dialects.sqlite.base.SQLiteExecutionContext object at 0x00000218E9F5D1D0>
+
+    def do_execute(self, cursor, statement, parameters, context=None):
+>       cursor.execute(statement, parameters)
+E       sqlite3.OperationalError: no such function: unaccent
+
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\engine\default.py:951: OperationalError
+
+The above exception was the direct cause of the following exception:
+
+self = <test_member_search.TestMemberSearch object at 0x00000218E8AA2210>
+member_service = <src.services.member_service.MemberService object at 0x00000218E9F2ADD0>
+
+    def test_search_exact_match(self, member_service):
+        member_service.create({"nome": "John Doe", "plano": "Mensal"})
+>       results = member_service.search_by_name("John Doe")
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_member_search.py:13: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\services\member_service.py:171: in search_by_name
+    return self._search_by_name_sqlalchemy(name_query)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\services\member_service.py:466: in _search_by_name_sqlalchemy
+    ).order_by(Membro.nome).all()
+                            ^^^^^
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\orm\query.py:2704: in all
+    return self._iter().all()  # type: ignore
+           ^^^^^^^^^^^^
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\orm\query.py:2857: in _iter
+    result: Union[ScalarResult[_T], Result[_T]] = self.session.execute(
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\orm\session.py:2365: in execute
+    return self._execute_internal(
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\orm\session.py:2251: in _execute_internal
+    result: Result[Any] = compile_state_cls.orm_execute_statement(
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\orm\context.py:306: in orm_execute_statement
+    result = conn.execute(
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\engine\base.py:1419: in execute
+    return meth(
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\sql\elements.py:526: in _execute_on_connection
+    return connection._execute_clauseelement(
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\engine\base.py:1641: in _execute_clauseelement
+    ret = self._execute_context(
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\engine\base.py:1846: in _execute_context
+    return self._exec_single_context(
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\engine\base.py:1986: in _exec_single_context
+    self._handle_dbapi_exception(
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\engine\base.py:2355: in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\engine\base.py:1967: in _exec_single_context
+    self.dialect.do_execute(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <sqlalchemy.dialects.sqlite.pysqlite.SQLiteDialect_pysqlite object at 0x00000218E9F60A50>
+cursor = <sqlite3.Cursor object at 0x00000218E8D344C0>
+statement = 'SELECT membros.id AS membros_id, membros.nome AS membros_nome, membros.plano AS membros_plano, membros.vencimento_pla...bros.nome)) LIKE lower(unaccent(?)) OR lower(unaccent(membros.apelido)) LIKE lower(unaccent(?))) ORDER BY membros.nome'
+parameters = ('%John%', '%John%', '%Doe%', '%Doe%')
+context = <sqlalchemy.dialects.sqlite.base.SQLiteExecutionContext object at 0x00000218E9F5D1D0>
+
+    def do_execute(self, cursor, statement, parameters, context=None):
+>       cursor.execute(statement, parameters)
+E       sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) no such function: unaccent
+E       [SQL: SELECT membros.id AS membros_id, membros.nome AS membros_nome, membros.plano AS membros_plano, membros.vencimento_plano AS membros_vencimento_plano, membros.estado_plano AS membros_estado_plano, membros.data_nascimento AS membros_data_nascimento, membros.data_cadastro AS membros_data_cadastro, membros.whatsapp AS membros_whatsapp, membros.genero AS membros_genero, membros.email AS membros_email, membros.apelido AS membros_apelido, membros.profissao AS membros_profissao, membros.contato_emergencia AS membros_contato_emergencia, membros.frequencia AS membros_frequencia, membros.observacoes AS membros_observacoes, membros.calcado AS membros_calcado, membros.voucher_credits AS membros_voucher_credits, membros.treina AS membros_treina, membros.vencimento_treino AS membros_vencimento_treino, membros.created_at AS membros_created_at, membros.updated_at AS membros_updated_at 
+E       FROM membros 
+E       WHERE (lower(unaccent(membros.nome)) LIKE lower(unaccent(?)) OR lower(unaccent(membros.apelido)) LIKE lower(unaccent(?))) AND (lower(unaccent(membros.nome)) LIKE lower(unaccent(?)) OR lower(unaccent(membros.apelido)) LIKE lower(unaccent(?))) ORDER BY membros.nome]
+E       [parameters: ('%John%', '%John%', '%Doe%', '%Doe%')]
+E       (Background on this error at: https://sqlalche.me/e/20/e3q8)
+
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\engine\default.py:951: OperationalError
+_________________ TestMemberSearch.test_search_partial_match __________________
+
+self = <sqlalchemy.engine.base.Connection object at 0x00000218E9F531D0>
+dialect = <sqlalchemy.dialects.sqlite.pysqlite.SQLiteDialect_pysqlite object at 0x00000218E9E95E50>
+context = <sqlalchemy.dialects.sqlite.base.SQLiteExecutionContext object at 0x00000218E9EFE970>
+statement = <sqlalchemy.dialects.sqlite.base.SQLiteCompiler object at 0x00000218E9E96AD0>
+parameters = [('%Alice%', '%Alice%')]
+
+    def _exec_single_context(
+        self,
+        dialect: Dialect,
+        context: ExecutionContext,
+        statement: Union[str, Compiled],
+        parameters: Optional[_AnyMultiExecuteParams],
+    ) -> CursorResult[Any]:
+        """continue the _execute_context() method for a single DBAPI
+        cursor.execute() or cursor.executemany() call.
+    
+        """
+        if dialect.bind_typing is BindTyping.SETINPUTSIZES:
+            generic_setinputsizes = context._prepare_set_input_sizes()
+    
+            if generic_setinputsizes:
+                try:
+                    dialect.do_set_input_sizes(
+                        context.cursor, generic_setinputsizes, context
+                    )
+                except BaseException as e:
+                    self._handle_dbapi_exception(
+                        e, str(statement), parameters, None, context
+                    )
+    
+        cursor, str_statement, parameters = (
+            context.cursor,
+            context.statement,
+            context.parameters,
+        )
+    
+        effective_parameters: Optional[_AnyExecuteParams]
+    
+        if not context.executemany:
+            effective_parameters = parameters[0]
+        else:
+            effective_parameters = parameters
+    
+        if self._has_events or self.engine._has_events:
+            for fn in self.dispatch.before_cursor_execute:
+                str_statement, effective_parameters = fn(
+                    self,
+                    cursor,
+                    str_statement,
+                    effective_parameters,
+                    context,
+                    context.executemany,
+                )
+    
+        if self._echo:
+            self._log_info(str_statement)
+    
+            stats = context._get_cache_stats()
+    
+            if not self.engine.hide_parameters:
+                self._log_info(
+                    "[%s] %r",
+                    stats,
+                    sql_util._repr_params(
+                        effective_parameters,
+                        batches=10,
+                        ismulti=context.executemany,
+                    ),
+                )
+            else:
+                self._log_info(
+                    "[%s] [SQL parameters hidden due to hide_parameters=True]",
+                    stats,
+                )
+    
+        evt_handled: bool = False
+        try:
+            if context.execute_style is ExecuteStyle.EXECUTEMANY:
+                effective_parameters = cast(
+                    "_CoreMultiExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_executemany:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_executemany(
+                        cursor,
+                        str_statement,
+                        effective_parameters,
+                        context,
+                    )
+            elif not effective_parameters and context.no_parameters:
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute_no_params:
+                        if fn(cursor, str_statement, context):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_execute_no_params(
+                        cursor, str_statement, context
+                    )
+            else:
+                effective_parameters = cast(
+                    "_CoreSingleExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+>                   self.dialect.do_execute(
+                        cursor, str_statement, effective_parameters, context
+                    )
+
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\engine\base.py:1967: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <sqlalchemy.dialects.sqlite.pysqlite.SQLiteDialect_pysqlite object at 0x00000218E9E95E50>
+cursor = <sqlite3.Cursor object at 0x00000218EB3B4A40>
+statement = 'SELECT membros.id AS membros_id, membros.nome AS membros_nome, membros.plano AS membros_plano, membros.vencimento_pla...mbros.nome)) LIKE lower(unaccent(?)) OR lower(unaccent(membros.apelido)) LIKE lower(unaccent(?)) ORDER BY membros.nome'
+parameters = ('%Alice%', '%Alice%')
+context = <sqlalchemy.dialects.sqlite.base.SQLiteExecutionContext object at 0x00000218E9EFE970>
+
+    def do_execute(self, cursor, statement, parameters, context=None):
+>       cursor.execute(statement, parameters)
+E       sqlite3.OperationalError: no such function: unaccent
+
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\engine\default.py:951: OperationalError
+
+The above exception was the direct cause of the following exception:
+
+self = <test_member_search.TestMemberSearch object at 0x00000218E8AA2350>
+member_service = <src.services.member_service.MemberService object at 0x00000218E9F2AEB0>
+
+    def test_search_partial_match(self, member_service):
+        member_service.create({"nome": "Alice Wonderland", "plano": "Mensal"})
+>       results = member_service.search_by_name("Alice")
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_member_search.py:19: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\services\member_service.py:171: in search_by_name
+    return self._search_by_name_sqlalchemy(name_query)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\services\member_service.py:466: in _search_by_name_sqlalchemy
+    ).order_by(Membro.nome).all()
+                            ^^^^^
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\orm\query.py:2704: in all
+    return self._iter().all()  # type: ignore
+           ^^^^^^^^^^^^
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\orm\query.py:2857: in _iter
+    result: Union[ScalarResult[_T], Result[_T]] = self.session.execute(
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\orm\session.py:2365: in execute
+    return self._execute_internal(
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\orm\session.py:2251: in _execute_internal
+    result: Result[Any] = compile_state_cls.orm_execute_statement(
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\orm\context.py:306: in orm_execute_statement
+    result = conn.execute(
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\engine\base.py:1419: in execute
+    return meth(
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\sql\elements.py:526: in _execute_on_connection
+    return connection._execute_clauseelement(
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\engine\base.py:1641: in _execute_clauseelement
+    ret = self._execute_context(
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\engine\base.py:1846: in _execute_context
+    return self._exec_single_context(
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\engine\base.py:1986: in _exec_single_context
+    self._handle_dbapi_exception(
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\engine\base.py:2355: in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\engine\base.py:1967: in _exec_single_context
+    self.dialect.do_execute(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <sqlalchemy.dialects.sqlite.pysqlite.SQLiteDialect_pysqlite object at 0x00000218E9E95E50>
+cursor = <sqlite3.Cursor object at 0x00000218EB3B4A40>
+statement = 'SELECT membros.id AS membros_id, membros.nome AS membros_nome, membros.plano AS membros_plano, membros.vencimento_pla...mbros.nome)) LIKE lower(unaccent(?)) OR lower(unaccent(membros.apelido)) LIKE lower(unaccent(?)) ORDER BY membros.nome'
+parameters = ('%Alice%', '%Alice%')
+context = <sqlalchemy.dialects.sqlite.base.SQLiteExecutionContext object at 0x00000218E9EFE970>
+
+    def do_execute(self, cursor, statement, parameters, context=None):
+>       cursor.execute(statement, parameters)
+E       sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) no such function: unaccent
+E       [SQL: SELECT membros.id AS membros_id, membros.nome AS membros_nome, membros.plano AS membros_plano, membros.vencimento_plano AS membros_vencimento_plano, membros.estado_plano AS membros_estado_plano, membros.data_nascimento AS membros_data_nascimento, membros.data_cadastro AS membros_data_cadastro, membros.whatsapp AS membros_whatsapp, membros.genero AS membros_genero, membros.email AS membros_email, membros.apelido AS membros_apelido, membros.profissao AS membros_profissao, membros.contato_emergencia AS membros_contato_emergencia, membros.frequencia AS membros_frequencia, membros.observacoes AS membros_observacoes, membros.calcado AS membros_calcado, membros.voucher_credits AS membros_voucher_credits, membros.treina AS membros_treina, membros.vencimento_treino AS membros_vencimento_treino, membros.created_at AS membros_created_at, membros.updated_at AS membros_updated_at 
+E       FROM membros 
+E       WHERE lower(unaccent(membros.nome)) LIKE lower(unaccent(?)) OR lower(unaccent(membros.apelido)) LIKE lower(unaccent(?)) ORDER BY membros.nome]
+E       [parameters: ('%Alice%', '%Alice%')]
+E       (Background on this error at: https://sqlalche.me/e/20/e3q8)
+
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\engine\default.py:951: OperationalError
+________________ TestMemberSearch.test_search_case_insensitive ________________
+
+self = <sqlalchemy.engine.base.Connection object at 0x00000218E9EE6B10>
+dialect = <sqlalchemy.dialects.sqlite.pysqlite.SQLiteDialect_pysqlite object at 0x00000218E8C46E90>
+context = <sqlalchemy.dialects.sqlite.base.SQLiteExecutionContext object at 0x00000218E8C59A90>
+statement = <sqlalchemy.dialects.sqlite.base.SQLiteCompiler object at 0x00000218E8C45D10>
+parameters = [('%bob%', '%bob%')]
+
+    def _exec_single_context(
+        self,
+        dialect: Dialect,
+        context: ExecutionContext,
+        statement: Union[str, Compiled],
+        parameters: Optional[_AnyMultiExecuteParams],
+    ) -> CursorResult[Any]:
+        """continue the _execute_context() method for a single DBAPI
+        cursor.execute() or cursor.executemany() call.
+    
+        """
+        if dialect.bind_typing is BindTyping.SETINPUTSIZES:
+            generic_setinputsizes = context._prepare_set_input_sizes()
+    
+            if generic_setinputsizes:
+                try:
+                    dialect.do_set_input_sizes(
+                        context.cursor, generic_setinputsizes, context
+                    )
+                except BaseException as e:
+                    self._handle_dbapi_exception(
+                        e, str(statement), parameters, None, context
+                    )
+    
+        cursor, str_statement, parameters = (
+            context.cursor,
+            context.statement,
+            context.parameters,
+        )
+    
+        effective_parameters: Optional[_AnyExecuteParams]
+    
+        if not context.executemany:
+            effective_parameters = parameters[0]
+        else:
+            effective_parameters = parameters
+    
+        if self._has_events or self.engine._has_events:
+            for fn in self.dispatch.before_cursor_execute:
+                str_statement, effective_parameters = fn(
+                    self,
+                    cursor,
+                    str_statement,
+                    effective_parameters,
+                    context,
+                    context.executemany,
+                )
+    
+        if self._echo:
+            self._log_info(str_statement)
+    
+            stats = context._get_cache_stats()
+    
+            if not self.engine.hide_parameters:
+                self._log_info(
+                    "[%s] %r",
+                    stats,
+                    sql_util._repr_params(
+                        effective_parameters,
+                        batches=10,
+                        ismulti=context.executemany,
+                    ),
+                )
+            else:
+                self._log_info(
+                    "[%s] [SQL parameters hidden due to hide_parameters=True]",
+                    stats,
+                )
+    
+        evt_handled: bool = False
+        try:
+            if context.execute_style is ExecuteStyle.EXECUTEMANY:
+                effective_parameters = cast(
+                    "_CoreMultiExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_executemany:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_executemany(
+                        cursor,
+                        str_statement,
+                        effective_parameters,
+                        context,
+                    )
+            elif not effective_parameters and context.no_parameters:
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute_no_params:
+                        if fn(cursor, str_statement, context):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_execute_no_params(
+                        cursor, str_statement, context
+                    )
+            else:
+                effective_parameters = cast(
+                    "_CoreSingleExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+>                   self.dialect.do_execute(
+                        cursor, str_statement, effective_parameters, context
+                    )
+
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\engine\base.py:1967: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <sqlalchemy.dialects.sqlite.pysqlite.SQLiteDialect_pysqlite object at 0x00000218E8C46E90>
+cursor = <sqlite3.Cursor object at 0x00000218E8C695C0>
+statement = 'SELECT membros.id AS membros_id, membros.nome AS membros_nome, membros.plano AS membros_plano, membros.vencimento_pla...mbros.nome)) LIKE lower(unaccent(?)) OR lower(unaccent(membros.apelido)) LIKE lower(unaccent(?)) ORDER BY membros.nome'
+parameters = ('%bob%', '%bob%')
+context = <sqlalchemy.dialects.sqlite.base.SQLiteExecutionContext object at 0x00000218E8C59A90>
+
+    def do_execute(self, cursor, statement, parameters, context=None):
+>       cursor.execute(statement, parameters)
+E       sqlite3.OperationalError: no such function: unaccent
+
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\engine\default.py:951: OperationalError
+
+The above exception was the direct cause of the following exception:
+
+self = <test_member_search.TestMemberSearch object at 0x00000218E8A32D70>
+member_service = <src.services.member_service.MemberService object at 0x00000218EAD07F50>
+
+    def test_search_case_insensitive(self, member_service):
+        member_service.create({"nome": "Bob Builder", "plano": "Mensal"})
+>       results = member_service.search_by_name("bob")
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_member_search.py:28: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\services\member_service.py:171: in search_by_name
+    return self._search_by_name_sqlalchemy(name_query)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\services\member_service.py:466: in _search_by_name_sqlalchemy
+    ).order_by(Membro.nome).all()
+                            ^^^^^
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\orm\query.py:2704: in all
+    return self._iter().all()  # type: ignore
+           ^^^^^^^^^^^^
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\orm\query.py:2857: in _iter
+    result: Union[ScalarResult[_T], Result[_T]] = self.session.execute(
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\orm\session.py:2365: in execute
+    return self._execute_internal(
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\orm\session.py:2251: in _execute_internal
+    result: Result[Any] = compile_state_cls.orm_execute_statement(
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\orm\context.py:306: in orm_execute_statement
+    result = conn.execute(
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\engine\base.py:1419: in execute
+    return meth(
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\sql\elements.py:526: in _execute_on_connection
+    return connection._execute_clauseelement(
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\engine\base.py:1641: in _execute_clauseelement
+    ret = self._execute_context(
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\engine\base.py:1846: in _execute_context
+    return self._exec_single_context(
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\engine\base.py:1986: in _exec_single_context
+    self._handle_dbapi_exception(
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\engine\base.py:2355: in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\engine\base.py:1967: in _exec_single_context
+    self.dialect.do_execute(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <sqlalchemy.dialects.sqlite.pysqlite.SQLiteDialect_pysqlite object at 0x00000218E8C46E90>
+cursor = <sqlite3.Cursor object at 0x00000218E8C695C0>
+statement = 'SELECT membros.id AS membros_id, membros.nome AS membros_nome, membros.plano AS membros_plano, membros.vencimento_pla...mbros.nome)) LIKE lower(unaccent(?)) OR lower(unaccent(membros.apelido)) LIKE lower(unaccent(?)) ORDER BY membros.nome'
+parameters = ('%bob%', '%bob%')
+context = <sqlalchemy.dialects.sqlite.base.SQLiteExecutionContext object at 0x00000218E8C59A90>
+
+    def do_execute(self, cursor, statement, parameters, context=None):
+>       cursor.execute(statement, parameters)
+E       sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) no such function: unaccent
+E       [SQL: SELECT membros.id AS membros_id, membros.nome AS membros_nome, membros.plano AS membros_plano, membros.vencimento_plano AS membros_vencimento_plano, membros.estado_plano AS membros_estado_plano, membros.data_nascimento AS membros_data_nascimento, membros.data_cadastro AS membros_data_cadastro, membros.whatsapp AS membros_whatsapp, membros.genero AS membros_genero, membros.email AS membros_email, membros.apelido AS membros_apelido, membros.profissao AS membros_profissao, membros.contato_emergencia AS membros_contato_emergencia, membros.frequencia AS membros_frequencia, membros.observacoes AS membros_observacoes, membros.calcado AS membros_calcado, membros.voucher_credits AS membros_voucher_credits, membros.treina AS membros_treina, membros.vencimento_treino AS membros_vencimento_treino, membros.created_at AS membros_created_at, membros.updated_at AS membros_updated_at 
+E       FROM membros 
+E       WHERE lower(unaccent(membros.nome)) LIKE lower(unaccent(?)) OR lower(unaccent(membros.apelido)) LIKE lower(unaccent(?)) ORDER BY membros.nome]
+E       [parameters: ('%bob%', '%bob%')]
+E       (Background on this error at: https://sqlalche.me/e/20/e3q8)
+
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\engine\default.py:951: OperationalError
+________________ TestMemberSearch.test_search_multiple_tokens _________________
+
+self = <sqlalchemy.engine.base.Connection object at 0x00000218E9F0D550>
+dialect = <sqlalchemy.dialects.sqlite.pysqlite.SQLiteDialect_pysqlite object at 0x00000218E9E96D50>
+context = <sqlalchemy.dialects.sqlite.base.SQLiteExecutionContext object at 0x00000218E8CB7930>
+statement = <sqlalchemy.dialects.sqlite.base.SQLiteCompiler object at 0x00000218E9E94910>
+parameters = [('%Pedro%', '%Pedro%', '%Cosme%', '%Cosme%')]
+
+    def _exec_single_context(
+        self,
+        dialect: Dialect,
+        context: ExecutionContext,
+        statement: Union[str, Compiled],
+        parameters: Optional[_AnyMultiExecuteParams],
+    ) -> CursorResult[Any]:
+        """continue the _execute_context() method for a single DBAPI
+        cursor.execute() or cursor.executemany() call.
+    
+        """
+        if dialect.bind_typing is BindTyping.SETINPUTSIZES:
+            generic_setinputsizes = context._prepare_set_input_sizes()
+    
+            if generic_setinputsizes:
+                try:
+                    dialect.do_set_input_sizes(
+                        context.cursor, generic_setinputsizes, context
+                    )
+                except BaseException as e:
+                    self._handle_dbapi_exception(
+                        e, str(statement), parameters, None, context
+                    )
+    
+        cursor, str_statement, parameters = (
+            context.cursor,
+            context.statement,
+            context.parameters,
+        )
+    
+        effective_parameters: Optional[_AnyExecuteParams]
+    
+        if not context.executemany:
+            effective_parameters = parameters[0]
+        else:
+            effective_parameters = parameters
+    
+        if self._has_events or self.engine._has_events:
+            for fn in self.dispatch.before_cursor_execute:
+                str_statement, effective_parameters = fn(
+                    self,
+                    cursor,
+                    str_statement,
+                    effective_parameters,
+                    context,
+                    context.executemany,
+                )
+    
+        if self._echo:
+            self._log_info(str_statement)
+    
+            stats = context._get_cache_stats()
+    
+            if not self.engine.hide_parameters:
+                self._log_info(
+                    "[%s] %r",
+                    stats,
+                    sql_util._repr_params(
+                        effective_parameters,
+                        batches=10,
+                        ismulti=context.executemany,
+                    ),
+                )
+            else:
+                self._log_info(
+                    "[%s] [SQL parameters hidden due to hide_parameters=True]",
+                    stats,
+                )
+    
+        evt_handled: bool = False
+        try:
+            if context.execute_style is ExecuteStyle.EXECUTEMANY:
+                effective_parameters = cast(
+                    "_CoreMultiExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_executemany:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_executemany(
+                        cursor,
+                        str_statement,
+                        effective_parameters,
+                        context,
+                    )
+            elif not effective_parameters and context.no_parameters:
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute_no_params:
+                        if fn(cursor, str_statement, context):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_execute_no_params(
+                        cursor, str_statement, context
+                    )
+            else:
+                effective_parameters = cast(
+                    "_CoreSingleExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+>                   self.dialect.do_execute(
+                        cursor, str_statement, effective_parameters, context
+                    )
+
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\engine\base.py:1967: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <sqlalchemy.dialects.sqlite.pysqlite.SQLiteDialect_pysqlite object at 0x00000218E9E96D50>
+cursor = <sqlite3.Cursor object at 0x00000218E9EC87C0>
+statement = 'SELECT membros.id AS membros_id, membros.nome AS membros_nome, membros.plano AS membros_plano, membros.vencimento_pla...bros.nome)) LIKE lower(unaccent(?)) OR lower(unaccent(membros.apelido)) LIKE lower(unaccent(?))) ORDER BY membros.nome'
+parameters = ('%Pedro%', '%Pedro%', '%Cosme%', '%Cosme%')
+context = <sqlalchemy.dialects.sqlite.base.SQLiteExecutionContext object at 0x00000218E8CB7930>
+
+    def do_execute(self, cursor, statement, parameters, context=None):
+>       cursor.execute(statement, parameters)
+E       sqlite3.OperationalError: no such function: unaccent
+
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\engine\default.py:951: OperationalError
+
+The above exception was the direct cause of the following exception:
+
+self = <test_member_search.TestMemberSearch object at 0x00000218E8A32EA0>
+member_service = <src.services.member_service.MemberService object at 0x00000218EAD33650>
+
+    def test_search_multiple_tokens(self, member_service):
+        # "Pedro Cosme" should match "Pedro Henrique de Menezes Cosme"
+        member_service.create({"nome": "Pedro Henrique de Menezes Cosme", "plano": "Mensal"})
+>       results = member_service.search_by_name("Pedro Cosme")
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_member_search.py:35: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\services\member_service.py:171: in search_by_name
+    return self._search_by_name_sqlalchemy(name_query)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\services\member_service.py:466: in _search_by_name_sqlalchemy
+    ).order_by(Membro.nome).all()
+                            ^^^^^
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\orm\query.py:2704: in all
+    return self._iter().all()  # type: ignore
+           ^^^^^^^^^^^^
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\orm\query.py:2857: in _iter
+    result: Union[ScalarResult[_T], Result[_T]] = self.session.execute(
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\orm\session.py:2365: in execute
+    return self._execute_internal(
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\orm\session.py:2251: in _execute_internal
+    result: Result[Any] = compile_state_cls.orm_execute_statement(
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\orm\context.py:306: in orm_execute_statement
+    result = conn.execute(
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\engine\base.py:1419: in execute
+    return meth(
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\sql\elements.py:526: in _execute_on_connection
+    return connection._execute_clauseelement(
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\engine\base.py:1641: in _execute_clauseelement
+    ret = self._execute_context(
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\engine\base.py:1846: in _execute_context
+    return self._exec_single_context(
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\engine\base.py:1986: in _exec_single_context
+    self._handle_dbapi_exception(
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\engine\base.py:2355: in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\engine\base.py:1967: in _exec_single_context
+    self.dialect.do_execute(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <sqlalchemy.dialects.sqlite.pysqlite.SQLiteDialect_pysqlite object at 0x00000218E9E96D50>
+cursor = <sqlite3.Cursor object at 0x00000218E9EC87C0>
+statement = 'SELECT membros.id AS membros_id, membros.nome AS membros_nome, membros.plano AS membros_plano, membros.vencimento_pla...bros.nome)) LIKE lower(unaccent(?)) OR lower(unaccent(membros.apelido)) LIKE lower(unaccent(?))) ORDER BY membros.nome'
+parameters = ('%Pedro%', '%Pedro%', '%Cosme%', '%Cosme%')
+context = <sqlalchemy.dialects.sqlite.base.SQLiteExecutionContext object at 0x00000218E8CB7930>
+
+    def do_execute(self, cursor, statement, parameters, context=None):
+>       cursor.execute(statement, parameters)
+E       sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) no such function: unaccent
+E       [SQL: SELECT membros.id AS membros_id, membros.nome AS membros_nome, membros.plano AS membros_plano, membros.vencimento_plano AS membros_vencimento_plano, membros.estado_plano AS membros_estado_plano, membros.data_nascimento AS membros_data_nascimento, membros.data_cadastro AS membros_data_cadastro, membros.whatsapp AS membros_whatsapp, membros.genero AS membros_genero, membros.email AS membros_email, membros.apelido AS membros_apelido, membros.profissao AS membros_profissao, membros.contato_emergencia AS membros_contato_emergencia, membros.frequencia AS membros_frequencia, membros.observacoes AS membros_observacoes, membros.calcado AS membros_calcado, membros.voucher_credits AS membros_voucher_credits, membros.treina AS membros_treina, membros.vencimento_treino AS membros_vencimento_treino, membros.created_at AS membros_created_at, membros.updated_at AS membros_updated_at 
+E       FROM membros 
+E       WHERE (lower(unaccent(membros.nome)) LIKE lower(unaccent(?)) OR lower(unaccent(membros.apelido)) LIKE lower(unaccent(?))) AND (lower(unaccent(membros.nome)) LIKE lower(unaccent(?)) OR lower(unaccent(membros.apelido)) LIKE lower(unaccent(?))) ORDER BY membros.nome]
+E       [parameters: ('%Pedro%', '%Pedro%', '%Cosme%', '%Cosme%')]
+E       (Background on this error at: https://sqlalche.me/e/20/e3q8)
+
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\engine\default.py:951: OperationalError
+___________________ TestMemberSearch.test_search_no_results ___________________
+
+self = <sqlalchemy.engine.base.Connection object at 0x00000218E9F865D0>
+dialect = <sqlalchemy.dialects.sqlite.pysqlite.SQLiteDialect_pysqlite object at 0x00000218E9F62490>
+context = <sqlalchemy.dialects.sqlite.base.SQLiteExecutionContext object at 0x00000218E8CFE350>
+statement = <sqlalchemy.dialects.sqlite.base.SQLiteCompiler object at 0x00000218E9D76C10>
+parameters = [('%NonExistent%', '%NonExistent%')]
+
+    def _exec_single_context(
+        self,
+        dialect: Dialect,
+        context: ExecutionContext,
+        statement: Union[str, Compiled],
+        parameters: Optional[_AnyMultiExecuteParams],
+    ) -> CursorResult[Any]:
+        """continue the _execute_context() method for a single DBAPI
+        cursor.execute() or cursor.executemany() call.
+    
+        """
+        if dialect.bind_typing is BindTyping.SETINPUTSIZES:
+            generic_setinputsizes = context._prepare_set_input_sizes()
+    
+            if generic_setinputsizes:
+                try:
+                    dialect.do_set_input_sizes(
+                        context.cursor, generic_setinputsizes, context
+                    )
+                except BaseException as e:
+                    self._handle_dbapi_exception(
+                        e, str(statement), parameters, None, context
+                    )
+    
+        cursor, str_statement, parameters = (
+            context.cursor,
+            context.statement,
+            context.parameters,
+        )
+    
+        effective_parameters: Optional[_AnyExecuteParams]
+    
+        if not context.executemany:
+            effective_parameters = parameters[0]
+        else:
+            effective_parameters = parameters
+    
+        if self._has_events or self.engine._has_events:
+            for fn in self.dispatch.before_cursor_execute:
+                str_statement, effective_parameters = fn(
+                    self,
+                    cursor,
+                    str_statement,
+                    effective_parameters,
+                    context,
+                    context.executemany,
+                )
+    
+        if self._echo:
+            self._log_info(str_statement)
+    
+            stats = context._get_cache_stats()
+    
+            if not self.engine.hide_parameters:
+                self._log_info(
+                    "[%s] %r",
+                    stats,
+                    sql_util._repr_params(
+                        effective_parameters,
+                        batches=10,
+                        ismulti=context.executemany,
+                    ),
+                )
+            else:
+                self._log_info(
+                    "[%s] [SQL parameters hidden due to hide_parameters=True]",
+                    stats,
+                )
+    
+        evt_handled: bool = False
+        try:
+            if context.execute_style is ExecuteStyle.EXECUTEMANY:
+                effective_parameters = cast(
+                    "_CoreMultiExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_executemany:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_executemany(
+                        cursor,
+                        str_statement,
+                        effective_parameters,
+                        context,
+                    )
+            elif not effective_parameters and context.no_parameters:
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute_no_params:
+                        if fn(cursor, str_statement, context):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_execute_no_params(
+                        cursor, str_statement, context
+                    )
+            else:
+                effective_parameters = cast(
+                    "_CoreSingleExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+>                   self.dialect.do_execute(
+                        cursor, str_statement, effective_parameters, context
+                    )
+
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\engine\base.py:1967: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <sqlalchemy.dialects.sqlite.pysqlite.SQLiteDialect_pysqlite object at 0x00000218E9F62490>
+cursor = <sqlite3.Cursor object at 0x00000218EAA711C0>
+statement = 'SELECT membros.id AS membros_id, membros.nome AS membros_nome, membros.plano AS membros_plano, membros.vencimento_pla...mbros.nome)) LIKE lower(unaccent(?)) OR lower(unaccent(membros.apelido)) LIKE lower(unaccent(?)) ORDER BY membros.nome'
+parameters = ('%NonExistent%', '%NonExistent%')
+context = <sqlalchemy.dialects.sqlite.base.SQLiteExecutionContext object at 0x00000218E8CFE350>
+
+    def do_execute(self, cursor, statement, parameters, context=None):
+>       cursor.execute(statement, parameters)
+E       sqlite3.OperationalError: no such function: unaccent
+
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\engine\default.py:951: OperationalError
+
+The above exception was the direct cause of the following exception:
+
+self = <test_member_search.TestMemberSearch object at 0x00000218E8AC0B90>
+member_service = <src.services.member_service.MemberService object at 0x00000218EA046090>
+
+    def test_search_no_results(self, member_service):
+>       results = member_service.search_by_name("NonExistent")
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_member_search.py:40: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\services\member_service.py:171: in search_by_name
+    return self._search_by_name_sqlalchemy(name_query)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\services\member_service.py:466: in _search_by_name_sqlalchemy
+    ).order_by(Membro.nome).all()
+                            ^^^^^
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\orm\query.py:2704: in all
+    return self._iter().all()  # type: ignore
+           ^^^^^^^^^^^^
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\orm\query.py:2857: in _iter
+    result: Union[ScalarResult[_T], Result[_T]] = self.session.execute(
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\orm\session.py:2365: in execute
+    return self._execute_internal(
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\orm\session.py:2251: in _execute_internal
+    result: Result[Any] = compile_state_cls.orm_execute_statement(
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\orm\context.py:306: in orm_execute_statement
+    result = conn.execute(
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\engine\base.py:1419: in execute
+    return meth(
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\sql\elements.py:526: in _execute_on_connection
+    return connection._execute_clauseelement(
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\engine\base.py:1641: in _execute_clauseelement
+    ret = self._execute_context(
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\engine\base.py:1846: in _execute_context
+    return self._exec_single_context(
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\engine\base.py:1986: in _exec_single_context
+    self._handle_dbapi_exception(
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\engine\base.py:2355: in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\engine\base.py:1967: in _exec_single_context
+    self.dialect.do_execute(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <sqlalchemy.dialects.sqlite.pysqlite.SQLiteDialect_pysqlite object at 0x00000218E9F62490>
+cursor = <sqlite3.Cursor object at 0x00000218EAA711C0>
+statement = 'SELECT membros.id AS membros_id, membros.nome AS membros_nome, membros.plano AS membros_plano, membros.vencimento_pla...mbros.nome)) LIKE lower(unaccent(?)) OR lower(unaccent(membros.apelido)) LIKE lower(unaccent(?)) ORDER BY membros.nome'
+parameters = ('%NonExistent%', '%NonExistent%')
+context = <sqlalchemy.dialects.sqlite.base.SQLiteExecutionContext object at 0x00000218E8CFE350>
+
+    def do_execute(self, cursor, statement, parameters, context=None):
+>       cursor.execute(statement, parameters)
+E       sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) no such function: unaccent
+E       [SQL: SELECT membros.id AS membros_id, membros.nome AS membros_nome, membros.plano AS membros_plano, membros.vencimento_plano AS membros_vencimento_plano, membros.estado_plano AS membros_estado_plano, membros.data_nascimento AS membros_data_nascimento, membros.data_cadastro AS membros_data_cadastro, membros.whatsapp AS membros_whatsapp, membros.genero AS membros_genero, membros.email AS membros_email, membros.apelido AS membros_apelido, membros.profissao AS membros_profissao, membros.contato_emergencia AS membros_contato_emergencia, membros.frequencia AS membros_frequencia, membros.observacoes AS membros_observacoes, membros.calcado AS membros_calcado, membros.voucher_credits AS membros_voucher_credits, membros.treina AS membros_treina, membros.vencimento_treino AS membros_vencimento_treino, membros.created_at AS membros_created_at, membros.updated_at AS membros_updated_at 
+E       FROM membros 
+E       WHERE lower(unaccent(membros.nome)) LIKE lower(unaccent(?)) OR lower(unaccent(membros.apelido)) LIKE lower(unaccent(?)) ORDER BY membros.nome]
+E       [parameters: ('%NonExistent%', '%NonExistent%')]
+E       (Background on this error at: https://sqlalche.me/e/20/e3q8)
+
+C:\ProgramData\anaconda3\Lib\site-packages\sqlalchemy\engine\default.py:951: OperationalError
+=========================== short test summary info ===========================
+FAILED tests/test_member_search.py::TestMemberSearch::test_search_exact_match
+FAILED tests/test_member_search.py::TestMemberSearch::test_search_partial_match
+FAILED tests/test_member_search.py::TestMemberSearch::test_search_case_insensitive
+FAILED tests/test_member_search.py::TestMemberSearch::test_search_multiple_tokens
+FAILED tests/test_member_search.py::TestMemberSearch::test_search_no_results
+======================== 5 failed, 62 passed in 2.88s =========================

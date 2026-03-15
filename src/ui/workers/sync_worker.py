@@ -6,7 +6,6 @@ from typing import Dict, List, Any, Optional
 
 from src.data.google_sheets_service import GoogleSheetsService
 from src.data.database_manager import DatabaseManager
-from src.data.migrations import DatabaseMigrator
 from src.config import (
     SPREADSHEET_ID,
     CREDENTIALS_PATH,
@@ -21,6 +20,7 @@ from src.config import (
     COL_CALCADO,
 )
 from src.utils.date_utils import parse_date as parse_flexible_date
+from src.core.plan_status import ATIVO, INATIVO
 
 
 class SyncWorker(QThread):
@@ -57,16 +57,16 @@ class SyncWorker(QThread):
             'ATIVO' se não venceu, 'INATIVO' se já venceu
         """
         if not vencimento_str or not vencimento_str.strip():
-            return 'ATIVO'
+            return ATIVO
 
         parsed = parse_flexible_date(vencimento_str)
         if not parsed:
-            return 'ATIVO'
+            return ATIVO
 
         hoje = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
         vencimento_dt = parsed.replace(hour=0, minute=0, second=0, microsecond=0)
 
-        return 'INATIVO' if vencimento_dt < hoje else 'ATIVO'
+        return INATIVO if vencimento_dt < hoje else ATIVO
     
     def run(self):
         """Executa a sincronização."""
@@ -91,9 +91,17 @@ class SyncWorker(QThread):
                 self.sync_failed.emit("❌ Erro ao criar/verificar tabelas")
                 return
 
-            # Fase 4: Aplicar migrações automáticas
-            self.progress_updated.emit("🛠 Aplicando migrações automáticas...", 22)
-            DatabaseMigrator(self.db_manager).run_all()
+            # Fase 4: Aplicar migrações automáticas via Alembic
+            self.progress_updated.emit("🛠 Aplicando migrações (Alembic)...", 22)
+            import os
+            from alembic import command
+            from alembic.config import Config
+            
+            project_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+            alembic_ini_path = os.path.join(project_dir, "alembic.ini")
+            alembic_cfg = Config(alembic_ini_path)
+            alembic_cfg.set_main_option("script_location", os.path.join(project_dir, "alembic_migrations"))
+            command.upgrade(alembic_cfg, "head")
 
             # Fase 4.1: Otimizar banco após migrações
             self.progress_updated.emit("⚙️ Otimizando banco de dados...", 26)
@@ -237,7 +245,7 @@ class SyncWorker(QThread):
                 if plano in PLANOS_COM_VENCIMENTO:
                     estado_calculado = self._calculate_estado_from_vencimento(vencimento)
                 else:
-                    estado_calculado = 'ATIVO'
+                    estado_calculado = ATIVO
                 
                 member_data = {
                     'nome': nome,

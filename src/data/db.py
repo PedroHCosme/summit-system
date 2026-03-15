@@ -18,7 +18,8 @@ Base = declarative_base()
 
 # Caminho padrão do banco de dados (raiz do projeto)
 _PROJECT_ROOT = Path(__file__).parent.parent.parent
-_DEFAULT_DB_PATH = _PROJECT_ROOT / "gym_database.db"
+from src.config import DB_FILENAME
+_DEFAULT_DB_PATH = _PROJECT_ROOT / DB_FILENAME
 
 # Engine singleton (lazy initialization)
 _engine = None

@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from sqlalchemy import func, or_, and_
 from sqlalchemy.orm import Session
 
+from src.core.plan_status import ATIVO, INATIVO
 from src.data.models import Membro, Frequencia, Pagamento
 from src.utils.date_utils import coerce_to_date, format_display_date
 
@@ -107,7 +108,7 @@ class MemberService:
         
         # Definir estado padrão se não fornecido
         if 'estado_plano' not in member_data:
-            member_data['estado_plano'] = 'ATIVO'
+            member_data['estado_plano'] = ATIVO
         
         # Limpar vencimento para planos sem vencimento
         from src.config import PLANOS_COM_VENCIMENTO
@@ -217,7 +218,7 @@ class MemberService:
             page_size: Quantidade de itens por página
             filter_text: Texto para filtrar por nome
             filter_plan: Filtrar por plano específico
-            filter_status: Filtrar por status (ATIVO/INATIVO)
+            filter_status: Filtrar por status (ATIVO/INATIVO) — ver plan_status.py
             sort_by: Coluna para ordenação (nome, data_cadastro, vencimento_plano)
             sort_dir: Direção da ordenação (asc, desc)
             
@@ -338,7 +339,7 @@ class MemberService:
     
     def update_expired_plans(self) -> int:
         """
-        Atualiza o estado do plano para 'INATIVO' para membros vencidos.
+        Atualiza o estado do plano para INATIVO para membros vencidos.
         
         Returns:
             Número de membros atualizados
@@ -396,7 +397,7 @@ class MemberService:
                 data_cadastro=date.today(),
                 plano=member_data.get('plano'),
                 vencimento_plano=coerce_to_date(member_data.get('vencimento_plano')),
-                estado_plano=member_data.get('estado_plano', 'ATIVO'),
+                estado_plano=member_data.get('estado_plano', ATIVO),
                 data_nascimento=coerce_to_date(member_data.get('data_nascimento')),
                 whatsapp=member_data.get('whatsapp'),
                 genero=member_data.get('genero'),
@@ -610,7 +611,7 @@ class MemberService:
                     member.voucher_credits = (member.voucher_credits or 0) + credits_to_add
                 # Quota plans don't have expiration
                 member.vencimento_plano = None
-                member.estado_plano = 'ATIVO'
+                member.estado_plano = ATIVO
             elif not is_new_plan_quota and is_old_plan_quota and plan_changed:
                 # Switching from quota to time-based: reset credits (mutual exclusivity)
                 member.voucher_credits = 0
@@ -750,13 +751,13 @@ class MemberService:
         
         members = self._session.query(Membro).filter(
             Membro.vencimento_plano.isnot(None),
-            Membro.estado_plano == 'ATIVO',
+            Membro.estado_plano == ATIVO,
             Membro.plano.in_(PLANOS_COM_VENCIMENTO)
         ).all()
         
         for member in members:
             if member.vencimento_plano < today:
-                member.estado_plano = 'INATIVO'
+                member.estado_plano = INATIVO
                 member.updated_at = datetime.now()
                 updated_count += 1
         

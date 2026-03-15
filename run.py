@@ -19,9 +19,6 @@ os.environ["QT_FONT_DPI"] = "96"
 project_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, project_dir)
 
-from src.data.migrations import DatabaseMigrator
-from src.data.database_manager import DatabaseManager
-
 # Configuração do ambiente (dev = localhost, prod = 0.0.0.0)
 try:
     from config_local import DEVELOPMENT_MODE, WEB_PORT
@@ -38,29 +35,20 @@ web_server_process = None
 
 def run_migrations():
     """Executa migrações críticas antes de iniciar qualquer serviço."""
-    print("🔄 Verificando banco de dados...")
+    print("🔄 Verificando banco de dados (Alembic)...")
     try:
-        # Instanciar DatabaseManager apenas para migrações
-        db_manager = DatabaseManager()
-        db_manager.connect()
+        from alembic import command
+        from alembic.config import Config
         
-        migrator = DatabaseMigrator(db_manager)
+        alembic_ini_path = os.path.join(project_dir, "alembic.ini")
+        alembic_cfg = Config(alembic_ini_path)
+        alembic_cfg.set_main_option("script_location", os.path.join(project_dir, "alembic_migrations"))
         
-        # Executa APENAS a criação de tabelas e colunas críticas aqui
-        # O resto pode ser feito pela GUI depois
-        print("  - Garantindo tabelas...")
-        migrator.ensure_all_tables_exist()
-        
-        print("  - Garantindo colunas...")
-        migrator.ensure_all_member_columns()
-        
-        # Garante planos básicos para o web service não falhar ao listar planos
-        print("  - Garantindo planos base...") 
-        migrator.seed_all_plans()
-        
-        db_manager.close()
+        command.upgrade(alembic_cfg, "head")
         print("✓ Banco de dados pronto.")
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         print(f"⚠ Erro na preparação do banco de dados: {e}")
         # Não abortamos, pois a GUI pode tentar corrigir ou mostrar erro melhor
 

@@ -390,7 +390,14 @@ def _parse_date(date_str: Optional[Union[str, datetime, date]]) -> Optional[date
 
 
 def _get_status_info(vencimento_str: str) -> tuple[str, str]:
-    """Retorna status e classe CSS baseado no vencimento."""
+    """Retorna status de display e classe CSS baseado no vencimento.
+    
+    NOTA: Os valores retornados ('Vencido', 'Ativo') são LABELS DE DISPLAY,
+    não valores persistidos no banco. O banco usa exclusivamente
+    ATIVO/INATIVO (ver src/core/plan_status.py).
+    """
+    from src.core.plan_status import DISPLAY_LABEL_ATIVO, DISPLAY_LABEL_PLANO_VENCIDO
+    
     if not vencimento_str:
         return ("Sem Data", "expired")
     
@@ -402,11 +409,11 @@ def _get_status_info(vencimento_str: str) -> tuple[str, str]:
     days_until = (vencimento - today).days
     
     if days_until < 0:
-        return ("Vencido", "expired")
+        return (DISPLAY_LABEL_PLANO_VENCIDO, "expired")
     elif days_until <= 7:
         return (f"Vence em {days_until}d", "expiring")
     else:
-        return ("Ativo", "active")
+        return (DISPLAY_LABEL_ATIVO, "active")
 
 
 def generate_members_report(
@@ -452,7 +459,15 @@ def generate_members_report(
         week_ahead = today + timedelta(days=7)
         
         # Planos que não têm conceito de vencimento (pagos por check-in)
-        per_checkin_plans = {'Gympass', 'Diária', 'Livre', 'Voucher', 'Diária Boulder', 'Totalpass'}
+        # Derivado da tabela 'planos' (fonte de verdade) em vez de set hardcoded
+        per_checkin_plans_query = db_session.execute(
+            text("SELECT nome FROM planos WHERE valor_por_checkin > 0 AND ativo = 1")
+        ).fetchall()
+        per_checkin_plans = {row[0] for row in per_checkin_plans_query} if per_checkin_plans_query else set()
+        # Fallback: se a tabela planos não tem dados, usar config
+        if not per_checkin_plans:
+            from src.config import PLANOS_PAGAMENTO_POR_CHECKIN
+            per_checkin_plans = set(PLANOS_PAGAMENTO_POR_CHECKIN.keys())
         
         # Buscar todos os membros com seus planos para calcular estatísticas
         all_members_data = db_session.execute(text("SELECT vencimento_plano, plano FROM membros")).fetchall()
@@ -748,8 +763,10 @@ def generate_members_report(
             plan_attr_value = escape(plan_display, quote=True)
             
             vencimento_parsed = parse_date_to_date(vencimento_str) if vencimento_str else None
-            status_plano = "Ativo" if vencimento_parsed and vencimento_parsed >= today else "Vencido"
-            status_class = "active" if status_plano == "Ativo" else "expired"
+            # NOTA: 'Ativo'/'Plano vencido' são labels de display, não valores de DB
+            from src.core.plan_status import DISPLAY_LABEL_ATIVO, DISPLAY_LABEL_PLANO_VENCIDO
+            status_plano = DISPLAY_LABEL_ATIVO if vencimento_parsed and vencimento_parsed >= today else DISPLAY_LABEL_PLANO_VENCIDO
+            status_class = "active" if status_plano == DISPLAY_LABEL_ATIVO else "expired"
             
             contact_info = []
             if email:

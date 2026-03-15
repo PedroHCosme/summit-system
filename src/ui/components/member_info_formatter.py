@@ -150,11 +150,12 @@ def format_member_data(member_data: dict, monthly_frequency: int = 0) -> str:
 
     # 9. Estado do Plano
     estado_plano = member_data.get('estado_plano', '')
-    estado_color = '#28a745' if estado_plano.upper() == 'ATIVO' else '#FF6B6B'
+    from src.core.plan_status import is_active as plan_is_active, INATIVO, display_label
+    estado_color = '#28a745' if plan_is_active(estado_plano) else '#FF6B6B'
     html += f"""
         <div style="margin-bottom: 10px;">
             <strong style="color: #333333;">Estado do Plano:</strong>
-            <span style="color: {estado_color}; font-weight: bold;"> {estado_plano if estado_plano else 'INATIVO'}</span>
+            <span style="color: {estado_color}; font-weight: bold;"> {estado_plano if estado_plano else INATIVO}</span>
         </div>
     """
 

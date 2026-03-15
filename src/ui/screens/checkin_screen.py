@@ -7,6 +7,8 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt
 
+from src.core.plan_status import is_active as plan_is_active
+
 
 class CheckinScreen(QWidget):
     """Tela de check-in de membros."""
@@ -160,7 +162,7 @@ class CheckinScreen(QWidget):
         calcado = member_data.get('calcado')
         voucher_credits = member_data.get('voucher_credits', 0) or 0
         
-        is_active = str(estado_plano).upper() == 'ATIVO'
+        is_active = plan_is_active(estado_plano)
         color = '#28a745' if is_active else '#FF6B6B'
         
         # Check if this is a quota-based plan (Voucher or Pacote plans)

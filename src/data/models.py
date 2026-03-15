@@ -262,6 +262,5 @@ class Nota(Base):
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
 
-
-# Constantes úteis para queries
-PLANOS_POR_CHECKIN = {"Diária", "Gympass", "Totalpass"}
+# Nota: Para saber quais planos cobram por check-in, use config.PLANOS_PAGAMENTO_POR_CHECKIN
+# ou consulte a tabela 'planos' (Plano.valor_por_checkin > 0).

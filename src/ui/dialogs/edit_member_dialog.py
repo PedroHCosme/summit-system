@@ -400,17 +400,18 @@ class EditMemberDialog(QDialog):
     
     def _calculate_estado_plano(self, vencimento: Optional['date']) -> str:
         """Calcula o estado do plano baseado na data de vencimento."""
+        from src.core.plan_status import ATIVO, INATIVO
         if not vencimento:
-            return "ATIVO"
+            return ATIVO
         
         from datetime import date as _date
         hoje = _date.today()
         
         # Se a data de vencimento já passou, o plano está INATIVO
         if vencimento < hoje:
-            return "INATIVO"
+            return INATIVO
         else:
-            return "ATIVO"
+            return ATIVO
     
     def _on_save(self):
         """Salva as alterações e fecha o diálogo."""

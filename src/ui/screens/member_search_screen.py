@@ -304,7 +304,8 @@ class MemberSearchScreen(QWidget):
         
         # Mostrar botão de renovar apenas para planos renováveis
         plano = member_data.get('plano', '')
-        planos_nao_renovaveis = ["Diária", "Diária Boulder", "Gympass", "Totalpass", "Cortesia"]
+        from src.config import PLANOS_NAO_RENOVAVEIS
+        planos_nao_renovaveis = PLANOS_NAO_RENOVAVEIS
         is_renewable = plano not in planos_nao_renovaveis and plano in PLANOS_COM_VENCIMENTO
         self.renew_button.setVisible(is_renewable)
     

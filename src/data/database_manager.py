@@ -48,13 +48,16 @@ _PLAN_DURATION_MAP = {
 class DatabaseManager:
     """Gerencia todas as operações com o banco de dados SQLite."""
     
-    def __init__(self, db_path: str = "gym_database.db"):
+    def __init__(self, db_path: str = None):
         """
         Inicializa o gerenciador de banco de dados.
         
         Args:
             db_path: Caminho para o arquivo do banco de dados
         """
+        if db_path is None:
+            from src.config import DB_FILENAME
+            db_path = DB_FILENAME
         # O caminho do banco de dados agora é relativo à raiz do projeto
         project_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         self.db_path = os.path.join(project_dir, db_path)
@@ -438,9 +441,9 @@ class DatabaseManager:
             print("Erro: Conexão com o banco de dados não estabelecida.")
             return None
 
-        # Define o estado do plano como 'ATIVO' por padrão para novos membros
         if 'estado_plano' not in member_data:
-            member_data['estado_plano'] = 'ATIVO'
+            from src.core.plan_status import ATIVO
+            member_data['estado_plano'] = ATIVO
 
         # Se o plano não requer vencimento, remover/limpar vencimento_plano
         from src.config import PLANOS_COM_VENCIMENTO
@@ -592,7 +595,7 @@ class DatabaseManager:
             page_size: Quantidade de itens por página
             filter_text: Texto para filtrar por nome
             filter_plan: Filtrar por plano específico
-            filter_status: Filtrar por status (ATIVO/INATIVO)
+            filter_status: Filtrar por status (ATIVO/INATIVO) — ver plan_status.py
             sort_by: Coluna para ordenação (nome, data_cadastro, vencimento_plano)
             sort_dir: Direção da ordenação (asc, desc)
             
@@ -668,29 +671,11 @@ class DatabaseManager:
             traceback.print_exc()
             return {'members': [], 'total': 0, 'page': 1, 'total_pages': 0}
 
-    
     def _normalize_plan_for_checkin(self, plan_name: Optional[str]) -> Optional[str]:
         """Normaliza o nome do plano para fins de cobrança por check-in."""
-        if not plan_name:
-            return None
-        plan_name = plan_name.strip()
-        if not plan_name:
-            return None
+        from src.core.plan_utils import normalize_plan_for_payment
         from src.config import PLANOS_PAGAMENTO_POR_CHECKIN
-
-        if plan_name in PLANOS_PAGAMENTO_POR_CHECKIN:
-            return plan_name
-
-        # Normalização por palavras-chave
-        lowered = plan_name.lower()
-        if 'diária' in lowered:
-            return 'Diária'
-        if 'gympass' in lowered:
-            return 'Gympass'
-        if 'totalpass' in lowered:
-            return 'Totalpass'
-
-        return None
+        return normalize_plan_for_payment(plan_name, PLANOS_PAGAMENTO_POR_CHECKIN)
 
     def _create_checkin_payment_if_missing(
         self,
@@ -735,13 +720,14 @@ class DatabaseManager:
         if member_name:
             descricao += f" ({member_name})"
 
+        from src.core.payment_constants import METODO_CHECKIN
         self.add_payment(
             member_id=member_id,
             data_pagamento=checkin_datetime,
             tipo_transacao=plan_for_payment,
             descricao=descricao,
             valor=valor,
-            metodo_pagamento="Check-in"
+            metodo_pagamento=METODO_CHECKIN
         )
 
     def add_checkin(
@@ -1826,10 +1812,11 @@ class DatabaseManager:
 
     def update_expired_plans(self):
         """
-        Atualiza o estado do plano para 'INATIVO' para membros cujo plano expirou.
+        Atualiza o estado do plano para INATIVO para membros cujo plano expirou.
         A verificação é feita com base na data atual.
         Suporta múltiplos formatos de data: DD/MM/YYYY, DD-MM-YY, YY-MM-DD, YYYY-MM-DD
         """
+        from src.core.plan_status import ATIVO, INATIVO
         if not self.connection:
             print("Erro: Conexão com o banco de dados não estabelecida.")
             return 0
@@ -1848,9 +1835,9 @@ class DatabaseManager:
                 FROM membros
                 WHERE vencimento_plano IS NOT NULL 
                   AND vencimento_plano != ''
-                  AND estado_plano = 'ATIVO'
+                  AND estado_plano = ?
                   AND plano IN ({placeholders})
-            """, PLANOS_COM_VENCIMENTO)
+            """, list(PLANOS_COM_VENCIMENTO) + [ATIVO])
             
             members = cursor.fetchall()
             hoje = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
@@ -1872,12 +1859,12 @@ class DatabaseManager:
                 placeholders = ','.join('?' * len(updates))
                 cursor.execute(f"""
                     UPDATE membros
-                    SET estado_plano = 'INATIVO'
+                    SET estado_plano = ?
                     WHERE id IN ({placeholders})
-                """, updates)
+                """, [INATIVO] + updates)
                 
                 self.connection.commit()
-                print(f"Planos de {len(updates)} membro(s) foram atualizados para 'INATIVO'.")
+                print(f"Planos de {len(updates)} membro(s) foram atualizados para '{INATIVO}'.")
                 return len(updates)
             
             return 0

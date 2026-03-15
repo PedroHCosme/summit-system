@@ -19,23 +19,27 @@ class DatabaseConnectionWorker(QThread):
         super().__init__()
     
     def _run_migrations(self):
-        """Executa migrações do banco ANTES de usar SQLAlchemy."""
+        """Executa migrações do banco usando Alembic."""
         try:
-            from src.data.migrations import DatabaseMigrator
-            from src.data.database_manager import DatabaseManager
+            import os
+            from alembic import command
+            from alembic.config import Config
             
-            print("[DatabaseConnection] Executando migrações...")
-            self.status_updated.emit("Executando migrações do banco de dados...")
+            print("[DatabaseConnection] Executando migrações Alembic...")
+            self.status_updated.emit("Executando migrações do banco de dados (Alembic)...")
             
-            # Usar DatabaseManager direto (sem SQLAlchemy) para migrações
-            db_manager = DatabaseManager()
-            db_manager.connect()
+            # Ponto de entrada p/ alembic.ini na raiz do projeto
+            project_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+            alembic_ini_path = os.path.join(project_dir, "alembic.ini")
             
-            migrator = DatabaseMigrator(db_manager)
-            migrator.run_all()
+            alembic_cfg = Config(alembic_ini_path)
+            # Definir o diretório raiz para o alembic rodar corretamente
+            alembic_cfg.set_main_option("script_location", os.path.join(project_dir, "alembic_migrations"))
             
-            db_manager.close()
-            print("[DatabaseConnection] ✓ Migrações executadas")
+            print("[DatabaseConnection] Upgrading to head...")
+            command.upgrade(alembic_cfg, "head")
+            
+            print("[DatabaseConnection] ✓ Migrações Alembic executadas com sucesso")
             return True
         except Exception as e:
             print(f"[DatabaseConnection] ⚠ Erro nas migrações: {e}")
@@ -81,7 +85,8 @@ class DatabaseConnectionWorker(QThread):
                 print("[DatabaseConnection] Atualizando planos expirados...")
                 updated_count = provider.update_expired_plans()
                 if updated_count > 0:
-                    msg = f"{updated_count} plano(s) atualizado(s) para INATIVO."
+                    from src.core.plan_status import INATIVO
+                    msg = f"{updated_count} plano(s) atualizado(s) para {INATIVO}."
                     print(f"[DatabaseConnection] {msg}")
                     self.status_updated.emit(msg)
             

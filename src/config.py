@@ -28,6 +28,9 @@ COL_CONTATO_EMERGENCIA = 73  # Coluna BV (74ª coluna)
 # Usado para determinar se a conexão será com SQLite ou Google Sheets
 USE_SQLITE = True
 
+# Nome do arquivo do banco de dados (fonte de verdade)
+DB_FILENAME = "gym_database.db"
+
 # Lista de todos os planos disponíveis
 PLANOS = [
     "Mensal",
@@ -77,6 +80,16 @@ PLANOS_PAGAMENTO_POR_CHECKIN = {
     "Gympass": 15.0,     # Cada check-in = R$ 15,00
     "Totalpass": 15.0    # Cada check-in = R$ 15,00
 }
+
+# Planos que NÃO podem ser renovados pelo usuário
+# (Diárias e planos de parceiros não têm ciclo de renovação)
+PLANOS_NAO_RENOVAVEIS = [
+    "Diária",
+    "Diária Boulder",
+    "Gympass",
+    "Totalpass",
+    "Cortesia",
+]
 
 # --- CONFIGURAÇÕES DE TREINO ---
 # Treino é um serviço adicional independente do plano

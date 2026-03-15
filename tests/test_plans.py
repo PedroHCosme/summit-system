@@ -5,6 +5,7 @@ from src.services.member_service import MemberService
 from src.services.plan_service import PlanService
 from src.data.models import Plano
 from src.config import PLANOS_COM_VENCIMENTO
+from src.core.plan_status import ATIVO, INATIVO
 
 
 class TestSubscriptionPlans:
@@ -26,7 +27,7 @@ class TestSubscriptionPlans:
             "nome": "Expired User",
             "plano": "Mensal",
             "vencimento_plano": past_date,
-            "estado_plano": "ATIVO"
+            "estado_plano": ATIVO
         })
         
         # Trigger update expiration
@@ -36,7 +37,7 @@ class TestSubscriptionPlans:
         
         # Verify status changed to INATIVO
         member = member_service.get_by_id(member_result.member_id)
-        assert member.estado_plano == "INATIVO"
+        assert member.estado_plano == INATIVO
 
     def test_active_plan_not_expired(self, member_service):
         future_date = (date.today() + timedelta(days=30)).strftime('%d/%m/%Y')
@@ -45,14 +46,14 @@ class TestSubscriptionPlans:
             "nome": "Active User",
             "plano": "Mensal",
             "vencimento_plano": future_date,
-            "estado_plano": "ATIVO"
+            "estado_plano": ATIVO
         })
         
         count = member_service.update_expired_plans()
         
         assert count == 0
         member = member_service.get_by_id(member_result.member_id)
-        assert member.estado_plano == "ATIVO"
+        assert member.estado_plano == ATIVO
 
 
 class TestPlanCRUD:
