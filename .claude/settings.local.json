@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(rtk git:*)",
+      "Bash(wc -l /c/Users/Usuario/pedrocosme/dev/summit-system/src/ui/screens/*.py)",
+      "Bash(wc -l /c/Users/Usuario/pedrocosme/dev/summit-system/src/ui/dialogs/*.py)",
+      "Bash(grep -E \"\\\\.md$\")",
+      "Bash(wc -l /c/Users/Usuario/pedrocosme/dev/summit-system/src/ui/workers/*.py)"
+    ]
+  }
+}

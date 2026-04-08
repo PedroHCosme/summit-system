@@ -11,8 +11,9 @@ from jinja2 import Environment, FileSystemLoader
 
 from src.services.payment_service import PaymentService
 from src.services.member_service import MemberService
-from src.config import PLANOS_PRECOS, PLANOS_PAGAMENTO_POR_CHECKIN
+from src.services.plan_service import PlanService
 from src.data.models import Membro
+from src.core.plan_status import PENDENTE
 
 
 def _get_reports_dir() -> Path:
@@ -48,6 +49,11 @@ def generate_finance_report(
         close_session = True
         
     try:
+        # Carregar planos do banco (fonte de verdade — não config.py)
+        plan_service = PlanService(db_session=member_service.session)
+        planos_precos = plan_service.get_plan_prices()
+        planos_checkin = plan_service.get_checkin_payment_plans()
+
         # Obter dados operacionais através dos Serviços já tipados do sistema
         summary = payment_service.get_summary(start_date, end_date)
         breakdown = payment_service.get_breakdown(start_date, end_date)
@@ -85,11 +91,17 @@ def generate_finance_report(
             comparativo = None
 
         # =====================================================================
-        # (b) Taxa de inadimplência
+        # (b) Taxa de inadimplência — excluindo PENDENTE
         # =====================================================================
         inadimplencia = None
         try:
-            members = member_service.session.query(Membro).all()
+            # Excluir membros PENDENTE (cadastro web não aprovado)
+            members = (
+                member_service.session
+                .query(Membro)
+                .filter(Membro.estado_plano != PENDENTE)
+                .all()
+            )
             total_membros = len(members)
             inativos = sum(1 for m in members if m.estado_plano == 'INATIVO')
             taxa_pct = (inativos / total_membros * 100) if total_membros > 0 else 0.0
@@ -103,19 +115,25 @@ def generate_finance_report(
             inadimplencia = None
 
         # =====================================================================
-        # (c) Projeção de receita mensal
+        # (c) Projeção de receita mensal (usando preços do banco)
         # =====================================================================
         projecao_receita = 0.0
         try:
             ativos = [m for m in members if m.estado_plano == 'ATIVO']
+            period_duration = end_date - start_date
+            dias_periodo = max(period_duration.days, 1)
             for m in ativos:
                 plano_nome = m.plano or ""
-                preco = PLANOS_PRECOS.get(plano_nome, 0.0)
+                preco = planos_precos.get(plano_nome, 0.0)
                 projecao_receita += preco
-                # Para planos de pagamento por check-in, adicionar estimativa
-                if plano_nome in PLANOS_PAGAMENTO_POR_CHECKIN:
-                    # Estimativa: ~12 check-ins/mês por membro ativo nesses planos
-                    projecao_receita += PLANOS_PAGAMENTO_POR_CHECKIN[plano_nome] * 12
+                # Planos per-checkin: estimar com base na média do período
+                if plano_nome in planos_checkin:
+                    preco_checkin = planos_checkin[plano_nome]
+                    if summary.total_transacoes > 0:
+                        checkins_por_dia = summary.total_transacoes / dias_periodo
+                        projecao_receita += preco_checkin * checkins_por_dia * 30
+                    else:
+                        projecao_receita += preco_checkin * 8  # fallback conservador
             projecao_receita = round(projecao_receita, 2)
         except Exception:
             projecao_receita = 0.0
@@ -163,35 +181,41 @@ def generate_finance_report(
             "receita_liquida": v_total
         }
 
-        # DRE Simplificado
-        mensalidades = sum(b.total_valor for b in breakdown if b.tipo_transacao and ("Plano" in b.tipo_transacao or "Mensal" in b.tipo_transacao))
-        avulsos = v_total - mensalidades
+        # DRE Simplificado — treino como categoria separada
+        mensalidades = 0.0
+        treino_receita = 0.0
+        avulsos_receita = 0.0
+
+        for b in breakdown:
+            tipo = b.tipo_transacao or ""
+            if "Treino" in tipo:
+                treino_receita += b.total_valor
+            elif any(k in tipo for k in ("Renovação", "Plano", "Mensal")):
+                mensalidades += b.total_valor
+            else:
+                avulsos_receita += b.total_valor
 
         dre = {
             "mensalidades": mensalidades,
-            "avulsos": avulsos if avulsos > 0 else 0
+            "treino": treino_receita,
+            "avulsos": avulsos_receita if avulsos_receita > 0 else 0,
         }
 
-        # Gráficos (ChartJS Builder)
-        metodos_labels = []
-        metodos_values = []
-        # Agrupar por métodos disponíveis
-        metodos_map = {}
+        # Gráficos — agregar por método usando breakdown completo do serviço
+        metodos_map: Dict[str, float] = {}
         for t in transactions:
             m = t.get("metodo_pagamento") or "Outros"
-            if m not in metodos_map: metodos_map[m] = 0
-            metodos_map[m] += t.get("valor", 0.0)
+            metodos_map[m] = metodos_map.get(m, 0.0) + t.get("valor", 0.0)
 
-        for m, v in metodos_map.items():
-            metodos_labels.append(m)
-            metodos_values.append(v)
+        metodos_labels = list(metodos_map.keys())
+        metodos_values = list(metodos_map.values())
 
         planos_labels = [b.tipo_transacao or "Outros" for b in breakdown]
         planos_values = [b.total_valor for b in breakdown]
 
         context = {
-            "title": f"Balanço Financeiro - {period}",
-            "subtitle": "Demonstrativo de Resultados do Exercício (DRE) e Análise de Receita",
+            "title": f"Balanço Financeiro — {period}",
+            "subtitle": "Demonstrativo de Resultados e Análise de Receita",
             "generate_date": datetime.now().strftime('%d/%m/%Y às %H:%M'),
             "current_year": datetime.now().year,
             "kpis": kpis,
@@ -201,15 +225,9 @@ def generate_finance_report(
             "inadimplencia": inadimplencia,
             "projecao_receita": projecao_receita,
             "chart_json": json.dumps({
-                "methods": {
-                    "labels": metodos_labels,
-                    "values": metodos_values
-                },
-                "plans": {
-                    "labels": planos_labels,
-                    "values": planos_values
-                }
-            })
+                "methods": {"labels": metodos_labels, "values": metodos_values},
+                "plans":   {"labels": planos_labels,  "values": planos_values},
+            }),
         }
         
         # Renderizar com Jinja2
