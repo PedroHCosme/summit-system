@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }} | Summit System</title>
+    <!-- Chart.js para Componentes Visuais Profissionais -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary: #6c5ce7;
+            --secondary: #a29bfe;
+            --accent: #fd79a8;
+            --background: #f8f9fa;
+            --surface: #ffffff;
+            --text-main: #2d3436;
+            --text-muted: #636e72;
+            --success: #00b894;
+            --danger: #d63031;
+            --warning: #fdcb6e;
+            
+            /* Gradient Presets */
+            --grad-blue: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            --grad-green: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+            --grad-purple: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --grad-orange: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background-color: var(--background);
+            color: var(--text-main);
+            line-height: 1.6;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: var(--surface);
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.08);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: var(--grad-purple);
+            color: white;
+            padding: 40px 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+        
+        .header .subtitle {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .header .meta {
+            margin-top: 15px;
+            font-size: 0.9em;
+            opacity: 0.8;
+            background: rgba(255,255,255,0.2);
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+        }
+        
+        .content {
+            padding: 40px 30px;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+        
+        .stat-card {
+            color: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            transition: transform 0.2s;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .stat-card.blue { background: var(--grad-blue); }
+        .stat-card.green { background: var(--grad-green); }
+        .stat-card.purple { background: var(--grad-purple); }
+        .stat-card.orange { background: var(--grad-orange); }
+        
+        .stat-card .label {
+            font-size: 0.9em;
+            opacity: 0.9;
+            margin-bottom: 5px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .stat-card .value {
+            font-size: 2.5em;
+            font-weight: bold;
+        }
+        
+        .section {
+            margin-bottom: 40px;
+            background: white;
+        }
+        
+        .section h2 {
+            color: var(--primary);
+            margin-bottom: 20px;
+            font-size: 1.6em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .section h2::before {
+            content: '';
+            display: block;
+            width: 5px;
+            height: 25px;
+            background: var(--primary);
+            border-radius: 3px;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin-top: 15px;
+            border: 1px solid #f0f0f0;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        th {
+            background-color: var(--background);
+            color: var(--text-muted);
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        td {
+            padding: 15px;
+            border-top: 1px solid #f0f0f0;
+            color: var(--text-main);
+        }
+        
+        tr:hover td {
+            background-color: #fafbfa;
+        }
+        
+        .footer {
+            text-align: center;
+            padding: 30px;
+            color: var(--text-muted);
+            font-size: 0.9em;
+            border-top: 1px solid #f0f0f0;
+            background: var(--surface);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+        
+        .badge.success { background: #e3fbec; color: var(--success); }
+        .badge.warning { background: #fff8e6; color: #d39e00; }
+        .badge.danger { background: #feebeb; color: var(--danger); }
+        .badge.neutral { background: #f0f0f0; color: var(--text-muted); }
+
+        .chart-container {
+            width: 100%;
+            height: 350px;
+            position: relative;
+            margin: 20px 0;
+            padding: 20px;
+            background: white;
+            border: 1px solid #f0f0f0;
+            border-radius: 12px;
+        }
+
+        /* Helpers Utilitarios */
+        .text-right { text-align: right; }
+        .text-center { text-align: center; }
+        .positive { color: var(--success); font-weight: 600; }
+        .negative { color: var(--danger); font-weight: 600; }
+        .total-row { font-weight: 700; background-color: var(--background); }
+
+        /* Print Media Adjustments */
+        @media print {
+            body { background: white; padding: 0; }
+            .container { box-shadow: none; max-width: 100%; }
+        }
+
+        {% block extra_css %}{% endblock %}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>{{ title }}</h1>
+            {% if subtitle %}
+            <p class="subtitle">{{ subtitle }}</p>
+            {% endif %}
+            <div class="meta">
+                Gerado em: {{ generate_date }}
+            </div>
+        </div>
+        
+        <div class="content">
+            {% block content %}{% endblock %}
+        </div>
+        
+        <div class="footer">
+            <p>Relatório gerado automaticamente pelo Sistema de Gestão Summit</p>
+            <p>© {{ current_year }} Summit Climbing Gym</p>
+        </div>
+    </div>
+
+    <!-- Page Specific Scripts (ex: Load Charts) -->
+    {% block scripts %}{% endblock %}
+</body>
+</html>

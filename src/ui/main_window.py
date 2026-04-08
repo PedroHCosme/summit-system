@@ -1367,30 +1367,28 @@ class MainWindow(QMainWindow):
                 "Conecte-se ao banco de dados antes de gerar relatórios."
             )
             return
-        
+
+        from src.ui.dialogs.report_period_dialog import ReportPeriodDialog
+
+        dialog = ReportPeriodDialog("Relatório de Frequência", self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        start_date, end_date = dialog.get_period()
+
         try:
             from src.reports.frequency_report import generate_frequency_report
-            import webbrowser
-            
-            # Gerar relatório (últimos 30 dias por padrão)
-            filepath = generate_frequency_report(days=30)
-            
-            # Abrir no navegador
-            webbrowser.open(f'file://{filepath}')
-            
-            QMessageBox.information(
-                self,
-                "Relatório Gerado",
-                f"Relatório de frequência gerado com sucesso!\n\n"
-                f"O arquivo foi aberto no navegador e salvo em:\n"
-                f"relatorios/"
+
+            filepath = generate_frequency_report(
+                start_date=start_date,
+                end_date=end_date
             )
-            
+            webbrowser.open(f'file://{filepath}')
         except Exception as e:
             QMessageBox.critical(
                 self,
-                "Erro ao Gerar Relatório",
-                f"Erro ao gerar relatório de frequência:\n\n{str(e)}"
+                "Erro",
+                f"Erro ao gerar relatório de frequência: {e}"
             )
     
     

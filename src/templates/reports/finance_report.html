@@ -1,0 +1,236 @@
+{% extends "base_report.html" %}
+
+{% block extra_css %}
+.comparison { font-size: 0.75em; margin-top: 8px; opacity: 0.95; }
+.comparison.positive { color: #d4edda; }
+.comparison.negative { color: #f8d7da; }
+.stats-grid-secondary {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 15px;
+    margin-top: 15px;
+    margin-bottom: 10px;
+}
+.stats-grid-secondary .stat-card {
+    padding: 15px 20px;
+}
+.stat-card .sub-label {
+    font-size: 0.8em;
+    margin-top: 4px;
+    opacity: 0.85;
+}
+{% endblock %}
+
+{% block content %}
+<!-- KPIs Financeiros -->
+<div class="stats-grid">
+    <div class="stat-card blue">
+        <div class="label">Receita Bruta Total</div>
+        <div class="value">R$ {{ "%.2f"|format(kpis.receita_bruta) }}</div>
+        {% if comparativo %}
+        <div class="comparison {% if comparativo.delta_receita_pct >= 0 %}positive{% else %}negative{% endif %}">
+            {% if comparativo.delta_receita_pct >= 0 %}&#9650; +{{ "%.1f"|format(comparativo.delta_receita_pct) }}%{% else %}&#9660; {{ "%.1f"|format(comparativo.delta_receita_pct) }}%{% endif %} vs período anterior
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="stat-card green">
+        <div class="label">Ticket Médio</div>
+        <div class="value">R$ {{ "%.2f"|format(kpis.ticket_medio) }}</div>
+        <div class="label" style="margin-top: 5px;">{{ kpis.total_transacoes }} transações</div>
+        {% if comparativo %}
+        <div class="comparison {% if comparativo.delta_transacoes_pct >= 0 %}positive{% else %}negative{% endif %}">
+            {% if comparativo.delta_transacoes_pct >= 0 %}&#9650; +{{ "%.1f"|format(comparativo.delta_transacoes_pct) }}%{% else %}&#9660; {{ "%.1f"|format(comparativo.delta_transacoes_pct) }}%{% endif %} vs período anterior
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="stat-card orange">
+        <div class="label">Total Descontos</div>
+        <div class="value">R$ {{ "%.2f"|format(kpis.total_descontos) }}</div>
+        <div class="label" style="margin-top: 5px;">{{ "%.1f"|format(kpis.perc_descontos) }}% da Receita</div>
+    </div>
+
+    <div class="stat-card purple">
+        <div class="label">Receita Líquida</div>
+        <div class="value">R$ {{ "%.2f"|format(kpis.receita_liquida) }}</div>
+    </div>
+</div>
+
+<!-- KPIs Secundários -->
+<div class="stats-grid-secondary">
+    {% if inadimplencia %}
+    <div class="stat-card orange">
+        <div class="label">Taxa de Inadimplência</div>
+        <div class="value">{{ "%.1f"|format(inadimplencia.taxa_pct) }}%</div>
+        <div class="sub-label">{{ inadimplencia.inativos }} de {{ inadimplencia.total_membros }} membros</div>
+    </div>
+    {% endif %}
+
+    {% if projecao_receita is defined %}
+    <div class="stat-card green">
+        <div class="label">Projeção Mensal (Estimativa)</div>
+        <div class="value">R$ {{ "%.2f"|format(projecao_receita) }}</div>
+        <div class="sub-label">Baseado em membros ativos e planos</div>
+    </div>
+    {% endif %}
+
+    <div class="stat-card blue">
+        <div class="label">Total de Transações</div>
+        <div class="value">{{ kpis.total_transacoes }}</div>
+        {% if comparativo %}
+        <div class="comparison {% if comparativo.delta_transacoes_pct >= 0 %}positive{% else %}negative{% endif %}">
+            {% if comparativo.delta_transacoes_pct >= 0 %}&#9650; +{{ "%.1f"|format(comparativo.delta_transacoes_pct) }}%{% else %}&#9660; {{ "%.1f"|format(comparativo.delta_transacoes_pct) }}%{% endif %} vs período anterior
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+    <!-- Composição de Receita (Doughnut) -->
+    <div class="section">
+        <h2>💰 Composição de Receita (Por Métodos)</h2>
+        <div class="chart-container">
+            <canvas id="revenueMethodsChart"></canvas>
+        </div>
+    </div>
+    
+    <!-- Receita por Tipo de Plano (Bar) -->
+    <div class="section">
+        <h2>🧾 Receitas por Plano</h2>
+        <div class="chart-container">
+            <canvas id="revenuePlansChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- DRE - Demonstrativo de Resultado -->
+<div class="section" style="margin-top: 20px;">
+    <h2>📈 DRE Simplificado</h2>
+    <table class="financial-table">
+        <tbody>
+            <tr>
+                <td><strong>(+) Receita Bruta Operacional</strong></td>
+                <td class="text-right positive">R$ {{ "%.2f"|format(kpis.receita_bruta) }}</td>
+            </tr>
+            <tr>
+                <td style="padding-left: 30px;">- Mensalidades Pagas</td>
+                <td class="text-right">R$ {{ "%.2f"|format(dre.mensalidades) }}</td>
+            </tr>
+            <tr>
+                <td style="padding-left: 30px;">- Pagamentos Avulsos / Diárias</td>
+                <td class="text-right">R$ {{ "%.2f"|format(dre.avulsos) }}</td>
+            </tr>
+            <tr>
+                <td><strong>(-) Deduções da Receita Bruta</strong></td>
+                <td class="text-right negative">R$ {{ "%.2f"|format(kpis.total_descontos) }}</td>
+            </tr>
+            <tr class="total-row">
+                <td><strong>(=) Receita Líquida</strong></td>
+                <td class="text-right">R$ {{ "%.2f"|format(kpis.receita_liquida) }}</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- Lista de Transações Recentes -->
+<div class="section" style="margin-top: 30px;">
+    <h2>📜 Extrato de Pagamentos</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Data</th>
+                <th>Membro</th>
+                <th>Plano / Tipo</th>
+                <th>Método</th>
+                <th>Status</th>
+                <th class="text-right">Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for t in transacoes %}
+            <tr>
+                <td>{{ t.data }}</td>
+                <td><strong>{{ t.membro }}</strong></td>
+                <td>{{ t.plano }}</td>
+                <td>{{ t.metodo }}</td>
+                <td><span class="badge {% if t.status == 'PAGO' %}success{% elif t.status == 'CANCELADO' %}danger{% else %}warning{% endif %}">{{ t.status }}</span></td>
+                <td class="text-right positive">R$ {{ "%.2f"|format(t.total) }}</td>
+            </tr>
+            {% endfor %}
+            {% if not transacoes %}
+            <tr>
+                <td colspan="6" class="text-center" style="padding: 30px; color: var(--text-muted);">Nenhuma transação encontrada no período selecionado.</td>
+            </tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Injeção dos dados para os Gráficos -->
+<script>
+    window.financeChartData = {{ chart_json | safe }};
+</script>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    
+    // Gráfico de Métodos (Doughnut)
+    const ctxMethods = document.getElementById('revenueMethodsChart').getContext('2d');
+    new Chart(ctxMethods, {
+        type: 'doughnut',
+        data: {
+            labels: window.financeChartData.methods.labels,
+            datasets: [{
+                data: window.financeChartData.methods.values,
+                backgroundColor: ['#6c5ce7', '#00b894', '#fdcb6e', '#fd79a8'],
+                borderWidth: 0,
+                hoverOffset: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'right' }
+            },
+            cutout: '70%'
+        }
+    });
+
+    // Gráfico de Planos (Bar)
+    const ctxPlans = document.getElementById('revenuePlansChart').getContext('2d');
+    new Chart(ctxPlans, {
+        type: 'bar',
+        data: {
+            labels: window.financeChartData.plans.labels,
+            datasets: [{
+                label: 'Receita (R$)',
+                data: window.financeChartData.plans.values,
+                backgroundColor: '#a29bfe',
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    grid: { drawBorder: false }
+                },
+                x: {
+                    grid: { display: false, drawBorder: false }
+                }
+            }
+        }
+    });
+
+});
+</script>
+{% endblock %}
