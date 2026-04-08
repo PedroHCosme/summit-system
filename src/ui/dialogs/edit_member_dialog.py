@@ -141,7 +141,7 @@ class EditMemberDialog(QDialog):
         # WhatsApp
         self.whatsapp_input = QLineEdit()
         self.whatsapp_input.setPlaceholderText("(00) 00000-0000")
-        form_layout.addRow("WhatsApp:", self.whatsapp_input)
+        form_layout.addRow("WhatsApp *:", self.whatsapp_input)
         
         # Gênero
         self.genero_combo = QComboBox()
@@ -151,7 +151,7 @@ class EditMemberDialog(QDialog):
         # Calçado
         self.calcado_input = QLineEdit()
         self.calcado_input.setPlaceholderText("Ex: 42")
-        form_layout.addRow("Calçado:", self.calcado_input)
+        form_layout.addRow("Calçado *:", self.calcado_input)
 
         # Profissão
         self.profissao_input = QLineEdit()
@@ -395,7 +395,27 @@ class EditMemberDialog(QDialog):
             )
             self.plano_combo.setFocus()
             return False
-        
+
+        # WhatsApp é obrigatório
+        if not self.whatsapp_input.text().strip():
+            QMessageBox.warning(
+                self,
+                "Campo Obrigatório",
+                "O telefone (WhatsApp) é obrigatório."
+            )
+            self.whatsapp_input.setFocus()
+            return False
+
+        # Calçado é obrigatório
+        if not self.calcado_input.text().strip():
+            QMessageBox.warning(
+                self,
+                "Campo Obrigatório",
+                "O número de calçado é obrigatório."
+            )
+            self.calcado_input.setFocus()
+            return False
+
         return True
     
     def _calculate_estado_plano(self, vencimento: Optional['date']) -> str:
