@@ -153,7 +153,7 @@ class AddMemberDialog(QDialog):
         self.form_layout.addRow("Data de Nascimento (*):", self.data_nascimento_input)
         self.form_layout.addRow("WhatsApp (*):", self.whatsapp_input)
         self.form_layout.addRow("Gênero (*):", self.genero_combo)
-        self.form_layout.addRow("Calçado:", self.calcado_input)
+        self.form_layout.addRow("Calçado (*):", self.calcado_input)
         self.form_layout.addRow("Profissão:", self.profissao_input)
         self.form_layout.addRow("Contato de Emergência:", self.contato_emergencia_input)
         self.form_layout.addRow("Observações:", self.observacoes_input)
@@ -240,7 +240,19 @@ class AddMemberDialog(QDialog):
         if data_nasc_date >= date.today():
             QMessageBox.warning(self, "Atenção", "A data de nascimento não pode ser hoje ou uma data futura.")
             return
-            
+
+        # Validar WhatsApp
+        if not self.whatsapp_input.text().strip():
+            QMessageBox.warning(self, "Atenção", "Por favor, informe o telefone (WhatsApp).")
+            self.whatsapp_input.setFocus()
+            return
+
+        # Validar calçado
+        if not self.calcado_input.text().strip():
+            QMessageBox.warning(self, "Atenção", "Por favor, informe o número de calçado.")
+            self.calcado_input.setFocus()
+            return
+
         self.accept()
 
     def _toggle_vencimento_visibility(self, plano: str):
