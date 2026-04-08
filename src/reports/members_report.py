@@ -108,6 +108,7 @@ def generate_members_report(
 
         planos_contagem: Dict[str, int] = {}
         list_data: List[Dict[str, Any]] = []
+        inadimplentes: List[Dict[str, Any]] = []  # membros com plano VENCIDO
 
         for membro, ultimo_checkin in resultados:
             plano_nome = membro.plano or "Sem Plano"
@@ -182,6 +183,23 @@ def generate_members_report(
                 "ultimo_checkin": ultimo_ci_display,
             })
 
+            # --- Inadimplencia detalhada ---
+            if sp == STATUS_PLANO_VENCIDO and dias_restantes is not None:
+                dias_atraso = abs(dias_restantes)  # dias_restantes < 0 para vencidos
+                preco_plano = plano_info.get("preco", 0.0) or 0.0
+                inadimplentes.append({
+                    "nome": membro.nome or "Sem Nome",
+                    "plano": plano_nome,
+                    "vencimento": venc_display,
+                    "dias_atraso": dias_atraso,
+                    "valor_plano": preco_plano,
+                    "ultimo_checkin": ultimo_ci_display,
+                })
+
+        # Inadimplentes: ordenar por dias em atraso (maior primeiro)
+        inadimplentes.sort(key=lambda x: x["dias_atraso"], reverse=True)
+        inadimplentes_valor_total = sum(i["valor_plano"] for i in inadimplentes)
+
         # Taxa de retencao (membros ativos em relacao aos que poderiam ter churnado)
         denom_retencao = membros_ativos_freq + churned
         retention_pct = (membros_ativos_freq / denom_retencao * 100) if denom_retencao > 0 else 0.0
@@ -207,6 +225,8 @@ def generate_members_report(
                 "retention_pct": round(retention_pct, 1),
             },
             "list_data": list_data,
+            "inadimplentes": inadimplentes,
+            "inadimplentes_valor_total": round(inadimplentes_valor_total, 2),
             "status_chart_json": json.dumps({
                 "labels": ["Em Dia", "Vencidos", "Sem Vencimento"],
                 "values": [planos_em_dia, planos_vencidos, planos_sem_vencimento],

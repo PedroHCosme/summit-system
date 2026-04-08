@@ -16,6 +16,42 @@ from src.data.models import Membro
 from src.core.plan_status import PENDENTE
 
 
+# =============================================================================
+# Classificacao DRE — mapeamento de tipo_transacao para categoria
+# =============================================================================
+
+# Palavras-chave que identificam receita de TREINO PERSONAL
+_PALAVRAS_TREINO = ("TREINO", "PERSONAL", " PT ")
+
+# Palavras-chave que identificam MENSALIDADES / RENOVACOES / VOUCHERS
+_PALAVRAS_MENSALIDADE = (
+    "RENOVA",   # Renovação Plano Mensal, Renovação Plano Trimestral...
+    "VOUCHER",  # Compra Voucher Pacote 10
+    "COMPRA",   # Compra de plano genérico
+    "MENSAL",   # Mensal, Mens. c/ Treino
+    "TRIMEST",  # Trimestral
+    "SEMEST",   # Semestral
+    "ANUAL",    # Anual
+    "ESCOLINHA",
+)
+
+
+def _categoria_dre(tipo: str) -> str:
+    """
+    Classifica tipo_transacao em categoria do DRE.
+
+    Returns:
+        "treino" | "mensalidades" | "avulsos"
+    """
+    t = (tipo or "").upper()
+    if any(k in t for k in _PALAVRAS_TREINO):
+        return "treino"
+    if any(k in t for k in _PALAVRAS_MENSALIDADE):
+        return "mensalidades"
+    # Diária, Gympass, Totalpass, Check-in, e qualquer outro
+    return "avulsos"
+
+
 def _get_reports_dir() -> Path:
     project_root = Path(__file__).parent.parent.parent
     reports_dir = project_root / "relatorios"
@@ -176,21 +212,22 @@ def generate_finance_report(
             "receita_bruta": v_total,
             "ticket_medio": t_medio,
             "total_transacoes": t_count,
-            "total_descontos": 0.0, # Simplificação
-            "perc_descontos": 0.0,
-            "receita_liquida": v_total
+            # Descontos nao sao rastreados no modelo Pagamento — campo removido do DRE
+            "receita_liquida": v_total,
         }
 
-        # DRE Simplificado — treino como categoria separada
+        # DRE Simplificado — classificacao robusta por tipo_transacao
         mensalidades = 0.0
         treino_receita = 0.0
         avulsos_receita = 0.0
 
+        categorias_auditoria: Dict[str, str] = {}  # tipo_transacao -> categoria
         for b in breakdown:
-            tipo = b.tipo_transacao or ""
-            if "Treino" in tipo:
+            cat = _categoria_dre(b.tipo_transacao)
+            categorias_auditoria[b.tipo_transacao or "Outros"] = cat
+            if cat == "treino":
                 treino_receita += b.total_valor
-            elif any(k in tipo for k in ("Renovação", "Plano", "Mensal")):
+            elif cat == "mensalidades":
                 mensalidades += b.total_valor
             else:
                 avulsos_receita += b.total_valor
@@ -198,7 +235,21 @@ def generate_finance_report(
         dre = {
             "mensalidades": mensalidades,
             "treino": treino_receita,
-            "avulsos": avulsos_receita if avulsos_receita > 0 else 0,
+            "avulsos": avulsos_receita,
+        }
+
+        # Auditoria: DRE total deve bater com receita bruta do servico
+        dre_total = mensalidades + treino_receita + avulsos_receita
+        diferenca = round(v_total - dre_total, 2)
+        auditoria = {
+            "receita_bruta": v_total,
+            "dre_total": round(dre_total, 2),
+            "diferenca": diferenca,
+            "balanceado": abs(diferenca) < 0.01,
+            "categorias": sorted(
+                [{"tipo": k, "categoria": v} for k, v in categorias_auditoria.items()],
+                key=lambda x: (x["categoria"], x["tipo"])
+            ),
         }
 
         # Gráficos — agregar por método usando breakdown completo do serviço
@@ -220,6 +271,7 @@ def generate_finance_report(
             "current_year": datetime.now().year,
             "kpis": kpis,
             "dre": dre,
+            "auditoria": auditoria,
             "transacoes": extrato_formatado,
             "comparativo": comparativo,
             "inadimplencia": inadimplencia,

@@ -137,11 +137,22 @@ Publico-alvo: dono da academia (unico consumidor).
       filtros duplos (plano + frequencia), coluna Ultimo Check-in, sem Periodo de Graca
 - [x] frequency_report.html: coluna Ultimo Check-in adicionada na tabela de risco
 
-### Fase 2: Relatorios Corretos
-- [ ] Validar que receita bate com soma de pagamentos no periodo (auditoria)
-- [ ] Adicionar inadimplencia detalhada (membros com plano vencido + dias de atraso + valor estimado)
-- [ ] Remover campo de descontos ou implementar de verdade (atualmente hardcoded R$ 0,00)
-- [ ] DRE: substituir string matching fragil por campo tipo_transacao padronizado
+### Fase 2: Relatorios Corretos — CONCLUIDA (2026-04-08)
+- [x] DRE: classificacao robusta por tipo_transacao com _categoria_dre()
+      - Palavras-chave para treino: TREINO, PERSONAL, PT
+      - Palavras-chave para mensalidades: RENOVA, VOUCHER, COMPRA, MENSAL, TRIMEST, SEMEST, ANUAL, ESCOLINHA
+      - Tudo mais vai para avulsos (Diaria, Gympass, Totalpass, Check-in...)
+- [x] Auditoria DRE: bloco de reconciliacao mostra receita_bruta vs dre_total, flag verde/vermelho,
+      mapeamento de tipo_transacao -> categoria em <details> expansivel
+- [x] Descontos hardcoded removidos: campo total_descontos retirado de kpis e do DRE
+      (modelo Pagamento nao tem campo desconto — nao rastrear o que nao existe)
+- [x] Inadimplencia detalhada em members_report: lista de membros com plano VENCIDO,
+      dias em atraso (3 faixas de cor: <30d amarelo, 31-60d laranja, >60d vermelho),
+      valor do plano estimado (de PlanService), ultimo check-in
+      Receita mensal total em risco exibida no cabecalho da secao
+- [x] Validacao com dados simulados: test_reports_jinja.py cria DB em memoria com 18 membros,
+      13 pagamentos, check-ins variados, e valida as 3 principais assercoes de cada relatorio
+      Resultado: 3/3 relatorios, 0 erros
 
 ### Fase 3: Relatorios Ricos
 - [ ] Projecao financeira baseada em historico real (media movel)
