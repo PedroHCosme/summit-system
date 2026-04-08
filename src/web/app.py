@@ -136,6 +136,16 @@ def register():
         if not plano:
             flash('Plano é obrigatório.', 'error')
             return redirect(url_for('register'))
+
+        whatsapp = request.form.get('whatsapp', '').strip()
+        if not whatsapp:
+            flash('WhatsApp é obrigatório.', 'error')
+            return redirect(url_for('register'))
+
+        calcado = request.form.get('calcado', '').strip()
+        if not calcado:
+            flash('Tamanho do calçado é obrigatório.', 'error')
+            return redirect(url_for('register'))
         
         # Validar data de nascimento (não pode ser hoje)
         data_nascimento = request.form.get('data_nascimento')
