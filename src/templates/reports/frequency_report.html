@@ -1,0 +1,225 @@
+{% extends "base_report.html" %}
+
+{% block content %}
+<!-- Overview Stats -->
+<div class="stats-grid">
+    <div class="stat-card blue">
+        <div class="label">Total de Check-ins</div>
+        <div class="value">{{ stats.total_checkins }}</div>
+    </div>
+    
+    <div class="stat-card green">
+        <div class="label">Membros Únicos</div>
+        <div class="value">{{ stats.unique_members }}</div>
+    </div>
+    
+    <div class="stat-card purple">
+        <div class="label">Média Diária</div>
+        <div class="value">{{ "%.1f"|format(stats.avg_daily) }}</div>
+    </div>
+    
+    <div class="stat-card orange">
+        <div class="label">Dia Mais Movimentado</div>
+        <div class="value">{{ stats.busiest_day_total }}</div>
+        <div class="label" style="margin-top: 5px;">{{ stats.busiest_day_date }}</div>
+    </div>
+
+    {% if at_risk_members %}
+    <div class="stat-card" style="background: linear-gradient(135deg, #d63031 0%, #e17055 100%);">
+        <div class="label">Membros em Risco</div>
+        <div class="value">{{ at_risk_members|length }}</div>
+        <div class="label" style="margin-top: 5px;">Sem check-in no período</div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Gráficos de Tendência -->
+<div class="section">
+    <h2>📈 Tendência de Frequência</h2>
+    <div class="chart-container">
+        <canvas id="trendChart"></canvas>
+    </div>
+</div>
+
+<!-- Layout Two Columns para Distribuições -->
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+    <!-- Dia da Semana -->
+    <div class="section">
+        <h2>📊 Por Dia da Semana</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Dia da Semana</th>
+                    <th>Check-ins</th>
+                    <th>%</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for day in weekday_stats %}
+                <tr>
+                    <td><strong>{{ day.nome }}</strong></td>
+                    <td>{{ day.total }}</td>
+                    <td>{{ "%.1f"|format(day.percentage) }}%</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Tipos de Plano -->
+    <div class="section">
+        <h2>💳 Por Tipo de Plano</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Plano</th>
+                    <th>Check-ins</th>
+                    <th>%</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for plan in plan_stats %}
+                <tr>
+                    <td><strong>{{ plan.nome }}</strong></td>
+                    <td>{{ plan.total }}</td>
+                    <td>{{ "%.1f"|format(plan.percentage) }}%</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Membros mais Frequentes -->
+<div class="section" style="margin-top: 20px;">
+    <h2>🏆 Top 10 Membros Mais Frequentes</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Posição</th>
+                <th>Nome</th>
+                <th>Plano</th>
+                <th>Check-ins</th>
+                <th>Frequência Mensal</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for member in top_members %}
+            <tr>
+                <td><strong>#{{ loop.index }}</strong></td>
+                <td>{{ member.nome }}</td>
+                <td>{{ member.plano }}</td>
+                <td>{{ member.total }}</td>
+                <td>
+                    <span class="badge {% if member.percentage > 70 %}success{% elif member.percentage > 40 %}warning{% else %}danger{% endif %}">
+                        {{ "%.1f"|format(member.percentage) }}%
+                    </span>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if at_risk_members %}
+<div class="section" style="margin-top: 20px;">
+    <h2>⚠️ Membros em Risco de Churn</h2>
+    <p style="color: var(--text-muted); margin-bottom: 15px;">
+        Membros com plano ATIVO que não fizeram check-in no período analisado.
+    </p>
+    <table>
+        <thead>
+            <tr>
+                <th>Nome</th>
+                <th>Plano</th>
+                <th>WhatsApp</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for member in at_risk_members %}
+            <tr>
+                <td><strong>{{ member.nome }}</strong></td>
+                <td>{{ member.plano }}</td>
+                <td>{{ member.whatsapp }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+<!-- Data injection state para o ChartJS -->
+<script>
+    window.chartData = {{ chart_data_json | safe }};
+</script>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const ctx = document.getElementById('trendChart').getContext('2d');
+    
+    // Gradient para o Fill
+    let gradient = ctx.createLinearGradient(0, 0, 0, 400);
+    gradient.addColorStop(0, 'rgba(108, 92, 231, 0.4)');
+    gradient.addColorStop(1, 'rgba(108, 92, 231, 0.05)');
+
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: window.chartData.labels,
+            datasets: [{
+                label: 'Volume de Check-ins Diários',
+                data: window.chartData.values,
+                borderColor: '#6c5ce7',
+                backgroundColor: gradient,
+                borderWidth: 3,
+                pointBackgroundColor: '#fff',
+                pointBorderColor: '#6c5ce7',
+                pointBorderWidth: 2,
+                pointRadius: 4,
+                pointHoverRadius: 6,
+                fill: true,
+                tension: 0.3
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false 
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(45, 52, 54, 0.9)',
+                    titleFont: { size: 14, family: "'Segoe UI', sans-serif" },
+                    bodyFont: { size: 14, family: "'Segoe UI', sans-serif" },
+                    padding: 12,
+                    cornerRadius: 8,
+                    displayColors: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.05)',
+                        drawBorder: false
+                    },
+                    ticks: {
+                        font: { family: "'Segoe UI', sans-serif" }
+                    }
+                },
+                x: {
+                    grid: { display: false, drawBorder: false },
+                    ticks: {
+                        font: { family: "'Segoe UI', sans-serif" },
+                        maxTicksLimit: 15
+                    }
+                }
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

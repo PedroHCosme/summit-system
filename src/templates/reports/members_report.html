@@ -1,0 +1,209 @@
+{% extends "base_report.html" %}
+
+{% block content %}
+<!-- Visão Geral -->
+<div class="stats-grid">
+    <div class="stat-card blue">
+        <div class="label">Total Cadastrado</div>
+        <div class="value">{{ stats.total }}</div>
+    </div>
+    
+    <div class="stat-card green">
+        <div class="label">Membros Ativos</div>
+        <div class="value">{{ stats.ativos }}</div>
+        <div class="label" style="margin-top: 5px;">{{ "%.1f"|format(100 * stats.ativos / stats.total if stats.total > 0 else 0) }}% do total</div>
+    </div>
+    
+    <div class="stat-card orange">
+        <div class="label">Inativos/Vencidos</div>
+        <div class="value">{{ stats.inativos }}</div>
+        <div class="label" style="margin-top: 5px;">{{ "%.1f"|format(100 * stats.inativos / stats.total if stats.total > 0 else 0) }}% do total</div>
+    </div>
+    
+    <div class="stat-card purple">
+        <div class="label">Em Período de Graça</div>
+        <div class="value">{{ stats.graca }}</div>
+    </div>
+</div>
+
+{% if stats.novos_no_periodo is defined %}
+<div class="stats-grid" style="margin-top: -20px;">
+    <div class="stat-card" style="background: linear-gradient(135deg, #6c5ce7 0%, #a29bfe 100%);">
+        <div class="label">Novos no Período</div>
+        <div class="value">{{ stats.novos_no_periodo }}</div>
+    </div>
+    <div class="stat-card" style="background: linear-gradient(135deg, #d63031 0%, #e17055 100%);">
+        <div class="label">Churn (Saídas)</div>
+        <div class="value">{{ stats.churned }}</div>
+    </div>
+    <div class="stat-card" style="background: linear-gradient(135deg, #00b894 0%, #55efc4 100%);">
+        <div class="label">Taxa de Retenção</div>
+        <div class="value">{{ "%.1f"|format(stats.retention_pct) }}%</div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Layout Two Columns para Distribuições e Gráficos -->
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+    <!-- Gráfico de Status -->
+    <div class="section">
+        <h2>📊 Status de Membros</h2>
+        <div class="chart-container" style="height: 300px;">
+            <canvas id="statusChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Gráfico de Distribuição de Planos -->
+    <div class="section">
+        <h2>💳 Distribuição de Planos</h2>
+        <div class="chart-container" style="height: 300px;">
+            <canvas id="planosChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- Detalhamento de Membros -->
+<div class="section" style="margin-top: 20px;">
+    <h2>📋 Lista Detalhada</h2>
+    
+    <!-- Controles de Filtro -->
+    <div style="margin-bottom: 15px; display: flex; gap: 10px;">
+        <input type="text" id="searchInput" placeholder="Pesquisar membro..." style="padding: 8px; border-radius: 6px; border: 1px solid #ccc; flex-grow: 1;">
+        <select id="statusFilter" style="padding: 8px; border-radius: 6px; border: 1px solid #ccc;">
+            <option value="all">Todos os Status</option>
+            <option value="ATIVO">Ativos</option>
+            <option value="INATIVO">Inativos</option>
+            <option value="PERÍODO DE GRAÇA">Período de Graça</option>
+        </select>
+    </div>
+
+    <table id="membersTable">
+        <thead>
+            <tr>
+                <th>Nome</th>
+                <th>Plano</th>
+                <th>Status</th>
+                <th>Venc. do Plano</th>
+                <th>Dias Restantes</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for member in list_data %}
+            <tr>
+                <td><strong>{{ member.nome }}</strong></td>
+                <td>{{ member.plano }}</td>
+                <td>
+                    <span class="badge {% if member.status == 'ATIVO' %}success{% elif member.status == 'INATIVO' or member.status == 'VENCIDO' %}danger{% else %}warning{% endif %}">
+                        {{ member.status }}
+                    </span>
+                </td>
+                <td>{{ member.vencimento_plano }}</td>
+                <td>
+                    <span class="{% if member.dias_restantes < 0 %}negative{% elif member.dias_restantes <= 5 %}negative{% else %}positive{% endif %}">
+                        {{ member.dias_restantes }} dias
+                    </span>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Data injection state para o ChartJS -->
+<script>
+    window.statusChartData = {{ status_chart_json | safe }};
+    window.planosChartData = {{ planos_chart_json | safe }};
+</script>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Gráfico de Status (Doughnut)
+    const ctxStatus = document.getElementById('statusChart').getContext('2d');
+    new Chart(ctxStatus, {
+        type: 'doughnut',
+        data: {
+            labels: window.statusChartData.labels,
+            datasets: [{
+                data: window.statusChartData.values,
+                backgroundColor: [
+                    '#00b894', // Ativo (Verde)
+                    '#d63031', // Inativo (Vermelho)
+                    '#fdcb6e', // Graça (Amarelo)
+                ],
+                borderWidth: 0,
+                hoverOffset: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'right', labels: { font: { family: "'Segoe UI', sans-serif" } } }
+            },
+            cutout: '70%'
+        }
+    });
+
+    // Gráfico de Planos (Barra Horizontal)
+    const ctxPlanos = document.getElementById('planosChart').getContext('2d');
+    new Chart(ctxPlanos, {
+        type: 'bar',
+        data: {
+            labels: window.planosChartData.labels,
+            datasets: [{
+                label: 'Membros',
+                data: window.planosChartData.values,
+                backgroundColor: '#6c5ce7',
+                borderRadius: 4
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    grid: { drawBorder: false }
+                },
+                y: {
+                    grid: { display: false, drawBorder: false }
+                }
+            }
+        }
+    });
+
+    // Filtros Simples Tabela
+    const searchInput = document.getElementById('searchInput');
+    const statusFilter = document.getElementById('statusFilter');
+    const tableRows = document.querySelectorAll('#membersTable tbody tr');
+
+    function filterTable() {
+        const searchTerm = searchInput.value.toLowerCase();
+        const statusTerm = statusFilter.value;
+
+        tableRows.forEach(row => {
+            const name = row.cells[0].textContent.toLowerCase();
+            const status = row.cells[2].textContent.trim();
+            
+            const matchesSearch = name.includes(searchTerm);
+            const matchesStatus = (statusTerm === 'all') || (status === statusTerm);
+
+            if (matchesSearch && matchesStatus) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+    }
+
+    searchInput.addEventListener('input', filterTable);
+    statusFilter.addEventListener('change', filterTable);
+});
+</script>
+{% endblock %}
