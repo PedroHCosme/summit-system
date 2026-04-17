@@ -15,6 +15,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from src.data.models import Membro, Frequencia, Pagamento, Plano
+from src.core.plan_status import calcular_status_plano
 
 
 @dataclass
@@ -460,6 +461,23 @@ class CheckinService:
         return self._session.query(Frequencia).filter(
             func.date(Frequencia.checkin_datetime) == today
         ).count()
+
+    def _compute_plan_status(self, member: Membro) -> str:
+        """Calcula status do plano para exibição em listas de check-in."""
+        plan = None
+        if member.plano_id:
+            plan = self._session.query(Plano).filter(Plano.id == member.plano_id).first()
+        if not plan and member.plano:
+            plan = self._session.query(Plano).filter(Plano.nome == member.plano).first()
+
+        is_quota = bool(plan.is_quota) if plan else False
+        valor_por_checkin = float(plan.valor_por_checkin or 0.0) if plan else 0.0
+        return calcular_status_plano(
+            vencimento_plano=member.vencimento_plano,
+            estado_plano_db=member.estado_plano,
+            is_quota=is_quota,
+            valor_por_checkin=valor_por_checkin,
+        )
     
     def get_today_details(self) -> list:
         """
@@ -468,22 +486,25 @@ class CheckinService:
         today = date.today()
         
         results = self._session.query(
-            Frequencia, Membro.nome, Membro.plano, Membro.estado_plano
+            Frequencia, Membro
         ).join(Membro, Frequencia.member_id == Membro.id).filter(
             func.date(Frequencia.checkin_datetime) == today
         ).order_by(Frequencia.checkin_datetime.desc()).all()
         
-        return [
-            {
-                'id': f.id,
-                'member_id': f.member_id,
-                'nome': nome,
-                'plano': plano,
-                'estado_plano': estado_plano,
-                'checkin_datetime': f.checkin_datetime.isoformat() if f.checkin_datetime else None
-            }
-            for f, nome, plano, estado_plano in results
-        ]
+        payload = []
+        for f, member in results:
+            payload.append(
+                {
+                    'id': f.id,
+                    'member_id': f.member_id,
+                    'nome': member.nome,
+                    'plano': member.plano,
+                    'estado_plano': member.estado_plano,
+                    'status_plano': self._compute_plan_status(member),
+                    'checkin_datetime': f.checkin_datetime.isoformat() if f.checkin_datetime else None
+                }
+            )
+        return payload
     
     def get_by_date(self, date_str: str) -> list:
         """
@@ -495,22 +516,24 @@ class CheckinService:
             return []
         
         results = self._session.query(
-            Frequencia, Membro.nome, Membro.plano, Membro.estado_plano
+            Frequencia, Membro
         ).join(Membro, Frequencia.member_id == Membro.id).filter(
             func.date(Frequencia.checkin_datetime) == target_date
         ).order_by(Frequencia.checkin_datetime.desc()).all()
-        
-        return [
-            {
-                'id': f.id,
-                'member_id': f.member_id,
-                'nome': nome,
-                'plano': plano,
-                'estado_plano': estado_plano,
-                'checkin_datetime': f.checkin_datetime.isoformat() if f.checkin_datetime else None
-            }
-            for f, nome, plano, estado_plano in results
-        ]
+        payload = []
+        for f, member in results:
+            payload.append(
+                {
+                    'id': f.id,
+                    'member_id': f.member_id,
+                    'nome': member.nome,
+                    'plano': member.plano,
+                    'estado_plano': member.estado_plano,
+                    'status_plano': self._compute_plan_status(member),
+                    'checkin_datetime': f.checkin_datetime.isoformat() if f.checkin_datetime else None
+                }
+            )
+        return payload
     
     def get_recent(self, limit: int = 5) -> list:
         """
@@ -523,22 +546,24 @@ class CheckinService:
             Lista dos últimos check-ins
         """
         results = self._session.query(
-            Frequencia, Membro.nome, Membro.plano, Membro.estado_plano
+            Frequencia, Membro
         ).join(Membro, Frequencia.member_id == Membro.id).order_by(
             Frequencia.checkin_datetime.desc()
         ).limit(limit).all()
-        
-        return [
-            {
-                'id': f.id,
-                'member_id': f.member_id,
-                'nome': nome,
-                'plano': plano,
-                'estado_plano': estado_plano,
-                'checkin_datetime': f.checkin_datetime.isoformat() if f.checkin_datetime else None
-            }
-            for f, nome, plano, estado_plano in results
-        ]
+        payload = []
+        for f, member in results:
+            payload.append(
+                {
+                    'id': f.id,
+                    'member_id': f.member_id,
+                    'nome': member.nome,
+                    'plano': member.plano,
+                    'estado_plano': member.estado_plano,
+                    'status_plano': self._compute_plan_status(member),
+                    'checkin_datetime': f.checkin_datetime.isoformat() if f.checkin_datetime else None
+                }
+            )
+        return payload
     
     def get_today_list(self) -> list:
         """

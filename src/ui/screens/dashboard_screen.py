@@ -4,10 +4,10 @@ from datetime import datetime
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
-    QPushButton, QTextBrowser, QDialog, QTableWidget,
+    QPushButton, QDialog, QTableWidget,
     QTableWidgetItem, QHeaderView, QMessageBox, QDateEdit
 )
-from PyQt6.QtCore import Qt, QDate, pyqtSignal, QUrl
+from PyQt6.QtCore import Qt, QDate, pyqtSignal
 
 from src.core.plan_status import is_active as plan_is_active
 
@@ -132,12 +132,20 @@ class DashboardScreen(QWidget):
         last_checkins_label.setStyleSheet("font-size: 18px; font-weight: bold; color: #1a2540;")
         layout.addWidget(last_checkins_label)
         
-        self.last_checkins_browser = QTextBrowser()
-        self.last_checkins_browser.setMinimumHeight(250)
-        self.last_checkins_browser.setOpenLinks(False)  # Não abre links externos
-        self.last_checkins_browser.setOpenExternalLinks(False)  # Impede abertura externa
-        self.last_checkins_browser.anchorClicked.connect(self._on_member_link_clicked)
-        layout.addWidget(self.last_checkins_browser)
+        self.today_checkins_table = QTableWidget()
+        self.today_checkins_table.setColumnCount(5)
+        self.today_checkins_table.setHorizontalHeaderLabels(
+            ["Nome do Membro", "Plano", "Data", "Horário", "Status do Plano"]
+        )
+        self.today_checkins_table.setMinimumHeight(250)
+        self.today_checkins_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.today_checkins_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.today_checkins_table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+        self.today_checkins_table.cellDoubleClicked.connect(self._on_today_table_double_clicked)
+        header = self.today_checkins_table.horizontalHeader()
+        if header:
+            header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        layout.addWidget(self.today_checkins_table)
 
         # Placeholder para o gráfico
         graph_label = QLabel("Gráfico de Frequência (Em breve)")
@@ -178,53 +186,81 @@ class DashboardScreen(QWidget):
         self.checkins_today_label.setText(str(data.get("checkins_today", 0)))
         
         last_checkins = data.get("last_checkins", [])
-        html = ""
         if not last_checkins:
-            html = "<p style='color: #4a5568; font-style: italic; text-align: center; padding: 20px;'>Nenhum check-in registrado hoje.</p>"
-        else:
-            html = "<div style='padding: 10px;'>"
-            html += f"<p style='color: #1a2540; margin-bottom: 10px;'><b>Total:</b> {len(last_checkins)} check-in(s)</p>"
-            html += "<ul style='list-style-type: none; padding-left: 0;'>"
-            for checkin in last_checkins:
-                nome = checkin.get('nome')
-                member_id = checkin.get('member_id', 0)
-                estado_plano = checkin.get('estado_plano', '')
-                dt_str = checkin.get('checkin_datetime')
+            self.today_checkins_table.setRowCount(0)
+            return
+
+        self.today_checkins_table.setRowCount(len(last_checkins))
+        for row, checkin in enumerate(last_checkins):
+            nome = checkin.get("nome", "N/A")
+            plano = checkin.get("plano", "N/A")
+            status_plano = checkin.get("status_plano", "")
+            estado_plano = checkin.get("estado_plano", "")
+            member_id = checkin.get("member_id", 0)
+
+            dt_str = checkin.get("checkin_datetime")
+            date_text = "N/A"
+            time_text = "N/A"
+            if dt_str:
                 dt_obj = datetime.fromisoformat(dt_str)
-                checkin_datetime_str = dt_obj.strftime('%d/%m/%Y às %H:%M')
-                
-                cor_nome = '#E67E22'
-                nome_display = nome
-                
-                if plan_is_active(estado_plano):
-                    cor_nome = 'blue'
-                elif not plan_is_active(estado_plano):
-                    cor_nome = '#FF0000' # Vermelho vivo
-                    plano = checkin.get('plano')
-                    if plano:
-                        nome_display = f"{nome} (Plano Vencido - {plano})"
-                    else:
-                        nome_display = f"{nome} (Plano Vencido)"
-                
-                # Nome clicável como link
-                html += f"<li style='margin-bottom: 8px; padding: 10px; background: #f0f4f8; border-radius: 6px; color: #1a2540;'><a href='member://{member_id}' style='color: {cor_nome}; font-weight: bold; text-decoration: underline; cursor: pointer;'>{nome_display}</a> - {checkin_datetime_str}</li>"
-            html += "</ul>"
-            html += "</div>"
-        self.last_checkins_browser.setHtml(html)
-    
-    def _on_member_link_clicked(self, url: QUrl):
-        """Trata o clique em um link de membro."""
-        url_str = url.toString()
-        if url_str.startswith('member://'):
-            try:
-                member_id = int(url_str.replace('member://', ''))
-                self.member_clicked.emit(member_id)
-            except ValueError:
-                pass
+                date_text = dt_obj.strftime("%d/%m/%Y")
+                time_text = dt_obj.strftime("%H:%M:%S")
+
+            name_item = QTableWidgetItem(nome)
+            name_item.setData(Qt.ItemDataRole.UserRole, member_id)
+            plan_item = QTableWidgetItem(plano)
+            date_item = QTableWidgetItem(date_text)
+            time_item = QTableWidgetItem(time_text)
+            status_item = QTableWidgetItem(self._format_plan_status_label(status_plano))
+
+            needs_renewal = self._needs_plan_renewal(estado_plano, status_plano)
+            if needs_renewal:
+                name_item.setForeground(Qt.GlobalColor.red)
+                plan_item.setForeground(Qt.GlobalColor.red)
+                status_item.setForeground(Qt.GlobalColor.red)
+            elif plan_is_active(estado_plano):
+                name_item.setForeground(Qt.GlobalColor.blue)
+                plan_item.setForeground(Qt.GlobalColor.blue)
+                status_item.setForeground(Qt.GlobalColor.blue)
+
+            self.today_checkins_table.setItem(row, 0, name_item)
+            self.today_checkins_table.setItem(row, 1, plan_item)
+            self.today_checkins_table.setItem(row, 2, date_item)
+            self.today_checkins_table.setItem(row, 3, time_item)
+            self.today_checkins_table.setItem(row, 4, status_item)
+
+    def _needs_plan_renewal(self, estado_plano: str, status_plano: str) -> bool:
+        if status_plano and status_plano.strip().upper() == "VENCIDO":
+            return True
+        if estado_plano and not plan_is_active(estado_plano):
+            return True
+        return False
+
+    def _format_plan_status_label(self, status_plano: str) -> str:
+        """Normaliza rótulos de status do plano para o padrão da dashboard."""
+        normalized = (status_plano or "").strip().upper()
+        if normalized == "EM DIA":
+            return "Em dia"
+        if normalized == "VENCIDO":
+            return "Vencido"
+        if normalized == "SEM VENCIMENTO":
+            return "-"
+        if normalized == "PENDENTE":
+            return "Pendente"
+        return "-"
+
+    def _on_today_table_double_clicked(self, row: int, _column: int) -> None:
+        name_item = self.today_checkins_table.item(row, 0)
+        if not name_item:
+            return
+        member_id = name_item.data(Qt.ItemDataRole.UserRole)
+        if isinstance(member_id, int) and member_id > 0:
+            self.member_clicked.emit(member_id)
 
     def show_error(self, error_message: str):
         """Exibe um erro no dashboard."""
-        self.last_checkins_browser.setHtml(f"<p style='color: #FF6B6B;'>{error_message}</p>")
+        self.today_checkins_table.setRowCount(0)
+        QMessageBox.warning(self, "Erro no Dashboard", error_message)
 
     def show_checkins_details(self):
         """Mostra uma janela com os detalhes dos check-ins com seletor de data."""
@@ -321,8 +357,10 @@ class DashboardScreen(QWidget):
             
             # Tabela
             table = QTableWidget()
-            table.setColumnCount(4)
-            table.setHorizontalHeaderLabels(["Nome do Membro", "Plano", "Data", "Horário"])
+            table.setColumnCount(5)
+            table.setHorizontalHeaderLabels(
+                ["Nome do Membro", "Plano", "Data", "Horário", "Status do Plano"]
+            )
             table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
             
             header = table.horizontalHeader()
@@ -359,6 +397,7 @@ class DashboardScreen(QWidget):
                         plano = checkin.get('plano', 'N/A')
                         member_id = checkin.get('member_id', 0)
                         estado_plano = checkin.get('estado_plano', '')
+                        status_plano = checkin.get('status_plano', '')
                         member_ids.append(member_id)
                         checkin_datetime_str = checkin.get('checkin_datetime')
                         
@@ -370,23 +409,18 @@ class DashboardScreen(QWidget):
                             table.setItem(row, 2, QTableWidgetItem('N/A'))
                             table.setItem(row, 3, QTableWidgetItem('N/A'))
 
-                        nome_display = nome
-                        cor = Qt.GlobalColor.darkYellow
-                        
-                        if plan_is_active(estado_plano):
-                            cor = Qt.GlobalColor.blue
-                        elif not plan_is_active(estado_plano):
+                        nome_item = QTableWidgetItem(nome)
+                        status_item = QTableWidgetItem(
+                            self._format_plan_status_label(status_plano)
+                        )
+                        cor = Qt.GlobalColor.blue
+                        if self._needs_plan_renewal(estado_plano, status_plano):
                             cor = Qt.GlobalColor.red
-                            if plano and plano != 'N/A':
-                                nome_display = f"{nome} (Plano Vencido - {plano})"
-                            else:
-                                nome_display = f"{nome} (Plano Vencido)"
-
-                        # Nome com estilo clicável
-                        nome_item = QTableWidgetItem(nome_display)
                         nome_item.setForeground(cor)
+                        status_item.setForeground(cor)
                         table.setItem(row, 0, nome_item)
                         table.setItem(row, 1, QTableWidgetItem(plano))
+                        table.setItem(row, 4, status_item)
             
             # Handler para duplo clique em linha
             def on_row_double_clicked(row, column):
