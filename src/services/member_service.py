@@ -15,7 +15,7 @@ from sqlalchemy import func, or_, and_
 from sqlalchemy.orm import Session
 
 from src.core.plan_status import ATIVO, INATIVO
-from src.data.models import Membro, Frequencia, Pagamento
+from src.data.models import Membro, Frequencia, Pagamento, Plano
 from src.utils.date_utils import coerce_to_date, format_display_date
 
 if TYPE_CHECKING:
@@ -257,8 +257,7 @@ class MemberService:
         """
         if self._session is not None:
             return self._update_sqlalchemy(member_id, **kwargs)
-        else:
-            return self._update_legacy(member_id, **kwargs)
+        raise NotImplementedError("Legacy update path was never implemented; use SQLAlchemy session.")
     
     def update_from_dict(
         self, 
@@ -392,10 +391,16 @@ class MemberService:
     def _create_sqlalchemy(self, member_data: Dict[str, Any]) -> MemberResult:
         """Cria um membro usando SQLAlchemy."""
         try:
+            plano_nome = member_data.get('plano')
+            plano_ref = None
+            if plano_nome:
+                plano_ref = self._session.query(Plano).filter(Plano.nome == plano_nome).first()
+
             new_member = Membro(
                 nome=member_data.get('nome'),
                 data_cadastro=date.today(),
-                plano=member_data.get('plano'),
+                plano=plano_nome,
+                plano_id=plano_ref.id if plano_ref else None,
                 vencimento_plano=coerce_to_date(member_data.get('vencimento_plano')),
                 estado_plano=member_data.get('estado_plano', ATIVO),
                 data_nascimento=coerce_to_date(member_data.get('data_nascimento')),
@@ -543,6 +548,11 @@ class MemberService:
             for key, value in kwargs.items():
                 if hasattr(member, key) and value is not None:
                     setattr(member, key, value)
+
+            # Camada de compatibilidade: manter plano_id sincronizado ao atualizar plano por nome.
+            if kwargs.get('plano'):
+                plano_ref = self._session.query(Plano).filter(Plano.nome == kwargs['plano']).first()
+                member.plano_id = plano_ref.id if plano_ref else None
             
             member.updated_at = datetime.now()
             self._session.commit()
@@ -568,8 +578,6 @@ class MemberService:
         metodo_pagamento: str
     ) -> MemberResult:
         """Atualiza um membro de dict usando SQLAlchemy."""
-        from src.data.models import Plano
-        
         member_id = member_data.get('id')
         
         try:
@@ -634,6 +642,10 @@ class MemberService:
                     if field in ('vencimento_plano', 'data_nascimento', 'vencimento_treino'):
                         value = coerce_to_date(value)
                     setattr(member, field, value)
+
+            # Camada de compatibilidade: atualizar referência canônica opcional de plano.
+            if 'plano' in member_data:
+                member.plano_id = new_plan_db.id if new_plan_db else None
             
             # Handle voucher_credits manual override
             # We effectively allow update if provided, EXCEPT if it was already handled 
@@ -663,11 +675,15 @@ class MemberService:
                         from src.config import PLANOS_PRECOS
                         valor = PLANOS_PRECOS.get(new_plan, 0.0)
                 
-                # Register payment (quota plans record "Compra Voucher", others "Renovação Plano")
                 is_quota_purchase = is_new_plan_quota and (valor > 0 or 'voucher_credits' in member_data)
-                
+
                 if valor > 0 or is_quota_purchase:
-                    tipo_transacao = "Compra Voucher" if is_new_plan_quota else "Renovação Plano"
+                    from src.core.plan_policy import PlanPolicy
+                    tipo_transacao = (
+                        PlanPolicy(new_plan_db).renewal_transaction_type
+                        if new_plan_db
+                        else ("Compra Voucher" if is_new_plan_quota else "Renovação Plano")
+                    )
                     new_payment = Pagamento(
                         member_id=member_id,
                         data_pagamento=datetime.now(),
@@ -781,5 +797,21 @@ class MemberService:
             Membro.plano,
             func.count(Membro.id)
         ).group_by(Membro.plano).all()
-        
+
         return {plano or 'N/A': count for plano, count in results}
+
+    # =========================================================================
+    # QUERIES ESPECIALIZADAS
+    # =========================================================================
+
+    def get_all_excluding_pending(self) -> List[Membro]:
+        """
+        Retorna todos os membros excluindo os com estado PENDENTE.
+
+        Usado por relatórios que não devem incluir cadastros web não aprovados.
+        """
+        from src.core.plan_status import PENDENTE
+        if self._session is not None:
+            return self._session.query(Membro).filter(Membro.estado_plano != PENDENTE).all()
+        all_members = self._db_manager.get_all_members()
+        return [m for m in all_members if m.get('estado_plano') != 'PENDENTE']

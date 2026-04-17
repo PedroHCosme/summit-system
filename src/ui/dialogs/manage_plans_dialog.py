@@ -11,8 +11,6 @@ from PyQt6.QtGui import QFont
 
 from src.config import PLANOS_COM_VENCIMENTO  # Mantém para restaurar padrões
 from src.data.data_provider import get_provider
-from src.data.models import Plano
-from sqlalchemy import select
 
 
 class ManagePlansDialog(QDialog):
@@ -535,20 +533,18 @@ class ManagePlansDialog(QDialog):
 
     def _load_data(self):
         """Carrega os dados do banco de dados na memória e na tabela."""
-        provider = get_provider()
-        session = provider.session
-        
+        plan_service = get_provider().plan_service
+        plan_service.invalidate_cache()
+
         try:
-            # Buscar todos os planos ativos
-            stmt = select(Plano).where(Plano.ativo == True).order_by(Plano.nome)
-            db_planos = session.execute(stmt).scalars().all()
-            
+            db_planos = sorted(plan_service.get_all_plans(), key=lambda p: p.nome)
+
             # Limpar listas
             self.planos = []
             self.planos_precos = {}
             self.planos_pagamento_checkin = {}
             self.planos_com_vencimento = []
-            
+
             # Popula estruturas locais
             for plano in db_planos:
                 self.planos.append(plano.nome)
@@ -723,30 +719,7 @@ class ManagePlansDialog(QDialog):
     
     def _save_to_db(self, plans_data):
         """Salva/Atualiza planos no banco."""
-        provider = get_provider()
-        session = provider.session
-        
-        for p_data in plans_data:
-            # Check if exists
-            plano = session.query(Plano).filter_by(nome=p_data['nome']).first()
-            if plano:
-                # Update
-                plano.preco = p_data['preco']
-                plano.valor_por_checkin = p_data['valor_por_checkin']
-                plano.requer_vencimento = p_data['requer_vencimento']
-                plano.ativo = True # Ensure active
-            else:
-                # Insert
-                new_plano = Plano(
-                    nome=p_data['nome'],
-                    preco=p_data['preco'],
-                    valor_por_checkin=p_data['valor_por_checkin'],
-                    requer_vencimento=p_data['requer_vencimento'],
-                    ativo=True
-                )
-                session.add(new_plano)
-        
-        session.commit()
+        get_provider().plan_service.upsert_plans(plans_data)
 
     
     def closeEvent(self, event):

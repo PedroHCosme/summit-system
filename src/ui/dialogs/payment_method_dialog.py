@@ -58,13 +58,8 @@ class PaymentMethodDialog(QDialog):
         method_label.setStyleSheet("font-weight: bold;")
         
         self.method_combo = QComboBox()
-        self.method_combo.addItems([
-            "PIX", 
-            "Cartão de Crédito", 
-            "Cartão de Débito", 
-            "Dinheiro", 
-            "Transferência"
-        ])
+        from src.core.payment_constants import METODOS_PAGAMENTO_UI
+        self.method_combo.addItems(METODOS_PAGAMENTO_UI)
         self.method_combo.setStyleSheet("""
             QComboBox {
                 padding: 8px;

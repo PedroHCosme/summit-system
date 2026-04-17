@@ -40,7 +40,7 @@ class RenewPlanDialog(QDialog):
             plan_service = get_plan_service()
             
             plans_dict = plan_service.get_plans_as_dict()
-            self.plans_cache = {name: info['preco'] for name, info in plans_dict.items()}
+            self.plans_cache = plans_dict
             
             # Populate combo
             self.plan_combo.clear()
@@ -54,7 +54,10 @@ class RenewPlanDialog(QDialog):
             print(f"Erro ao carregar planos: {e}")
             # Fallback
             from src import config
-            self.plans_cache = config.PLANOS_PRECOS.copy()
+            self.plans_cache = {
+                name: {'preco': price, 'is_quota': False}
+                for name, price in config.PLANOS_PRECOS.items()
+            }
             self.plan_combo.addItems(sorted(config.PLANOS))
 
     def _setup_ui(self):
@@ -95,7 +98,7 @@ class RenewPlanDialog(QDialog):
         """)
         
         # Carregar planos do banco
-        self.plans_cache = {}  # {nome: preco}
+        self.plans_cache = {}  # {nome: {preco, is_quota, ...}}
         self._load_plans()
         
         self.plan_combo.currentTextChanged.connect(self._on_plan_changed)
@@ -190,13 +193,8 @@ class RenewPlanDialog(QDialog):
         metodo_label.setStyleSheet("font-weight: bold; font-size: 14px;")
         
         self.metodo_combo = QComboBox()
-        self.metodo_combo.addItems([
-            "PIX", 
-            "Cartão de Crédito", 
-            "Cartão de Débito", 
-            "Dinheiro", 
-            "Transferência"
-        ])
+        from src.core.payment_constants import METODOS_PAGAMENTO_UI
+        self.metodo_combo.addItems(METODOS_PAGAMENTO_UI)
         self.metodo_combo.setStyleSheet("""
             QComboBox {
                 padding: 8px;
@@ -261,20 +259,20 @@ class RenewPlanDialog(QDialog):
     
     def _on_plan_changed(self, new_plan):
         """Atualiza a interface quando o plano muda."""
-        is_voucher = (new_plan == "Voucher")
-        
+        is_quota = self.plans_cache.get(new_plan, {}).get('is_quota', False)
+
         # Toggle visibility
-        self.vencimento_widget.setVisible(not is_voucher)
-        self.voucher_credits_widget.setVisible(is_voucher)
-        self.voucher_price_widget.setVisible(is_voucher)
-        self.valor_label.setVisible(not is_voucher) # Hide standard price display for voucher
-        
+        self.vencimento_widget.setVisible(not is_quota)
+        self.voucher_credits_widget.setVisible(is_quota)
+        self.voucher_price_widget.setVisible(is_quota)
+        self.valor_label.setVisible(not is_quota)
+
         # Update standard price display
-        if not is_voucher:
+        if not is_quota:
             self._update_price_display(new_plan)
-        
-        # Recalcular vencimento (only if not voucher)
-        if not is_voucher:
+
+        # Recalcular vencimento (only if not quota)
+        if not is_quota:
             if new_plan == self.current_plan:
                 start_date = parse_date(self.current_vencimento)
             else:
@@ -289,7 +287,7 @@ class RenewPlanDialog(QDialog):
 
     def _update_price_display(self, plan):
         """Atualiza o display do preço."""
-        valor = self.plans_cache.get(plan, 0.0)
+        valor = self.plans_cache.get(plan, {}).get('preco', 0.0)
         valor_info = f"""
         <div style='background-color: #E8F5E9; padding: 12px; border-radius: 8px; border-left: 4px solid #4CAF50;'>
             <p style='font-size: 15px; margin: 5px 0; text-align: center;'>
@@ -308,21 +306,18 @@ class RenewPlanDialog(QDialog):
             return
         
         selected_plan = self.plan_combo.currentText()
-        is_voucher = (selected_plan == "Voucher")
-        
-        # Preparar dados da renovação
+        is_quota = self.plans_cache.get(selected_plan, {}).get('is_quota', False)
+
         renewal_data = {
             'id': self.member_id,
             'metodo_pagamento': metodo,
             'plano': selected_plan
         }
-        
-        if is_voucher:
+
+        if is_quota:
             renewal_data['voucher_credits'] = self.voucher_credits_spin.value()
             renewal_data['price'] = self.voucher_price_spin.value()
-            # Voucher generally doesn't have a due date, or it's infinite. 
-            # We can leave it explicitly None or empty.
-            renewal_data['vencimento_plano'] = None 
+            renewal_data['vencimento_plano'] = None
         else:
             new_vencimento_date = self.vencimento_input.date()
             renewal_data['vencimento_plano'] = new_vencimento_date.toString("dd/MM/yyyy")

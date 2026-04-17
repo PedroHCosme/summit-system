@@ -45,15 +45,10 @@
         {% endif %}
     </div>
 
-    <div class="stat-card orange">
-        <div class="label">Total Descontos</div>
-        <div class="value">R$ {{ "%.2f"|format(kpis.total_descontos) }}</div>
-        <div class="label" style="margin-top: 5px;">{{ "%.1f"|format(kpis.perc_descontos) }}% da Receita</div>
-    </div>
-
     <div class="stat-card purple">
-        <div class="label">Receita Líquida</div>
+        <div class="label">Receita Total</div>
         <div class="value">R$ {{ "%.2f"|format(kpis.receita_liquida) }}</div>
+        <div class="label" style="margin-top: 5px;">descontos não rastreados</div>
     </div>
 </div>
 
@@ -114,23 +109,67 @@
                 <td class="text-right positive">R$ {{ "%.2f"|format(kpis.receita_bruta) }}</td>
             </tr>
             <tr>
-                <td style="padding-left: 30px;">- Mensalidades Pagas</td>
+                <td style="padding-left: 30px;">— Mensalidades / Renovações / Vouchers</td>
                 <td class="text-right">R$ {{ "%.2f"|format(dre.mensalidades) }}</td>
             </tr>
             <tr>
-                <td style="padding-left: 30px;">- Pagamentos Avulsos / Diárias</td>
-                <td class="text-right">R$ {{ "%.2f"|format(dre.avulsos) }}</td>
+                <td style="padding-left: 30px;">— Treino Personal</td>
+                <td class="text-right">R$ {{ "%.2f"|format(dre.treino) }}</td>
             </tr>
             <tr>
-                <td><strong>(-) Deduções da Receita Bruta</strong></td>
-                <td class="text-right negative">R$ {{ "%.2f"|format(kpis.total_descontos) }}</td>
+                <td style="padding-left: 30px;">— Avulsos / Diárias / Per-checkin</td>
+                <td class="text-right">R$ {{ "%.2f"|format(dre.avulsos) }}</td>
             </tr>
             <tr class="total-row">
-                <td><strong>(=) Receita Líquida</strong></td>
+                <td><strong>(=) Receita Total</strong></td>
                 <td class="text-right">R$ {{ "%.2f"|format(kpis.receita_liquida) }}</td>
             </tr>
         </tbody>
     </table>
+
+    <!-- Auditoria de Reconciliação -->
+    {% if auditoria %}
+    <div style="margin-top: 20px; padding: 16px 20px; border-radius: 10px;
+                background: {% if auditoria.balanceado %}#f0fff4{% else %}#fff5f5{% endif %};
+                border: 1.5px solid {% if auditoria.balanceado %}#00b894{% else %}#d63031{% endif %};">
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom: 10px;">
+            <span style="font-size:1.3em;">{% if auditoria.balanceado %}✅{% else %}⚠️{% endif %}</span>
+            <strong style="color: {% if auditoria.balanceado %}#00b894{% else %}#d63031{% endif %}; font-size:1.05em;">
+                {% if auditoria.balanceado %}DRE Balanceado — Receita conferida{% else %}DRE Desbalanceado — Diferença de R$ {{ "%.2f"|format(auditoria.diferenca) }}{% endif %}
+            </strong>
+        </div>
+        <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:8px; font-size:0.9em; color:#555;">
+            <div>Receita bruta (pagamentos): <strong>R$ {{ "%.2f"|format(auditoria.receita_bruta) }}</strong></div>
+            <div>Total DRE categorizado: <strong>R$ {{ "%.2f"|format(auditoria.dre_total) }}</strong></div>
+            <div>Diferença: <strong class="{% if auditoria.balanceado %}positive{% else %}negative{% endif %}">R$ {{ "%.2f"|format(auditoria.diferenca) }}</strong></div>
+        </div>
+        {% if auditoria.categorias %}
+        <details style="margin-top:12px;">
+            <summary style="cursor:pointer; font-size:0.85em; color:#636e72;">Ver mapeamento de categorias ({{ auditoria.categorias|length }} tipos)</summary>
+            <table style="margin-top:10px; font-size:0.82em; width:auto; border:none;">
+                <thead>
+                    <tr>
+                        <th style="text-align:left; padding:4px 12px 4px 0; color:#636e72;">Tipo de Transação</th>
+                        <th style="text-align:left; padding:4px 12px; color:#636e72;">Categoria DRE</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for cat in auditoria.categorias %}
+                    <tr>
+                        <td style="padding:3px 12px 3px 0; border-top:1px solid #f0f0f0;">{{ cat.tipo }}</td>
+                        <td style="padding:3px 12px; border-top:1px solid #f0f0f0;">
+                            <span class="badge {% if cat.categoria == 'mensalidades' %}success{% elif cat.categoria == 'treino' %}warning{% else %}neutral{% endif %}">
+                                {{ cat.categoria }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </details>
+        {% endif %}
+    </div>
+    {% endif %}
 </div>
 
 <!-- Lista de Transações Recentes -->

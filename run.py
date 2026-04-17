@@ -39,11 +39,29 @@ def run_migrations():
     try:
         from alembic import command
         from alembic.config import Config
-        
+        from sqlalchemy import inspect, text
+
         alembic_ini_path = os.path.join(project_dir, "alembic.ini")
         alembic_cfg = Config(alembic_ini_path)
         alembic_cfg.set_main_option("script_location", os.path.join(project_dir, "alembic_migrations"))
-        
+
+        # Banco novo: cria schema completo e stampa revisão inicial para que
+        # upgrade head só execute migrações incrementais (ex: phase4).
+        from src.data.db import get_engine, init_db
+        engine = get_engine()
+        inspector = inspect(engine)
+        existing_tables = inspector.get_table_names()
+        alembic_version_exists = "alembic_version" in existing_tables
+        schema_exists = "membros" in existing_tables
+
+        if not schema_exists:
+            print("  - Banco novo detectado: criando schema base...")
+            init_db()
+
+        if not alembic_version_exists:
+            print("  - Stampando revisão inicial...")
+            command.stamp(alembic_cfg, "b7156d140f0a")
+
         command.upgrade(alembic_cfg, "head")
         print("✓ Banco de dados pronto.")
     except Exception as e:

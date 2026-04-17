@@ -19,9 +19,10 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # A migração inicial não fará alterações destrutivas (drop_index / alter_column)
-    # pois a criação das tabelas continua sendo gerida pelo Base.metadata.create_all
-    # ou pelo DatabaseManager na inicialização.
+    # Intencionalmente vazia. Em banco novo, run.py e DatabaseConnectionWorker
+    # executam Base.metadata.create_all() e depois stampam esta revisão antes de
+    # rodar upgrade head — garantindo que migrações incrementais encontrem as
+    # tabelas já existentes.
     pass
 
 

@@ -18,6 +18,11 @@ from contextlib import contextmanager
 from dateutil.relativedelta import relativedelta
 
 from src.core.models import Pessoa
+from src.core.payment_constants import (
+    METODO_SINCRONIZACAO,
+    TIPO_RENOVACAO_PLANO,
+    TIPO_PAGAMENTO_TREINO,
+)
 from src.utils.date_utils import parse_date as parse_flexible_date, normalize_date_string
 
 
@@ -185,7 +190,7 @@ class DatabaseManager:
             valor=valor,
             tipo_transacao=tipo_transacao,
             descricao=descricao,
-            metodo_pagamento=metodo_pagamento or "Sincronização (Sheets)",
+            metodo_pagamento=metodo_pagamento or METODO_SINCRONIZACAO,
             nova_data_vencimento=normalized_vencimento or vencimento,
             data_pagamento=payment_date
         )
@@ -195,8 +200,8 @@ class DatabaseManager:
         member_id: int,
         plan_name: Optional[str],
         vencimento: Optional[str],
-        metodo_pagamento: str = "Sincronização (Sheets)",
-        tipo_transacao: str = "Renovação Plano",
+        metodo_pagamento: str = METODO_SINCRONIZACAO,
+        tipo_transacao: str = TIPO_RENOVACAO_PLANO,
         descricao: Optional[str] = None,
         payment_date: Optional[datetime] = None
     ) -> Optional[int]:
@@ -204,6 +209,15 @@ class DatabaseManager:
             return None
 
         descricao_final = descricao or f"Plano: {plan_name}"
+        return self._register_plan_payment(
+            member_id=member_id,
+            plan_name=plan_name,
+            tipo_transacao=tipo_transacao,
+            descricao=descricao_final,
+            metodo_pagamento=metodo_pagamento,
+            vencimento=vencimento,
+            payment_date_override=payment_date
+        )
 
     def _register_training_payment(
         self,
@@ -237,20 +251,11 @@ class DatabaseManager:
         return self.add_payment(
             member_id=member_id,
             valor=valor,
-            tipo_transacao="Pagamento Treino",
+            tipo_transacao=TIPO_PAGAMENTO_TREINO,
             descricao="Ativação do serviço de treino",
             metodo_pagamento=metodo_pagamento or "Não informado",
             nova_data_vencimento=normalized_vencimento or vencimento,
             data_pagamento=payment_date
-        )
-        return self._register_plan_payment(
-            member_id=member_id,
-            plan_name=plan_name,
-            tipo_transacao=tipo_transacao,
-            descricao=descricao_final,
-            metodo_pagamento=metodo_pagamento,
-            vencimento=vencimento,
-            payment_date_override=payment_date
         )
     
     @staticmethod
@@ -1837,7 +1842,7 @@ class DatabaseManager:
                   AND vencimento_plano != ''
                   AND estado_plano = ?
                   AND plano IN ({placeholders})
-            """, list(PLANOS_COM_VENCIMENTO) + [ATIVO])
+            """, [ATIVO] + list(PLANOS_COM_VENCIMENTO))
             
             members = cursor.fetchall()
             hoje = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)

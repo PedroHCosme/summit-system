@@ -14,6 +14,7 @@ from jinja2 import Environment, FileSystemLoader
 
 from src.data.db import create_session
 from src.data.models import Frequencia, Membro
+from src.core.plan_status import PENDENTE
 
 def _get_reports_dir() -> Path:
     project_root = Path(__file__).parent.parent.parent
@@ -73,8 +74,15 @@ def generate_frequency_report(
             Frequencia.checkin_datetime <= end_date
         ).group_by(func.date(Frequencia.checkin_datetime)).order_by(desc("total")).first()
 
-        busiest_day_date = busiest_day_row.dia if busiest_day_row else "N/A"
+        _busiest_raw = busiest_day_row.dia if busiest_day_row else None
         busiest_day_total = busiest_day_row.total if busiest_day_row else 0
+        if _busiest_raw:
+            try:
+                busiest_day_date = datetime.strptime(str(_busiest_raw), "%Y-%m-%d").strftime("%d/%m/%Y")
+            except Exception:
+                busiest_day_date = str(_busiest_raw)
+        else:
+            busiest_day_date = "N/A"
 
         # Top 10 membros
         top_members_rows = db_session.query(
@@ -161,20 +169,50 @@ def generate_frequency_report(
             
             current_date_iter += timedelta(days=1)
 
-        # Membros em Risco de Churn: plano ATIVO mas sem check-in no período
-        checked_in_ids = db_session.query(Frequencia.member_id).filter(
+        # Membros em Risco de Churn: plano ATIVO mas sem check-in no periodo
+        # Excluir PENDENTE (cadastro nao aprovado)
+        checked_in_ids_sq = db_session.query(Frequencia.member_id).filter(
             Frequencia.checkin_datetime >= start_date,
             Frequencia.checkin_datetime <= end_date
-        ).distinct().subquery()
+        ).distinct()
 
-        at_risk = db_session.query(
-            Membro.nome, Membro.plano, Membro.whatsapp
-        ).filter(
-            Membro.estado_plano == 'ATIVO',
-            ~Membro.id.in_(db_session.query(checked_in_ids))
-        ).order_by(Membro.nome).all()
+        # Subquery: ultimo check-in global de cada membro (fora do periodo)
+        ultimo_ci_sq = (
+            db_session.query(
+                Frequencia.member_id,
+                func.max(Frequencia.checkin_datetime).label("ultimo_checkin"),
+            )
+            .group_by(Frequencia.member_id)
+            .subquery()
+        )
 
-        at_risk_members = [{"nome": m.nome, "plano": m.plano, "whatsapp": m.whatsapp or ""} for m in at_risk]
+        at_risk_rows = (
+            db_session.query(Membro.nome, Membro.plano, Membro.whatsapp, ultimo_ci_sq.c.ultimo_checkin)
+            .outerjoin(ultimo_ci_sq, Membro.id == ultimo_ci_sq.c.member_id)
+            .filter(
+                Membro.estado_plano == 'ATIVO',
+                Membro.estado_plano != PENDENTE,
+                ~Membro.id.in_(checked_in_ids_sq),
+            )
+            .order_by(Membro.nome)
+            .all()
+        )
+
+        at_risk_members = []
+        for m in at_risk_rows:
+            ultimo_ci_display = "Nunca"
+            if m.ultimo_checkin:
+                try:
+                    uc = m.ultimo_checkin.date() if hasattr(m.ultimo_checkin, "date") else m.ultimo_checkin
+                    ultimo_ci_display = uc.strftime("%d/%m/%Y")
+                except Exception:
+                    ultimo_ci_display = str(m.ultimo_checkin)[:10]
+            at_risk_members.append({
+                "nome": m.nome,
+                "plano": m.plano,
+                "whatsapp": m.whatsapp or "",
+                "ultimo_checkin": ultimo_ci_display,
+            })
 
         # Preparar dicionário de contexto para o Jinja
         context = {
