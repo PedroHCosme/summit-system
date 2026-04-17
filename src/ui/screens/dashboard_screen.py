@@ -200,7 +200,11 @@ class DashboardScreen(QWidget):
                     cor_nome = 'blue'
                 elif not plan_is_active(estado_plano):
                     cor_nome = '#FF0000' # Vermelho vivo
-                    nome_display = f"{nome} (Plano vencido)"
+                    plano = checkin.get('plano')
+                    if plano:
+                        nome_display = f"{nome} (Plano Vencido - {plano})"
+                    else:
+                        nome_display = f"{nome} (Plano Vencido)"
                 
                 # Nome clicável como link
                 html += f"<li style='margin-bottom: 8px; padding: 10px; background: #f0f4f8; border-radius: 6px; color: #1a2540;'><a href='member://{member_id}' style='color: {cor_nome}; font-weight: bold; text-decoration: underline; cursor: pointer;'>{nome_display}</a> - {checkin_datetime_str}</li>"
@@ -373,7 +377,10 @@ class DashboardScreen(QWidget):
                             cor = Qt.GlobalColor.blue
                         elif not plan_is_active(estado_plano):
                             cor = Qt.GlobalColor.red
-                            nome_display = f"{nome} (Plano vencido)"
+                            if plano and plano != 'N/A':
+                                nome_display = f"{nome} (Plano Vencido - {plano})"
+                            else:
+                                nome_display = f"{nome} (Plano Vencido)"
 
                         # Nome com estilo clicável
                         nome_item = QTableWidgetItem(nome_display)

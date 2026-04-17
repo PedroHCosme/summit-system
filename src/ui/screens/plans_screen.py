@@ -11,7 +11,6 @@ from PyQt6.QtGui import QFont
 
 from src.data.data_provider import get_provider
 from src.data.models import Plano
-from sqlalchemy import select
 
 
 # ---------------------------------------------------------------------------
@@ -334,12 +333,11 @@ class PlansScreen(QWidget):
 
     def refresh(self):
         """Recarrega os planos do banco e reconstrói os cards."""
-        provider = get_provider()
-        session = provider.session
+        plan_service = get_provider().plan_service
+        plan_service.invalidate_cache()
 
         try:
-            stmt = select(Plano).where(Plano.ativo == True).order_by(Plano.nome)
-            planos = session.execute(stmt).scalars().all()
+            planos = sorted(plan_service.get_all_plans(), key=lambda p: p.nome)
         except Exception as e:
             QMessageBox.warning(self, "Erro", f"Erro ao carregar planos: {e}")
             return
@@ -463,17 +461,13 @@ class PlansScreen(QWidget):
             return
 
         is_quota = self._radio_quota.isChecked()
-
-        provider = get_provider()
-        session = provider.session
+        plan_service = get_provider().plan_service
 
         try:
             if self._is_new:
-                # Verificar duplicata
-                existing = session.query(Plano).filter_by(nome=nome).first()
+                existing = plan_service.find_by_name_any_status(nome)
                 if existing:
                     if not existing.ativo:
-                        # Reativar plano existente
                         reply = QMessageBox.question(
                             self, "Plano Existente",
                             f"O plano '{nome}' existe mas está desativado.\n"
@@ -489,7 +483,7 @@ class PlansScreen(QWidget):
                         return
                 else:
                     plano = Plano(nome=nome, ativo=True)
-                    session.add(plano)
+                    plan_service.add(plano)
             else:
                 plano = self._current_plano
                 if not plano:
@@ -502,16 +496,9 @@ class PlansScreen(QWidget):
             plano.quota_amount = self._input_quota.value() if is_quota else 0
             plano.requer_vencimento = self._check_vencimento.isChecked() if not is_quota else False
 
-            session.commit()
+            plan_service.commit()
 
-            # Invalidar cache do PlanService
-            from src.services.plan_service import invalidate_plan_cache
-            invalidate_plan_cache()
-
-            QMessageBox.information(
-                self, "Salvo",
-                f"Plano '{nome}' salvo com sucesso!"
-            )
+            QMessageBox.information(self, "Salvo", f"Plano '{nome}' salvo com sucesso!")
 
             self._current_plano = plano
             self._is_new = False
@@ -519,7 +506,7 @@ class PlansScreen(QWidget):
             self.refresh()
 
         except Exception as e:
-            session.rollback()
+            plan_service.rollback()
             QMessageBox.critical(self, "Erro ao Salvar", f"Erro: {e}")
 
     def _on_deactivate(self):
@@ -539,17 +526,13 @@ class PlansScreen(QWidget):
         if reply != QMessageBox.StandardButton.Yes:
             return
 
-        provider = get_provider()
-        session = provider.session
+        plan_service = get_provider().plan_service
 
         try:
-            plano = session.query(Plano).get(self._current_plano.id)
+            plano = plan_service.get_by_id(self._current_plano.id)
             if plano:
                 plano.ativo = False
-                session.commit()
-
-                from src.services.plan_service import invalidate_plan_cache
-                invalidate_plan_cache()
+                plan_service.commit()
 
                 QMessageBox.information(self, "Desativado", f"Plano '{nome}' desativado.")
                 self._clear_editor()
@@ -557,7 +540,7 @@ class PlansScreen(QWidget):
                 self.refresh()
 
         except Exception as e:
-            session.rollback()
+            plan_service.rollback()
             QMessageBox.critical(self, "Erro", f"Erro ao desativar: {e}")
 
     def _on_restore_defaults(self):
@@ -577,41 +560,21 @@ class PlansScreen(QWidget):
             import importlib
             importlib.reload(config)
 
-            provider = get_provider()
-            session = provider.session
-
-            # Restaurar planos padrão
-            default_plans = config.PLANOS
-            default_prices = config.PLANOS_PRECOS
-            default_checkin = config.PLANOS_PAGAMENTO_POR_CHECKIN
+            plan_service = get_provider().plan_service
             default_vencimento = config.PLANOS_COM_VENCIMENTO
 
-            for plan_name in default_plans:
-                plano = session.query(Plano).filter_by(nome=plan_name).first()
-                if plano:
-                    plano.preco = default_prices.get(plan_name, 0)
-                    plano.valor_por_checkin = default_checkin.get(plan_name, 0)
-                    plano.requer_vencimento = plan_name in default_vencimento
-                    plano.ativo = True
-                else:
-                    new_plano = Plano(
-                        nome=plan_name,
-                        preco=default_prices.get(plan_name, 0),
-                        valor_por_checkin=default_checkin.get(plan_name, 0),
-                        requer_vencimento=plan_name in default_vencimento,
-                        ativo=True
-                    )
-                    session.add(new_plano)
+            plans_data = [
+                {
+                    "nome": name,
+                    "preco": config.PLANOS_PRECOS.get(name, 0),
+                    "valor_por_checkin": config.PLANOS_PAGAMENTO_POR_CHECKIN.get(name, 0),
+                    "requer_vencimento": name in default_vencimento,
+                }
+                for name in config.PLANOS
+            ]
+            plan_service.upsert_plans(plans_data)
 
-            session.commit()
-
-            from src.services.plan_service import invalidate_plan_cache
-            invalidate_plan_cache()
-
-            QMessageBox.information(
-                self, "Restaurado",
-                "Planos restaurados para os valores padrão!"
-            )
+            QMessageBox.information(self, "Restaurado", "Planos restaurados para os valores padrão!")
 
             self._clear_editor()
             self.plans_updated.emit()

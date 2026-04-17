@@ -8,16 +8,13 @@ Este módulo utiliza SQLAlchemy para type safety e queries tipadas.
 """
 
 from datetime import datetime, date
-from typing import Optional, Tuple, Union, TYPE_CHECKING
+from typing import Optional, Tuple
 from dataclasses import dataclass
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from src.data.models import Membro, Frequencia, Pagamento, Plano
-
-if TYPE_CHECKING:
-    from src.data.database_manager import DatabaseManager
 
 
 @dataclass
@@ -193,42 +190,14 @@ class CheckinService:
         """Obtém um membro por ID (SQLAlchemy)."""
         return self._session.query(Membro).filter(Membro.id == member_id).first()
     
-    def _get_member_name(self, member: Union[Membro, dict], member_id: int) -> str:
-        """Extrai o nome do membro (suporta ORM ou dict)."""
-        if isinstance(member, Membro):
-            return member.nome or f"ID {member_id}"
-        else:
-            return member.get('nome', f'ID {member_id}')
-    
-    def _get_member_plan(self, member: Union[Membro, dict]) -> str:
-        """Extrai o plano do membro (suporta ORM ou dict)."""
-        if isinstance(member, Membro):
-            return member.plano or ""
-        else:
-            return member.get('plano', '')
-    
     def _has_checkin_today(self, member_id: int, checkin_datetime: datetime) -> bool:
         """Verifica se o membro já fez check-in no dia da data informada."""
         checkin_date = checkin_datetime.date()
-        
-        if self._session is not None:
-            # SQLAlchemy
-            count = self._session.query(Frequencia).filter(
-                Frequencia.member_id == member_id,
-                func.date(Frequencia.checkin_datetime) == checkin_date
-            ).count()
-            return count > 0
-        else:
-            # Legado
-            if not self._db_manager.connection:
-                return False
-            cursor = self._db_manager.connection.cursor()
-            cursor.execute("""
-                SELECT id FROM frequencia
-                WHERE member_id = ?
-                AND DATE(checkin_datetime) = ?
-            """, (member_id, checkin_date.isoformat()))
-            return cursor.fetchone() is not None
+        count = self._session.query(Frequencia).filter(
+            Frequencia.member_id == member_id,
+            func.date(Frequencia.checkin_datetime) == checkin_date
+        ).count()
+        return count > 0
     
     def _payment_exists_for_checkin(self, member_id: int, checkin_datetime: datetime) -> bool:
         """Verifica se já existe um pagamento registrado para este check-in."""
@@ -477,14 +446,10 @@ class CheckinService:
         Returns:
             Lista de check-ins ordenados do mais recente ao mais antigo
         """
-        if self._session is not None:
-            checkins = self._session.query(Frequencia).filter(
-                Frequencia.member_id == member_id
-            ).order_by(Frequencia.checkin_datetime.desc()).all()
-            
-            return [c.to_dict() for c in checkins]
-        else:
-            return self._db_manager.get_member_checkin_history(member_id)
+        checkins = self._session.query(Frequencia).filter(
+            Frequencia.member_id == member_id
+        ).order_by(Frequencia.checkin_datetime.desc()).all()
+        return [c.to_dict() for c in checkins]
     
     def count_today(self) -> int:
         """

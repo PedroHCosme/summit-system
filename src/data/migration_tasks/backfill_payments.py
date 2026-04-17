@@ -7,6 +7,7 @@ from datetime import datetime, date
 from typing import Dict, List, Optional
 
 from src.config import PLANOS_PAGAMENTO_POR_CHECKIN
+from src.core.payment_constants import TIPO_RENOVACAO_PLANO
 from src.data.database_manager import DatabaseManager
 from src.utils.date_utils import parse_date_to_date
 
@@ -173,7 +174,7 @@ def backfill_plan_payments(db: DatabaseManager, max_cycles: int = 60) -> Dict[st
                 plan_name=member.plan,
                 vencimento=current_due.strftime("%Y-%m-%d"),
                 metodo_pagamento="Backfill Histórico",
-                tipo_transacao="Renovação Plano",
+                tipo_transacao=TIPO_RENOVACAO_PLANO,
                 descricao=f"{member.plan} (retroativo)",
                 payment_date=datetime.combine(cycle_start, datetime.min.time()).replace(hour=12),
             )

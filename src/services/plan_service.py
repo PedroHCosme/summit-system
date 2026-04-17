@@ -3,7 +3,7 @@ Serviço centralizado para acesso a dados de planos.
 Esta é a ÚNICA fonte de verdade para informações de planos no sistema.
 """
 
-from typing import List, Dict, Optional, Any
+from typing import Any, Dict, List, Optional
 from src.data.db import create_session
 from src.data.models import Plano
 
@@ -84,6 +84,12 @@ class PlanService:
     # HELPERS DE TIPO DE PLANO
     # =========================================================================
     
+    def get_plan_policy(self, plan_name: str) -> "Optional[PlanPolicy]":
+        """Retorna um PlanPolicy para o plano dado, ou None se não encontrado."""
+        from src.core.plan_policy import PlanPolicy
+        plan = self.get_plan_by_name(plan_name)
+        return PlanPolicy(plan) if plan else None
+
     def is_quota_plan(self, plan_name: str) -> bool:
         """Verifica se o plano é baseado em quota (voucher/pacote)."""
         plan = self.get_plan_by_name(plan_name)
@@ -145,11 +151,69 @@ class PlanService:
     def get_plan_prices(self) -> Dict[str, float]:
         """
         Retorna dicionário com preços de todos os planos.
-        
+
         Returns:
             Dict[nome] = preco
         """
         return {p.nome: p.preco for p in self._get_plans_cached()}
+
+    # =========================================================================
+    # OPERAÇÕES DE ESCRITA
+    # =========================================================================
+
+    def find_by_name_any_status(self, nome: str) -> Optional[Plano]:
+        """Busca um plano pelo nome, incluindo planos inativos."""
+        return self.session.query(Plano).filter_by(nome=nome).first()
+
+    def get_by_id(self, plan_id: int) -> Optional[Plano]:
+        """Busca um plano por ID."""
+        return self.session.get(Plano, plan_id)
+
+    def add(self, plano: Plano) -> Plano:
+        """Adiciona um plano novo à sessão (sem commit)."""
+        self.session.add(plano)
+        return plano
+
+    def commit(self) -> None:
+        """Confirma a transação e invalida o cache."""
+        self.session.commit()
+        self.invalidate_cache()
+
+    def rollback(self) -> None:
+        """Desfaz a transação e invalida o cache."""
+        self.session.rollback()
+        self.invalidate_cache()
+
+    def upsert_plans(self, plans_data: List[Dict[str, Any]]) -> None:
+        """
+        Cria ou atualiza múltiplos planos a partir de uma lista de dicts.
+
+        Cada dict deve conter: nome, preco, valor_por_checkin, requer_vencimento.
+        Campos opcionais: is_quota, quota_amount.
+        """
+        for p_data in plans_data:
+            plano = self.find_by_name_any_status(p_data["nome"])
+            if plano:
+                plano.preco = p_data.get("preco", plano.preco)
+                plano.valor_por_checkin = p_data.get("valor_por_checkin", plano.valor_por_checkin)
+                plano.requer_vencimento = p_data.get("requer_vencimento", plano.requer_vencimento)
+                if "is_quota" in p_data:
+                    plano.is_quota = p_data["is_quota"]
+                if "quota_amount" in p_data:
+                    plano.quota_amount = p_data["quota_amount"]
+                plano.ativo = True
+            else:
+                novo = Plano(
+                    nome=p_data["nome"],
+                    preco=p_data.get("preco", 0.0),
+                    valor_por_checkin=p_data.get("valor_por_checkin", 0.0),
+                    requer_vencimento=p_data.get("requer_vencimento", False),
+                    is_quota=p_data.get("is_quota", False),
+                    quota_amount=p_data.get("quota_amount", 0),
+                    ativo=True,
+                )
+                self.session.add(novo)
+        self.commit()
 
 
 # =========================================================================

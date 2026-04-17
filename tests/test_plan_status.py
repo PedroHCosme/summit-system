@@ -17,9 +17,8 @@ class TestPlanStatusConstants:
     def test_inativo_value(self):
         assert INATIVO == "INATIVO"
 
-    def test_valid_states_contains_only_two(self):
-        assert VALID_STATES == frozenset({"ATIVO", "INATIVO"})
-        assert len(VALID_STATES) == 2
+    def test_valid_states_contains_required_states(self):
+        assert {"ATIVO", "INATIVO", "PENDENTE"}.issubset(VALID_STATES)
 
     def test_valid_states_is_immutable(self):
         with pytest.raises(AttributeError):

@@ -189,7 +189,8 @@ class EditMemberDialog(QDialog):
         
         # Método de Pagamento (para registrar transação)
         self.metodo_pagamento_combo = QComboBox()
-        self.metodo_pagamento_combo.addItems(["", "PIX", "Cartão de Crédito", "Cartão de Débito", "Dinheiro", "Transferência"])
+        from src.core.payment_constants import METODOS_PAGAMENTO_UI
+        self.metodo_pagamento_combo.addItems([""] + METODOS_PAGAMENTO_UI)
         form_layout.addRow("Método de Pagamento:", self.metodo_pagamento_combo)
         
         scroll_layout.addLayout(form_layout)

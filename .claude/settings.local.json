@@ -5,7 +5,14 @@
       "Bash(wc -l /c/Users/Usuario/pedrocosme/dev/summit-system/src/ui/screens/*.py)",
       "Bash(wc -l /c/Users/Usuario/pedrocosme/dev/summit-system/src/ui/dialogs/*.py)",
       "Bash(grep -E \"\\\\.md$\")",
-      "Bash(wc -l /c/Users/Usuario/pedrocosme/dev/summit-system/src/ui/workers/*.py)"
+      "Bash(wc -l /c/Users/Usuario/pedrocosme/dev/summit-system/src/ui/workers/*.py)",
+      "Bash(python test_reports_jinja.py)",
+      "Bash(python -m pytest --collect-only -q)",
+      "Bash(python -m pytest -q)",
+      "Bash(git stash *)",
+      "Bash(python -m pytest tests/test_plan_status.py -q)",
+      "Bash(python -c ' *)",
+      "Bash(python -m pytest tests/ -x -q)"
     ]
   }
 }

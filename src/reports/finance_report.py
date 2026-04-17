@@ -12,8 +12,6 @@ from jinja2 import Environment, FileSystemLoader
 from src.services.payment_service import PaymentService
 from src.services.member_service import MemberService
 from src.services.plan_service import PlanService
-from src.data.models import Membro
-from src.core.plan_status import PENDENTE
 
 
 # =============================================================================
@@ -131,13 +129,7 @@ def generate_finance_report(
         # =====================================================================
         inadimplencia = None
         try:
-            # Excluir membros PENDENTE (cadastro web não aprovado)
-            members = (
-                member_service.session
-                .query(Membro)
-                .filter(Membro.estado_plano != PENDENTE)
-                .all()
-            )
+            members = member_service.get_all_excluding_pending()
             total_membros = len(members)
             inativos = sum(1 for m in members if m.estado_plano == 'INATIVO')
             taxa_pct = (inativos / total_membros * 100) if total_membros > 0 else 0.0

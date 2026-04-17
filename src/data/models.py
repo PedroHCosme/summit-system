@@ -10,7 +10,7 @@ from typing import Optional, List, TYPE_CHECKING
 
 from sqlalchemy import (
     Column, Integer, String, Text, Float, DateTime, Date, ForeignKey,
-    func, event, Boolean
+    func, event, Boolean, Index
 )
 from sqlalchemy.orm import relationship, Mapped, mapped_column, declarative_base
 
@@ -33,6 +33,9 @@ class Membro(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     nome: Mapped[str] = mapped_column(String(255), nullable=False)
     plano: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    plano_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("planos.id", ondelete="SET NULL"), nullable=True
+    )
     vencimento_plano: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     estado_plano: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     
@@ -71,9 +74,13 @@ class Membro(Base):
     pagamentos: Mapped[List["Pagamento"]] = relationship(
         "Pagamento", back_populates="membro", cascade="all, delete-orphan"
     )
+    plano_ref: Mapped[Optional["Plano"]] = relationship("Plano", back_populates="membros")
     
     def __repr__(self) -> str:
-        return f"<Membro(id={self.id}, nome='{self.nome}', plano='{self.plano}')>"
+        return (
+            f"<Membro(id={self.id}, nome='{self.nome}', plano='{self.plano}', "
+            f"plano_id={self.plano_id})>"
+        )
     
     def to_dict(self) -> dict:
         """Converte o modelo para dicionário (compatibilidade com código legado).
@@ -83,7 +90,9 @@ class Membro(Base):
         return {
             "id": self.id,
             "nome": self.nome,
-            "plano": self.plano,
+            # Camada de compatibilidade: durante a migração manter `plano` por nome.
+            "plano": self.plano or (self.plano_ref.nome if self.plano_ref else None),
+            "plano_id": self.plano_id,
             "vencimento_plano": format_display_date(self.vencimento_plano) if self.vencimento_plano else None,
             "estado_plano": self.estado_plano,
             "data_nascimento": format_display_date(self.data_nascimento) if self.data_nascimento else None,
@@ -211,6 +220,7 @@ class Plano(Base):
     updated_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime, default=func.current_timestamp(), onupdate=func.current_timestamp()
     )
+    membros: Mapped[List["Membro"]] = relationship("Membro", back_populates="plano_ref")
     
     def __repr__(self) -> str:
         return f"<Plano(nome='{self.nome}', preco={self.preco})>"
@@ -264,3 +274,8 @@ class Nota(Base):
 
 # Nota: Para saber quais planos cobram por check-in, use config.PLANOS_PAGAMENTO_POR_CHECKIN
 # ou consulte a tabela 'planos' (Plano.valor_por_checkin > 0).
+
+# Índices e guardas de integridade para novos bancos.
+Index("ix_membros_plano_id", Membro.plano_id)
+Index("ix_frequencia_member_checkin_datetime", Frequencia.member_id, Frequencia.checkin_datetime)
+Index("uq_frequencia_member_day", Frequencia.member_id, func.date(Frequencia.checkin_datetime), unique=True)

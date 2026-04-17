@@ -40,6 +40,12 @@ from src.ui.screens import (
 )
 from src.ui.dialogs import AddMemberDialog, SyncDialog, ManagePlansDialog, ExpiringPlansDialog
 from src.ui.components import Sidebar
+from src.ui.coordinators import (
+    MembersCoordinator,
+    CheckinCoordinator,
+    ReportsCoordinator,
+    SettingsCoordinator,
+)
 
 
 class MainWindow(QMainWindow):
@@ -55,13 +61,25 @@ class MainWindow(QMainWindow):
         self.formatter = HTMLFormatter()
         self.worker = None
         self.is_connected = False
+        self.members_coordinator = None
+        self.checkin_coordinator = None
+        self.reports_coordinator = None
+        self.settings_coordinator = None
         
         # Timer para auto-atualização do dashboard
         self.dashboard_timer = QTimer()
         self.dashboard_timer.timeout.connect(self._update_dashboard)
         
         self._setup_ui()
+        self._setup_coordinators()
         self._auto_connect()
+
+    def _setup_coordinators(self):
+        """Inicializa coordenadores de domínio da UI."""
+        self.members_coordinator = MembersCoordinator(self)
+        self.checkin_coordinator = CheckinCoordinator(self)
+        self.reports_coordinator = ReportsCoordinator(self)
+        self.settings_coordinator = SettingsCoordinator(self)
 
     def _auto_connect(self):
         """Inicia a conexão com o banco de dados automaticamente."""
@@ -317,47 +335,11 @@ class MainWindow(QMainWindow):
 
     def _generate_members_report(self):
         """Gera e abre o relatório de membros."""
-        if not self.is_connected:
-            return
-
-        from src.ui.dialogs.report_period_dialog import ReportPeriodDialog
-
-        dialog = ReportPeriodDialog("Relatório de Membros", self)
-        if dialog.exec() != QDialog.DialogCode.Accepted:
-            return
-
-        start_date, end_date = dialog.get_period()
-        period_label = dialog.get_period_label()
-
-        try:
-            report_path = generate_members_report(
-                start_date=start_date, end_date=end_date, period_label=period_label
-            )
-            webbrowser.open(f"file://{report_path}")
-        except Exception as e:
-            QMessageBox.critical(self, "Erro", f"Erro ao gerar relatório de membros: {e}")
+        self.reports_coordinator.generate_members_report()
 
     def _generate_financial_report(self):
         """Gera e abre o relatório financeiro."""
-        if not self.is_connected:
-            return
-
-        from src.ui.dialogs.report_period_dialog import ReportPeriodDialog
-
-        dialog = ReportPeriodDialog("Relatório Financeiro", self)
-        if dialog.exec() != QDialog.DialogCode.Accepted:
-            return
-
-        start_date, end_date = dialog.get_period()
-        period_label = dialog.get_period_label()
-
-        try:
-            report_path = generate_finance_report(
-                period=period_label, start_date=start_date, end_date=end_date
-            )
-            webbrowser.open(f"file://{report_path}")
-        except Exception as e:
-            QMessageBox.critical(self, "Erro", f"Erro ao gerar relatório financeiro: {e}")
+        self.reports_coordinator.generate_financial_report()
     
     # === Métodos de navegação sem troca de contexto ===
     def _show_members_list_only(self):
@@ -470,25 +452,7 @@ class MainWindow(QMainWindow):
     
     def _on_dashboard_member_clicked(self, member_id: int):
         """Navega para o perfil do membro a partir do dashboard."""
-        from src.ui.components.sidebar import SidebarContext
-        from src.data.data_provider import get_member_by_id
-        
-        if not self.is_connected:
-            return
-        
-        try:
-            # Busca os dados do membro pelo ID
-            member = get_member_by_id(member_id)
-            
-            if member:
-                # Muda para o contexto de Membros e mostra o perfil
-                self.sidebar.set_context(SidebarContext.MEMBERS)
-                self.stacked_widget.setCurrentIndex(3)  # MemberSearchScreen
-                self.member_search_screen.display_member_data(member)
-            else:
-                QMessageBox.warning(self, "Aviso", "Membro não encontrado.")
-        except Exception as e:
-            QMessageBox.critical(self, "Erro", f"Erro ao buscar membro: {e}")
+        self.members_coordinator.on_dashboard_member_clicked(member_id)
 
     def _show_aniversariantes(self):
         """Mostra a tela de aniversariantes."""
@@ -572,40 +536,6 @@ class MainWindow(QMainWindow):
         
         # Mostra o menu na posição do cursor
         menu.exec(QCursor.pos())
-    
-    def _show_manage_plans_dialog(self):
-        """Abre a tela de gerenciamento de planos."""
-        if not self.is_connected:
-            return
-        self.stacked_widget.setCurrentIndex(8)
-        self.plans_screen.refresh()
-    
-    def _show_add_member_dialog(self):
-        """Abre o diálogo para adicionar novo membro."""
-        try:
-            dialog = AddMemberDialog(self)
-            if dialog.exec() == QDialog.DialogCode.Accepted:
-                # Atualiza a lista de membros se estiver visível
-                if self.stacked_widget.currentIndex() == 6:
-                    self._load_members_list()
-        except Exception as e:
-            QMessageBox.critical(self, "Erro", f"Erro ao abrir formulário de novo membro: {e}")
-    
-    def _show_sync_dialog(self):
-        """Abre o diálogo de sincronização com Google Sheets."""
-        try:
-            dialog = SyncDialog(self)
-            dialog.exec()
-        except Exception as e:
-            QMessageBox.critical(self, "Erro", f"Erro ao abrir sincronização: {e}")
-    
-    def _show_expiring_plans_dialog(self):
-        """Abre o diálogo de planos a vencer."""
-        try:
-            dialog = ExpiringPlansDialog(self)
-            dialog.exec()
-        except Exception as e:
-            QMessageBox.critical(self, "Erro", f"Erro ao abrir planos a vencer: {e}")
     
     # === Handlers de Conexão ===
     
@@ -702,500 +632,87 @@ class MainWindow(QMainWindow):
     
     def _on_member_search_by_name(self):
         """Manipula a busca por nome."""
-        search_term = self.member_search_screen.name_input.text().strip()
-        
-        if not search_term:
-            self.member_search_screen.show_empty_search_warning()
-            return
-        
-        self.member_search_screen.set_searching_state()
-        
-        self.worker = MemberSearchWorker(search_term)
-        self.worker.search_completed.connect(self._on_member_search_completed)
-        self.worker.status_updated.connect(lambda msg: self.home_screen.append_status(msg))
-        self.worker.start()
+        self.members_coordinator.on_member_search_by_name()
     
     def _on_member_search_completed(self, results):
         """Manipula a conclusão da busca por nome."""
-        if not results:
-            self.member_search_screen.show_no_results()
-        else:
-            self.member_search_screen.populate_results(results)
-        
-        self.member_search_screen.set_ready_state()
+        self.members_coordinator.on_member_search_completed(results)
     
     def _on_member_result_clicked(self, item):
         """Manipula o clique em um resultado da lista."""
-        from PyQt6.QtCore import Qt
-        
-        member_id = item.data(Qt.ItemDataRole.UserRole)
-        member_data = self.search_service.get_member_by_id(member_id)
-        
-        if member_data:
-            self.member_search_screen.display_member_data(member_data)
-            self._load_member_history(member_id, member_data.get('nome', 'Membro'))
-            self._load_member_financial_history(member_id, member_data.get('nome', 'Membro'))
-        else:
-            self.member_search_screen.show_error()
+        self.members_coordinator.on_member_result_clicked(item)
     
     def _load_member_history(self, member_id: int, member_name: str):
         """Carrega e exibe o histórico de check-ins do membro."""
-        try:
-            from src.data.data_provider import get_member_checkin_history
-            
-            history = get_member_checkin_history(member_id)
-            self.member_search_screen.display_member_history(member_id, member_name, history)
-            
-        except Exception as e:
-            print(f"Erro ao carregar histórico: {e}")
-            self.member_search_screen.member_history_browser.setHtml(f"""
-                <div style="text-align: center; padding: 20px;">
-                    <h3 style="color: #FF6B6B;">Erro ao carregar histórico</h3>
-                    <p style="color: #888;">{str(e)}</p>
-                </div>
-            """)
+        self.members_coordinator.load_member_history(member_id, member_name)
     
     def _load_member_financial_history(self, member_id: int, member_name: str):
         """Carrega e exibe o histórico financeiro do membro."""
-        try:
-            from src.data.data_provider import get_provider
-            
-            # Buscar histórico de pagamentos do membro via DataProvider
-            provider = get_provider()
-            payments = provider.get_member_payment_history(member_id)
-            self.member_search_screen.display_member_financial_history(
-                member_id, member_name, payments
-            )
-        except Exception as e:
-            print(f"Erro ao carregar histórico financeiro: {e}")
-            import traceback
-            traceback.print_exc()
-            self.member_search_screen.member_financial_browser.setHtml(f"""
-                <div style="text-align: center; padding: 20px;">
-                    <h3 style="color: #FF6B6B;">Erro ao carregar histórico financeiro</h3>
-                    <p style="color: #888;">{str(e)}</p>
-                </div>
-            """)
+        self.members_coordinator.load_member_financial_history(member_id, member_name)
     
     def _on_edit_member_clicked(self):
         """Abre o diálogo de edição do membro atual."""
-        if not self.member_search_screen.current_member_data:
-            return
-        
-        from src.ui.dialogs.edit_member_dialog import EditMemberDialog
-        
-        dialog = EditMemberDialog(self.member_search_screen.current_member_data, self)
-        dialog.member_updated.connect(self._on_member_updated)
-        dialog.exec()
+        self.members_coordinator.on_edit_member_clicked()
     
     def _on_renew_plan_clicked(self):
         """Abre o diálogo de renovação de plano do membro atual."""
-        if not self.member_search_screen.current_member_data:
-            return
-        
-        from src.ui.dialogs.renew_plan_dialog import RenewPlanDialog
-        
-        dialog = RenewPlanDialog(self.member_search_screen.current_member_data, self)
-        dialog.plan_renewed.connect(self._on_plan_renewed)
-        dialog.exec()
+        self.members_coordinator.on_renew_plan_clicked()
     
     def _on_delete_member_clicked(self):
         """Abre o diálogo de confirmação de exclusão do membro atual."""
-        if not self.member_search_screen.current_member_data:
-            return
-        
-        from src.ui.dialogs.delete_member_dialog import DeleteMemberDialog
-        
-        dialog = DeleteMemberDialog(self.member_search_screen.current_member_data, self)
-        
-        # Se o usuário confirmar a exclusão
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            self._delete_member(self.member_search_screen.current_member_data)
+        self.members_coordinator.on_delete_member_clicked()
     
     def _delete_member(self, member_data: dict):
         """Executa a exclusão do membro."""
-        try:
-            from src.data.data_provider import delete_member
-            
-            member_id = member_data['id']
-            member_name = member_data['nome']
-            
-            success = delete_member(member_id)
-            
-            if success:
-                QMessageBox.information(
-                    self,
-                    "Sucesso",
-                    f"Membro '{member_name}' foi excluído com sucesso!\n\n"
-                    f"Todos os check-ins e pagamentos relacionados também foram removidos."
-                )
-                
-                # Limpa a tela
-                self.member_search_screen.results_list.clear()
-                self.member_search_screen.member_result_browser.setHtml(
-                    self.member_search_screen._get_initial_message()
-                )
-                self.member_search_screen.member_history_browser.setHtml(
-                    "<p style='color: #888888;'>Selecione um membro para ver o histórico.</p>"
-                )
-                self.member_search_screen.edit_button.setVisible(False)
-                self.member_search_screen.delete_button.setVisible(False)
-                self.member_search_screen.current_member_data = None
-                
-            else:
-                QMessageBox.warning(
-                    self,
-                    "Erro",
-                    f"Não foi possível excluir o membro '{member_name}'."
-                )
-        except Exception as e:
-            QMessageBox.critical(
-                self,
-                "Erro",
-                f"Erro ao excluir membro: {str(e)}"
-            )
+        self.members_coordinator.delete_member(member_data)
     
     def _on_member_updated(self, updated_data: dict):
         """Manipula a atualização de um membro."""
-        try:
-            from src.data.data_provider import update_member
-            
-            # Extrai o método de pagamento
-            metodo_pagamento = updated_data.pop('metodo_pagamento', '')
-            
-            # Define se deve registrar pagamento (apenas se método foi informado)
-            register_payment = bool(metodo_pagamento)
-            
-            success = update_member(
-                updated_data, 
-                register_payment=register_payment,
-                metodo_pagamento=metodo_pagamento
-            )
-            
-            if success:
-                mensagem = f"Membro '{updated_data['nome']}' atualizado com sucesso!"
-                if register_payment:
-                    mensagem += "\n\n💰 Pagamento registrado no sistema financeiro."
-                
-                QMessageBox.information(
-                    self,
-                    "Sucesso",
-                    mensagem
-                )
-                
-                # Atualiza a exibição com os novos dados
-                member_id = updated_data['id']
-                updated_member = self.search_service.get_member_by_id(member_id)
-                
-                if updated_member:
-                    self.member_search_screen.display_member_data(updated_member)
-                    
-                    # Se registrou pagamento, atualizar a aba financeira também
-                    if register_payment:
-                        from src.data.data_provider import get_provider
-                        provider = get_provider()
-                        payments = provider.get_member_payment_history(member_id)
-                        self.member_search_screen.display_member_financial_history(
-                            member_id, 
-                            updated_data['nome'], 
-                            payments
-                        )
-            else:
-                QMessageBox.warning(
-                    self,
-                    "Erro",
-                    "Não foi possível atualizar o membro. Verifique o console."
-                )
-        except Exception as e:
-            QMessageBox.critical(
-                self,
-                "Erro Crítico",
-                f"Ocorreu um erro inesperado: {e}"
-            )
+        self.members_coordinator.on_member_updated(updated_data)
     
     def _on_plan_renewed(self, renewal_data: dict):
         """Manipula a renovação do plano de um membro."""
-        try:
-            from src.data.data_provider import update_member
-            
-            # Extrair método de pagamento
-            metodo_pagamento = renewal_data.pop('metodo_pagamento', '')
-            
-            # Para renovação, sempre registrar pagamento
-            register_payment = True
-            
-            # Nome do membro (para mensagens)
-            current_data = self.member_search_screen.current_member_data
-            member_name = current_data.get('nome', '') if current_data else ''
-            
-            # Atualizar o membro (apenas vencimento - o plano continua o mesmo)
-            success = update_member(
-                renewal_data, 
-                register_payment=register_payment,
-                metodo_pagamento=metodo_pagamento
-            )
-            
-            if success:
-                from src.config import PLANOS_PRECOS
-                valor = PLANOS_PRECOS.get(renewal_data.get('plano', ''), 0.0)
-                
-                mensagem = f"Plano renovado com sucesso!"
-                mensagem += f"\n\n💰 Pagamento de R$ {valor:.2f} registrado no sistema financeiro."
-                mensagem += f"\n📅 Novo vencimento: {renewal_data.get('vencimento_plano', 'N/A')}"
-                
-                QMessageBox.information(
-                    self,
-                    "Sucesso",
-                    mensagem
-                )
-                
-                # Atualiza a exibição com os novos dados
-                member_id = renewal_data['id']
-                updated_member = self.search_service.get_member_by_id(member_id)
-                
-                if updated_member:
-                    self.member_search_screen.display_member_data(updated_member)
-                    
-                    # Atualizar a aba financeira
-                    from src.data.data_provider import get_provider
-                    provider = get_provider()
-                    payments = provider.get_member_payment_history(member_id)
-                    self.member_search_screen.display_member_financial_history(
-                        member_id, 
-                        member_name, 
-                        payments
-                    )
-            else:
-                QMessageBox.warning(
-                    self,
-                    "Erro",
-                    "Não foi possível renovar o plano. Verifique o console."
-                )
-        except Exception as e:
-            QMessageBox.critical(
-                self,
-                "Erro Crítico",
-                f"Ocorreu um erro inesperado: {e}"
-            )
+        self.members_coordinator.on_plan_renewed(renewal_data)
     
     def _on_delete_checkin_requested(self, checkin_id: int):
         """Manipula a solicitação de exclusão de um check-in."""
-        # Confirmação
-        reply = QMessageBox.question(
-            self,
-            "Confirmar Exclusão",
-            "Tem certeza que deseja deletar este check-in?\n\nEsta ação não pode ser desfeita.",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No
-        )
-        
-        if reply == QMessageBox.StandardButton.Yes:
-            try:
-                from src.data.data_provider import delete_checkin
-                
-                success = delete_checkin(checkin_id)
-                
-                if success:
-                    QMessageBox.information(
-                        self,
-                        "Sucesso",
-                        "Check-in deletado com sucesso!"
-                    )
-                    
-                    # Recarrega o histórico do membro atual
-                    if self.member_search_screen.current_member_data:
-                        member_id = self.member_search_screen.current_member_data['id']
-                        member_name = self.member_search_screen.current_member_data['nome']
-                        self._load_member_history(member_id, member_name)
-                else:
-                    QMessageBox.warning(
-                        self,
-                        "Erro",
-                        "Não foi possível deletar o check-in. Verifique o console."
-                    )
-            except Exception as e:
-                QMessageBox.critical(
-                    self,
-                    "Erro",
-                    f"Erro ao deletar check-in: {str(e)}"
-                )
+        self.members_coordinator.on_delete_checkin_requested(checkin_id)
     
     def _on_edit_checkin_requested(self, checkin_id: int):
         """Manipula a solicitação de edição de um check-in."""
-        try:
-            from src.data.data_provider import get_provider, update_checkin_datetime
-            from src.ui.dialogs import EditCheckinDialog
-            
-            # Buscar dados do check-in
-            provider = get_provider()
-            if not self.member_search_screen.current_member_data:
-                QMessageBox.warning(self, "Erro", "Nenhum membro selecionado.")
-                return
-            
-            member_id = self.member_search_screen.current_member_data['id']
-            member_name = self.member_search_screen.current_member_data['nome']
-            
-            # Buscar o histórico para encontrar o check-in específico
-            history = provider.get_member_checkin_history(member_id)
-            checkin_data = next((c for c in history if c['id'] == checkin_id), None)
-            
-            if not checkin_data:
-                QMessageBox.warning(self, "Erro", "Check-in não encontrado.")
-                return
-            
-            # Converter data/hora
-            current_datetime = datetime.fromisoformat(checkin_data['checkin_datetime'])
-            
-            # Abrir dialog de edição
-            dialog = EditCheckinDialog(checkin_id, current_datetime, member_name, self)
-            
-            # Conectar sinal de atualização
-            def on_checkin_updated(cid: int, new_dt: datetime):
-                success = update_checkin_datetime(cid, new_dt)
-                if success:
-                    QMessageBox.information(
-                        self,
-                        "Sucesso",
-                        "Horário do check-in atualizado com sucesso!"
-                    )
-                    # Recarrega o histórico
-                    self._load_member_history(member_id, member_name)
-                else:
-                    QMessageBox.warning(
-                        self,
-                        "Erro",
-                        "Não foi possível atualizar o check-in. Verifique o console."
-                    )
-            
-            dialog.checkin_updated.connect(on_checkin_updated)
-            dialog.exec()
-            
-        except Exception as e:
-            QMessageBox.critical(
-                self,
-                "Erro",
-                f"Erro ao editar check-in: {str(e)}"
-            )
+        self.members_coordinator.on_edit_checkin_requested(checkin_id)
     
     # === Check-in ===
     
     def _on_checkin_search_by_name(self):
         """Manipula a busca por nome na tela de check-in."""
-        search_term = self.checkin_screen.name_input.text().strip()
-        if not search_term:
-            return
-
-        self.checkin_screen.set_searching_state()
-
-        self.worker = MemberSearchWorker(search_term)
-        self.worker.search_completed.connect(self._on_checkin_search_completed)
-        self.worker.start()
+        self.checkin_coordinator.on_checkin_search_by_name()
 
     def _on_checkin_search_completed(self, results):
         """Manipula a conclusão da busca na tela de check-in."""
-        self.checkin_screen.populate_results(results)
-        self.checkin_screen.set_ready_state()
+        self.checkin_coordinator.on_checkin_search_completed(results)
 
     def _on_checkin_result_clicked(self, item):
         """Manipula o clique em um resultado na lista de check-in."""
-        from PyQt6.QtCore import Qt
-        
-        member_id = item.data(Qt.ItemDataRole.UserRole)
-        member_data = self.search_service.get_member_by_id(member_id)
-
-        if member_data:
-            self.checkin_screen.display_member_for_checkin(member_id, member_data)
-        else:
-            self.checkin_screen.show_error()
+        self.checkin_coordinator.on_checkin_result_clicked(item)
 
     def _on_confirm_checkin_clicked(self):
         """Confirma e registra o check-in do membro."""
-        if self.checkin_screen.current_member_id is None:
-            return
-
-        from src.ui.workers import CheckinWorker
-
-        # Desabilitar botão para evitar duplo clique
-        self.checkin_screen.confirm_button.setEnabled(False)
-        self.checkin_screen.confirm_button.setText("Processando...")
-
-        # Iniciar worker
-        self.worker = CheckinWorker(self.checkin_screen.current_member_id)
-        self.worker.checkin_completed.connect(self._on_checkin_worker_completed)
-        self.worker.start()
+        self.checkin_coordinator.on_confirm_checkin_clicked()
     
     def _on_checkin_worker_completed(self, success, message, details):
         """Manipula o resultado do worker de check-in."""
-        # Reabilitar botão
-        self.checkin_screen.confirm_button.setEnabled(True)
-        self.checkin_screen.confirm_button.setText("Confirmar Presença")
-        
-        if success:
-            msg = "Check-in confirmado com sucesso!"
-            if details.get('payment_generated'):
-                msg += f"\n\n💰 Pagamento de R$ {details.get('payment_amount', 0):.2f} gerado."
-            
-            QMessageBox.information(self, "Check-in Realizado", msg)
-            self.checkin_screen.clear_after_checkin()
-            
-            # Atualizar dashboard se estiver visível
-            if self.stacked_widget.currentIndex() == 1:
-                self._update_dashboard()
-        else:
-            QMessageBox.warning(self, "Atenção", message)
+        self.checkin_coordinator.on_checkin_worker_completed(success, message, details)
 
     def _on_checkin_profile_clicked(self):
         """Manipula o clique no botão de perfil do membro na tela de check-in."""
-        member_id = self.checkin_screen.current_member_id
-        if member_id is None:
-            return
-            
-        # Obter dados do membro para pegar o nome
-        member_data = self.search_service.get_member_by_id(member_id)
-        if not member_data:
-            return
-            
-        member_name = member_data.get('nome', '')
-        
-        # Mudar para a tela de lista de membros
-        self._show_members_list()
-        
-        # Selecionar o membro
-        self.members_list_screen.select_member_by_id(member_id, member_name)
+        self.checkin_coordinator.on_checkin_profile_clicked()
     
     # === Adicionar Membro ===
     
     def _show_add_member_dialog(self):
         """Mostra a janela de diálogo para adicionar um novo membro."""
-        if not self.is_connected:
-            QMessageBox.warning(self, "Aviso", "A conexão com o banco de dados ainda não foi estabelecida.")
-            return
-
-        dialog = AddMemberDialog(self)
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            member_data = dialog.get_data()
-
-            # Validação dos campos obrigatórios
-            required_fields = ["nome", "plano", "data_nascimento", "whatsapp", "genero"]
-            for field in required_fields:
-                if not member_data.get(field):
-                    QMessageBox.warning(self, "Campo Obrigatório", 
-                                       f"O campo '{field.replace('_', ' ').title()}' é obrigatório.")
-                    return
-
-            try:
-                from src.data.data_provider import add_member
-                
-                new_id = add_member(member_data)
-                if new_id:
-                    QMessageBox.information(self, "Sucesso", 
-                                          f"Membro '{member_data['nome']}' adicionado com sucesso!")
-                else:
-                    QMessageBox.critical(self, "Erro", 
-                                        "Não foi possível adicionar o membro. Verifique o console.")
-            except Exception as e:
-                QMessageBox.critical(self, "Erro Crítico", 
-                                    f"Ocorreu um erro inesperado ao salvar o membro: {e}")
+        self.members_coordinator.show_add_member_dialog()
     
     # === Financeiro ===
     
@@ -1273,399 +790,82 @@ class MainWindow(QMainWindow):
     
     def _show_manage_plans_dialog(self):
         """Exibe a tela de gerenciamento de planos."""
-        if not self.is_connected:
-            return
-        self.stacked_widget.setCurrentIndex(8)
-        self.plans_screen.refresh()
+        self.settings_coordinator.show_manage_plans()
     
     def _show_expiring_plans_dialog(self):
         """Exibe o diálogo de planos a vencer."""
-        # DataProvider agora é compatível co o ExpiringPlansDialog (duck typing)
-        # pois ambos implementam get_all_members()
-        dialog = ExpiringPlansDialog(self.manager.data_provider, self)
-        dialog.exec()
+        self.settings_coordinator.show_expiring_plans_dialog()
     
     # === Sincronização ===
     
     def _show_sync_dialog(self):
         """Abre o diálogo de sincronização com Google Sheets."""
-        dialog = SyncDialog(self)
-        result = dialog.exec()
-        
-        # Se a sincronização foi bem-sucedida, atualiza o dashboard
-        if result == QDialog.DialogCode.Accepted and dialog.get_result():
-            QMessageBox.information(
-                self,
-                "Atualização Recomendada",
-                "Sincronização concluída!\n\n"
-                "Recomenda-se atualizar o dashboard para visualizar\n"
-                "os novos dados sincronizados."
-            )
-            
-            # Atualiza automaticamente o dashboard
-            if self.is_connected:
-                self._update_dashboard()
+        self.settings_coordinator.show_sync_dialog()
     
     # === Gerenciamento de Banco de Dados ===
     
     def _create_database_backup(self):
         """Cria um backup do banco de dados."""
-        reply = QMessageBox.question(
-            self,
-            "Criar Backup",
-            "Deseja criar um backup do banco de dados?\n\n"
-            "O backup será salvo na pasta 'backups/' do projeto.",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.Yes
-        )
-        
-        if reply == QMessageBox.StandardButton.Yes:
-            try:
-                import os
-                import shutil
-                from datetime import datetime
-                from pathlib import Path
-                
-                # Caminho do banco de dados
-                project_root = Path(__file__).parent.parent.parent
-                from src.config import DB_FILENAME
-                db_path = os.path.join(project_root, DB_FILENAME)
-                backup_dir = os.path.join(project_root, "backups")
-                
-                # Criar diretório de backup se não existir
-                if not os.path.exists(backup_dir):
-                    os.makedirs(backup_dir)
-                
-                # Nome do backup com timestamp
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                backup_path = os.path.join(backup_dir, f"gym_database_backup_{timestamp}.db")
-                
-                # Copiar arquivo
-                shutil.copy2(db_path, backup_path)
-                
-                QMessageBox.information(
-                    self,
-                    "Backup Criado",
-                    f"Backup criado com sucesso!\n\n"
-                    f"Arquivo: gym_database_backup_{timestamp}.db\n"
-                    f"Localização: backups/"
-                )
-                
-            except Exception as e:
-                QMessageBox.critical(
-                    self,
-                    "Erro no Backup",
-                    f"Erro ao criar backup do banco de dados:\n\n{str(e)}"
-                )
+        self.settings_coordinator.create_database_backup()
     
     def _generate_frequency_report(self):
         """Gera relatório de frequência em HTML."""
-        if not self.is_connected:
-            QMessageBox.warning(
-                self,
-                "Banco Desconectado",
-                "Conecte-se ao banco de dados antes de gerar relatórios."
-            )
-            return
-
-        from src.ui.dialogs.report_period_dialog import ReportPeriodDialog
-
-        dialog = ReportPeriodDialog("Relatório de Frequência", self)
-        if dialog.exec() != QDialog.DialogCode.Accepted:
-            return
-
-        start_date, end_date = dialog.get_period()
-
-        try:
-            from src.reports.frequency_report import generate_frequency_report
-
-            filepath = generate_frequency_report(
-                start_date=start_date,
-                end_date=end_date
-            )
-            webbrowser.open(f'file://{filepath}')
-        except Exception as e:
-            QMessageBox.critical(
-                self,
-                "Erro",
-                f"Erro ao gerar relatório de frequência: {e}"
-            )
+        self.reports_coordinator.generate_frequency_report()
     
     
     def _optimize_database(self):
         """Otimiza o banco de dados criando índices e executando VACUUM."""
-        reply = QMessageBox.question(
-            self,
-            "Otimizar Banco de Dados",
-            "Esta operação irá:\n"
-            "• Criar índices para melhorar a performance\n"
-            "• Executar VACUUM para compactar o banco\n"
-            "• Atualizar estatísticas\n\n"
-            "Deseja continuar?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.Yes
-        )
-        
-        if reply == QMessageBox.StandardButton.Yes:
-            try:
-                from src.data.database_manager import DatabaseManager
-                
-                db = DatabaseManager()
-                stats = db.optimize_and_reindex()
-                db.close()
-
-                indices_checked = stats.get("indices_processed", 0)
-                vacuum_status = "Sim" if stats.get("vacuum_executed") else "Não"
-                analyze_status = "Sim" if stats.get("analyze_executed") else "Não"
-                pragma_status = "Sim" if stats.get("pragma_optimize_executed") else "Não"
-
-                QMessageBox.information(
-                    self,
-                    "Otimização Concluída",
-                    "Banco de dados otimizado com sucesso!\n\n"
-                    f"• {indices_checked} índices verificados/recriados\n"
-                    f"• VACUUM executado: {vacuum_status}\n"
-                    f"• ANALYZE executado: {analyze_status}\n"
-                    f"• PRAGMA optimize executado: {pragma_status}\n\n"
-                    "As buscas devem estar significativamente mais rápidas agora."
-                )
-                
-            except Exception as e:
-                QMessageBox.critical(
-                    self,
-                    "Erro na Otimização",
-                    f"Erro ao otimizar banco de dados:\n\n{str(e)}"
-                )
+        self.settings_coordinator.optimize_database()
     
     def _run_database_migration(self):
         """Executa o script de migração crítica do banco de dados."""
-        reply = QMessageBox.warning(
-            self,
-            "Migração Crítica do Banco",
-            "⚠️  ATENÇÃO: Esta operação irá modificar a estrutura do banco!\n\n"
-            "Mudanças aplicadas:\n"
-            "• Foreign keys com ON DELETE CASCADE\n"
-            "• Conversão de datas de TEXT para DATE/DATETIME\n"
-            "• Criação de índices para performance\n"
-            "• Triggers e constraints de validação\n\n"
-            "Um backup automático será criado antes da migração.\n\n"
-            "Deseja continuar?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No
-        )
-        
-        if reply == QMessageBox.StandardButton.Yes:
-            try:
-                import subprocess
-                import sys
-                from pathlib import Path
-                
-                # Caminho do script de migração
-                project_root = Path(__file__).parent.parent.parent
-                script_path = project_root / "scripts" / "fix_database_critical.py"
-                
-                if not script_path.exists():
-                    raise FileNotFoundError(f"Script de migração não encontrado: {script_path}")
-                
-                # Executar script em processo separado
-                result = subprocess.run(
-                    [sys.executable, str(script_path)],
-                    cwd=str(project_root),
-                    input="sim\n",
-                    capture_output=True,
-                    text=True
-                )
-                
-                if result.returncode == 0:
-                    QMessageBox.information(
-                        self,
-                        "Migração Concluída",
-                        "✅ Migração executada com sucesso!\n\n"
-                        "O banco de dados foi atualizado com:\n"
-                        "• Foreign keys CASCADE\n"
-                        "• Tipos de dados corretos\n"
-                        "• Índices de performance\n\n"
-                        "Verifique o console para detalhes."
-                    )
-                else:
-                    QMessageBox.warning(
-                        self,
-                        "Migração com Avisos",
-                        f"A migração foi executada mas reportou avisos.\n\n"
-                        f"Código de saída: {result.returncode}\n\n"
-                        f"Verifique o console para detalhes."
-                    )
-                
-                # Mostrar output no console
-                if result.stdout:
-                    print("\n=== OUTPUT DA MIGRAÇÃO ===")
-                    print(result.stdout)
-                if result.stderr:
-                    print("\n=== ERROS DA MIGRAÇÃO ===")
-                    print(result.stderr)
-                    
-            except Exception as e:
-                QMessageBox.critical(
-                    self,
-                    "Erro na Migração",
-                    f"Erro ao executar migração:\n\n{str(e)}\n\n"
-                    f"Você pode executar manualmente:\n"
-                    f"python scripts/fix_database_critical.py"
-                )
+        self.settings_coordinator.run_database_migration()
     
     # === Lista de Membros ===
     
     def _load_members_list(self):
         """Carrega a lista de membros com paginação."""
-        from src.data.data_provider import get_provider
-        from src.services.plan_service import get_plan_service
-        
-        # Popula filtro de planos from database (centralized source)
-        plan_service = get_plan_service()
-        self.members_list_screen.populate_plan_filter(plan_service.get_plan_names())
-        
-        # Carrega dados paginados
-        self._on_members_list_refresh()
+        self.members_coordinator.load_members_list()
     
     def _on_members_list_refresh(self):
         """Atualiza a lista de membros."""
-        from src.data.data_provider import get_provider
-        
-        provider = get_provider()
-        filters = self.members_list_screen.get_filters()
-        
-        data = provider.get_members_paginated(
-            page=self.members_list_screen.current_page,
-            page_size=self.members_list_screen.page_size,
-            filter_text=filters['text'],
-            filter_plan=filters['plan'],
-            filter_status=filters['status'],
-            sort_by=filters.get('sort_by', 'nome'),
-            sort_dir=filters.get('sort_dir', 'asc')
-        )
-        
-        self.members_list_screen.update_data(data)
+        self.members_coordinator.on_members_list_refresh()
     
     def _on_members_list_member_selected(self, member_data: dict):
         """Quando um membro é selecionado na lista."""
-        # Carregar dados completos (garantir que temos tudo)
-        full_member_data = self.search_service.get_member_by_id(member_data['id'])
-        
-        if full_member_data:
-            # Exibir dados básicos
-            self.members_list_screen.display_member_data(full_member_data)
-            
-            # Carregar históricos
-            self._load_list_member_history(full_member_data['id'], full_member_data['nome'])
-            self._load_list_member_financial_history(full_member_data['id'], full_member_data['nome'])
+        self.members_coordinator.on_members_list_member_selected(member_data)
             
     def _load_list_member_history(self, member_id: int, member_name: str):
         """Carrega e exibe o histórico de check-ins do membro na lista."""
-        try:
-            from src.data.data_provider import get_member_checkin_history
-            history = get_member_checkin_history(member_id)
-            self.members_list_screen.display_member_history(history)
-        except Exception as e:
-            print(f"Erro ao carregar histórico na lista: {e}")
+        self.members_coordinator.load_list_member_history(member_id, member_name)
 
     def _load_list_member_financial_history(self, member_id: int, member_name: str):
         """Carrega e exibe o histórico financeiro do membro na lista."""
-        try:
-            from src.data.data_provider import get_provider
-            provider = get_provider()
-            if provider:
-                payments = provider.get_member_payment_history(member_id)
-                self.members_list_screen.display_member_financial_history(payments)
-        except Exception as e:
-            print(f"Erro ao carregar histórico financeiro na lista: {e}")
+        self.members_coordinator.load_list_member_financial_history(member_id, member_name)
 
     def _on_list_edit_member_clicked(self):
         """Abre o diálogo de edição do membro atual da lista."""
-        if not self.members_list_screen.current_member_data:
-            return
-        
-        from src.ui.dialogs.edit_member_dialog import EditMemberDialog
-        
-        dialog = EditMemberDialog(self.members_list_screen.current_member_data, self)
-        dialog.member_updated.connect(self._on_list_member_updated)
-        dialog.exec()
+        self.members_coordinator.on_list_edit_member_clicked()
 
     def _on_list_renew_plan_clicked(self):
         """Abre o diálogo de renovação de plano do membro atual da lista."""
-        if not self.members_list_screen.current_member_data:
-            return
-        
-        from src.ui.dialogs.renew_plan_dialog import RenewPlanDialog
-        
-        dialog = RenewPlanDialog(self.members_list_screen.current_member_data, self)
-        dialog.plan_renewed.connect(self._on_list_plan_renewed)
-        dialog.exec()
+        self.members_coordinator.on_list_renew_plan_clicked()
 
     def _on_list_delete_member_clicked(self):
         """Abre o diálogo de confirmação de exclusão do membro atual da lista."""
-        if not self.members_list_screen.current_member_data:
-            return
-        
-        from src.ui.dialogs.delete_member_dialog import DeleteMemberDialog
-        
-        dialog = DeleteMemberDialog(self.members_list_screen.current_member_data, self)
-        
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            self._delete_list_member(self.members_list_screen.current_member_data)
+        self.members_coordinator.on_list_delete_member_clicked()
 
     def _on_list_member_updated(self, updated_data: dict):
         """Manipula a atualização de um membro na lista."""
-        # Reutiliza a lógica de atualização, mas atualiza a tela da lista
-        self._on_member_updated(updated_data) # Atualiza lógica geral (pagamentos, etc)
-        
-        # Atualiza especificamente a tela da lista
-        full_data = self.search_service.get_member_by_id(updated_data['id'])
-        if full_data:
-            self.members_list_screen.display_member_data(full_data)
-            self._load_members_list() # Recarrega a lista para atualizar nomes/planos na esquerda
+        self.members_coordinator.on_list_member_updated(updated_data)
 
     def _on_list_plan_renewed(self, renewal_data: dict):
         """Manipula a renovação de plano na lista."""
-        self._on_plan_renewed(renewal_data) # Reutiliza lógica geral
-        
-        # Atualiza tela da lista
-        full_data = self.search_service.get_member_by_id(renewal_data['id'])
-        if full_data:
-            self.members_list_screen.display_member_data(full_data)
-            self._load_list_member_financial_history(full_data['id'], full_data['nome'])
-            self._load_members_list()
+        self.members_coordinator.on_list_plan_renewed(renewal_data)
 
     def _delete_list_member(self, member_data: dict):
         """Executa a exclusão do membro a partir da lista."""
-        try:
-            from src.data.data_provider import delete_member
-            
-            member_id = member_data['id']
-            member_name = member_data['nome']
-            
-            success = delete_member(member_id)
-            
-            if success:
-                QMessageBox.information(
-                    self,
-                    "Sucesso",
-                    f"Membro '{member_name}' foi excluído com sucesso!"
-                )
-                self._load_members_list() # Recarrega a lista
-                # Limpar detalhes
-                self.members_list_screen.details_browser.setHtml(
-                    "<div style='text-align: center; color: #666; margin-top: 20px;'>Selecione um membro para ver os detalhes</div>"
-                )
-                self.members_list_screen.history_browser.clear()
-                self.members_list_screen.financial_browser.clear()
-                self.members_list_screen.edit_button.setVisible(False)
-                self.members_list_screen.renew_button.setVisible(False)
-                self.members_list_screen.delete_button.setVisible(False)
-                self.members_list_screen.current_member_data = None
-            else:
-                QMessageBox.warning(self, "Erro", f"Não foi possível excluir o membro '{member_name}'.")
-        except Exception as e:
-            QMessageBox.critical(self, "Erro", f"Erro ao excluir membro: {str(e)}")
+        self.members_coordinator.delete_list_member(member_data)
 
 
     def resizeEvent(self, event):
