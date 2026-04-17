@@ -46,3 +46,4 @@ fotos_alunos/
 
 # Arquivos de configuração local
 config_local.py
+.claude/settings.local.json

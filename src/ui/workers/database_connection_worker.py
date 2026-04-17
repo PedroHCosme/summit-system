@@ -21,24 +21,37 @@ class DatabaseConnectionWorker(QThread):
     def _run_migrations(self):
         """Executa migrações do banco usando Alembic."""
         try:
-            import os
             from alembic import command
             from alembic.config import Config
-            
+            from sqlalchemy import inspect
+
             print("[DatabaseConnection] Executando migrações Alembic...")
             self.status_updated.emit("Executando migrações do banco de dados (Alembic)...")
-            
-            # Ponto de entrada p/ alembic.ini na raiz do projeto
+
             project_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
             alembic_ini_path = os.path.join(project_dir, "alembic.ini")
-            
+
             alembic_cfg = Config(alembic_ini_path)
-            # Definir o diretório raiz para o alembic rodar corretamente
             alembic_cfg.set_main_option("script_location", os.path.join(project_dir, "alembic_migrations"))
-            
+
+            # Banco novo: cria schema completo e stampa revisão inicial para que
+            # upgrade head só execute migrações incrementais (ex: phase4).
+            from src.data.db import get_engine, init_db
+            engine = get_engine()
+            inspector = inspect(engine)
+            existing_tables = inspector.get_table_names()
+
+            if "membros" not in existing_tables:
+                print("[DatabaseConnection] Banco novo detectado: criando schema base...")
+                init_db()
+
+            if "alembic_version" not in existing_tables:
+                print("[DatabaseConnection] Stampando revisão inicial...")
+                command.stamp(alembic_cfg, "b7156d140f0a")
+
             print("[DatabaseConnection] Upgrading to head...")
             command.upgrade(alembic_cfg, "head")
-            
+
             print("[DatabaseConnection] ✓ Migrações Alembic executadas com sucesso")
             return True
         except Exception as e:

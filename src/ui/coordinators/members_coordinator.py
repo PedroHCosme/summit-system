@@ -209,7 +209,7 @@ class MembersCoordinator:
     def on_plan_renewed(self, renewal_data: dict):
         try:
             from src.data.data_provider import update_member
-            from src.config import PLANOS_PRECOS
+            from src.services.plan_service import get_plan_service
 
             metodo_pagamento = renewal_data.pop("metodo_pagamento", "")
             current_data = self.window.member_search_screen.current_member_data
@@ -222,7 +222,7 @@ class MembersCoordinator:
             )
 
             if success:
-                valor = PLANOS_PRECOS.get(renewal_data.get("plano", ""), 0.0)
+                valor = get_plan_service().get_plan_price(renewal_data.get("plano", ""))
                 mensagem = "Plano renovado com sucesso!"
                 mensagem += f"\n\n💰 Pagamento de R$ {valor:.2f} registrado no sistema financeiro."
                 mensagem += f"\n📅 Novo vencimento: {renewal_data.get('vencimento_plano', 'N/A')}"

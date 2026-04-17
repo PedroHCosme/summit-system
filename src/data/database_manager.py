@@ -1842,7 +1842,7 @@ class DatabaseManager:
                   AND vencimento_plano != ''
                   AND estado_plano = ?
                   AND plano IN ({placeholders})
-            """, list(PLANOS_COM_VENCIMENTO) + [ATIVO])
+            """, [ATIVO] + list(PLANOS_COM_VENCIMENTO))
             
             members = cursor.fetchall()
             hoje = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
