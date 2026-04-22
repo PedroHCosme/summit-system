@@ -27,9 +27,14 @@ class FinancialScreen(QWidget):
         
         # Título
         title_label = QLabel("Gestão Financeira")
-        title_label.setObjectName("title")
+        title_label.setObjectName("pageTitle")
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title_label)
+
+        subtitle_label = QLabel("Acompanhe receita, transações e desempenho por período")
+        subtitle_label.setObjectName("pageSubtitle")
+        subtitle_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(subtitle_label)
         
         # Controles de Período
         period_group = QGroupBox("Filtrar por Período")
@@ -74,38 +79,14 @@ class FinancialScreen(QWidget):
         
         # Botão de atualizar
         self.update_button = QPushButton("Atualizar")
-        self.update_button.setStyleSheet("""
-            QPushButton {
-                background-color: #007ACC;
-                color: white;
-                font-weight: bold;
-                border: none;
-                border-radius: 4px;
-                padding: 8px 16px;
-            }
-            QPushButton:hover {
-                background-color: #005FA3;
-            }
-        """)
+        self.update_button.setProperty("role", "primary")
         period_layout.addWidget(self.update_button)
         
         period_layout.addSpacing(10)
         
         # Botão de gráficos financeiros
         self.plan_chart_button = QPushButton("📊 Gráficos Financeiros")
-        self.plan_chart_button.setStyleSheet("""
-            QPushButton {
-                background-color: #28a745;
-                color: white;
-                font-weight: bold;
-                border: none;
-                border-radius: 4px;
-                padding: 8px 16px;
-            }
-            QPushButton:hover {
-                background-color: #218838;
-            }
-        """)
+        self.plan_chart_button.setProperty("role", "secondary")
         period_layout.addWidget(self.plan_chart_button)
         
         period_layout.addStretch()
@@ -252,7 +233,7 @@ class FinancialScreen(QWidget):
         return """
             <div style="text-align: center; padding: 40px;">
                 <h3 style="color: #007ACC;">Receita por Tipo</h3>
-                <p style="color: #333333;">Clique em "Atualizar" para carregar os dados.</p>
+                <p style="color: #333333;">Escolha o período e clique em "Atualizar" para carregar os dados.</p>
             </div>
         """
     
@@ -261,7 +242,7 @@ class FinancialScreen(QWidget):
         return """
             <div style="text-align: center; padding: 40px;">
                 <h3 style="color: #007ACC;">Transações</h3>
-                <p style="color: #333333;">Clique em "Atualizar" para carregar os dados.</p>
+                <p style="color: #333333;">Clique em "Atualizar" para ver as transações do período selecionado.</p>
             </div>
         """
     
@@ -276,7 +257,7 @@ class FinancialScreen(QWidget):
         if not breakdown_data:
             self.breakdown_browser.setHtml("""
                 <div style="text-align: center; padding: 20px;">
-                    <p style="color: #888888;">Nenhuma transação encontrada no período.</p>
+                    <p style="color: #888888;">Nenhuma transação encontrada. Tente ampliar o período para visualizar resultados.</p>
                 </div>
             """)
             return
@@ -329,7 +310,7 @@ class FinancialScreen(QWidget):
         if not transactions:
             self.transactions_browser.setHtml("""
                 <div style="text-align: center; padding: 20px;">
-                    <p style="color: #888888;">Nenhuma transação encontrada no período.</p>
+                    <p style="color: #888888;">Nenhuma transação encontrada. Tente ampliar o período para visualizar resultados.</p>
                 </div>
             """)
             return

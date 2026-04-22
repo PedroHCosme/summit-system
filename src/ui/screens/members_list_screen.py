@@ -22,6 +22,9 @@ class MembersListScreen(QWidget):
     edit_requested = pyqtSignal()
     renew_requested = pyqtSignal()
     delete_requested = pyqtSignal()
+    whatsapp_requested = pyqtSignal()
+    quick_payment_requested = pyqtSignal()
+    history_requested = pyqtSignal()
     refresh_requested = pyqtSignal()    # Emitido quando precisa recarregar dados
     
     def __init__(self):
@@ -40,9 +43,14 @@ class MembersListScreen(QWidget):
         
         # Título
         title_label = QLabel("Lista de Membros")
-        title_label.setObjectName("title")
+        title_label.setObjectName("pageTitle")
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title_label)
+
+        subtitle_label = QLabel("Pesquise, filtre e acesse ações rápidas do membro selecionado")
+        subtitle_label.setObjectName("pageSubtitle")
+        subtitle_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(subtitle_label)
         
         # Filtros
         filters_layout = QHBoxLayout()
@@ -83,11 +91,13 @@ class MembersListScreen(QWidget):
         
         # Botão de filtrar
         self.filter_button = QPushButton("Filtrar")
+        self.filter_button.setProperty("role", "primary")
         self.filter_button.setMaximumWidth(100)
         filters_layout.addWidget(self.filter_button)
         
         # Botão de limpar filtros
         self.clear_filters_button = QPushButton("Limpar")
+        self.clear_filters_button.setProperty("role", "secondary")
         self.clear_filters_button.setMaximumWidth(100)
         filters_layout.addWidget(self.clear_filters_button)
         
@@ -108,7 +118,7 @@ class MembersListScreen(QWidget):
         left_layout.setContentsMargins(0, 0, 0, 0)
         
         list_label = QLabel("Membros:")
-        list_label.setStyleSheet("color: #007ACC; font-weight: bold; font-size: 14px;")
+        list_label.setStyleSheet("color: #1a2540; font-weight: bold; font-size: 14px;")
         left_layout.addWidget(list_label)
         
         self.members_list = QListWidget()
@@ -124,7 +134,7 @@ class MembersListScreen(QWidget):
                 border-bottom: 1px solid #EEEEEE;
             }
             QListWidget::item:selected {
-                background-color: #007ACC;
+                background-color: #E67E22;
                 color: white;
             }
         """)
@@ -139,7 +149,7 @@ class MembersListScreen(QWidget):
         right_layout.setContentsMargins(0, 0, 0, 0)
         
         details_label = QLabel("Detalhes:")
-        details_label.setStyleSheet("color: #007ACC; font-weight: bold; font-size: 14px;")
+        details_label.setStyleSheet("color: #1a2540; font-weight: bold; font-size: 14px;")
         right_layout.addWidget(details_label)
         
         # Tab Widget
@@ -156,7 +166,7 @@ class MembersListScreen(QWidget):
                 margin-right: 2px;
             }
             QTabBar::tab:selected {
-                background: #007ACC;
+                background: #E67E22;
                 color: white;
             }
             QTabBar::tab:hover {
@@ -182,70 +192,51 @@ class MembersListScreen(QWidget):
         
         # Botão Deletar
         self.delete_button = QPushButton("🗑️ Deletar")
+        self.delete_button.setProperty("role", "danger")
         self.delete_button.setFixedWidth(120)
         self.delete_button.setFixedHeight(35)
-        self.delete_button.setStyleSheet("""
-            QPushButton {
-                background-color: #D32F2F;
-                color: white;
-                font-weight: bold;
-                border: none;
-                border-radius: 4px;
-                padding: 8px;
-                font-size: 14px;
-            }
-            QPushButton:hover {
-                background-color: #B71C1C;
-            }
-        """)
         self.delete_button.clicked.connect(self.delete_requested.emit)
         self.delete_button.setVisible(False)
         button_layout.addWidget(self.delete_button)
         
         # Botão Renovar Plano
         self.renew_button = QPushButton("🔄 Renovar Plano")
+        self.renew_button.setProperty("role", "secondary")
         self.renew_button.setFixedWidth(150)
         self.renew_button.setFixedHeight(35)
-        self.renew_button.setStyleSheet("""
-            QPushButton {
-                background-color: #28A745;
-                color: white;
-                font-weight: bold;
-                border: none;
-                border-radius: 4px;
-                padding: 8px;
-                font-size: 14px;
-            }
-            QPushButton:hover {
-                background-color: #218838;
-            }
-            QPushButton:disabled {
-                background-color: #CCCCCC;
-                color: #666666;
-            }
-        """)
         self.renew_button.clicked.connect(self.renew_requested.emit)
         self.renew_button.setVisible(False)
         button_layout.addWidget(self.renew_button)
+
+        self.quick_payment_button = QPushButton("💵 Registrar Pagamento")
+        self.quick_payment_button.setProperty("role", "secondary")
+        self.quick_payment_button.setFixedWidth(180)
+        self.quick_payment_button.setFixedHeight(35)
+        self.quick_payment_button.clicked.connect(self.quick_payment_requested.emit)
+        self.quick_payment_button.setVisible(False)
+        button_layout.addWidget(self.quick_payment_button)
+
+        self.whatsapp_button = QPushButton("💬 WhatsApp")
+        self.whatsapp_button.setProperty("role", "secondary")
+        self.whatsapp_button.setFixedWidth(130)
+        self.whatsapp_button.setFixedHeight(35)
+        self.whatsapp_button.clicked.connect(self.whatsapp_requested.emit)
+        self.whatsapp_button.setVisible(False)
+        button_layout.addWidget(self.whatsapp_button)
+
+        self.history_button = QPushButton("📜 Histórico")
+        self.history_button.setProperty("role", "secondary")
+        self.history_button.setFixedWidth(120)
+        self.history_button.setFixedHeight(35)
+        self.history_button.clicked.connect(self._open_history_tab)
+        self.history_button.setVisible(False)
+        button_layout.addWidget(self.history_button)
         
         # Botão Editar
         self.edit_button = QPushButton("✏️ Editar")
+        self.edit_button.setProperty("role", "secondary")
         self.edit_button.setFixedWidth(120)
         self.edit_button.setFixedHeight(35)
-        self.edit_button.setStyleSheet("""
-            QPushButton {
-                background-color: #007ACC;
-                color: white;
-                font-weight: bold;
-                border: none;
-                border-radius: 4px;
-                padding: 8px;
-                font-size: 14px;
-            }
-            QPushButton:hover {
-                background-color: #005FA3;
-            }
-        """)
         self.edit_button.clicked.connect(self.edit_requested.emit)
         self.edit_button.setVisible(False)
         button_layout.addWidget(self.edit_button)
@@ -286,7 +277,7 @@ class MembersListScreen(QWidget):
         pagination_layout.addStretch()
         
         self.page_label = QLabel("Página 1 de 1")
-        self.page_label.setStyleSheet("font-weight: bold; color: #007ACC;")
+        self.page_label.setStyleSheet("font-weight: bold; color: #E67E22;")
         pagination_layout.addWidget(self.page_label)
         
         pagination_layout.addStretch()
@@ -400,7 +391,7 @@ class MembersListScreen(QWidget):
                 f"Exibindo {start}-{end} de {self.total_members} membros"
             )
         else:
-            self.info_label.setText("Nenhum membro encontrado")
+            self.info_label.setText("Não encontramos membros com esses filtros. Ajuste a busca e tente novamente.")
         
         self.page_label.setText(f"Página {self.current_page} de {max(1, self.total_pages)}")
         
@@ -424,7 +415,14 @@ class MembersListScreen(QWidget):
             self.members_list.addItem(item)
             
         # Limpar detalhes
-        self.details_browser.setHtml("<div style='text-align: center; color: #666; margin-top: 20px;'>Selecione um membro para ver os detalhes</div>")
+        self.details_browser.setHtml("<div style='text-align: center; color: #666; margin-top: 20px;'>Selecione um membro na lista para ver os detalhes e ações rápidas.</div>")
+
+        self.edit_button.setVisible(False)
+        self.renew_button.setVisible(False)
+        self.delete_button.setVisible(False)
+        self.quick_payment_button.setVisible(False)
+        self.whatsapp_button.setVisible(False)
+        self.history_button.setVisible(False)
 
     def _on_item_clicked(self, item):
         """Manipula o clique em um item da lista."""
@@ -469,12 +467,19 @@ class MembersListScreen(QWidget):
         # Mostrar botões
         self.edit_button.setVisible(True)
         self.delete_button.setVisible(True)
+        self.quick_payment_button.setVisible(True)
+        self.whatsapp_button.setVisible(True)
+        self.history_button.setVisible(True)
         
         # Mostrar botão de renovar apenas para planos renováveis
         from src.config import PLANOS_COM_VENCIMENTO, PLANOS_NAO_RENOVAVEIS
         plano = member_data.get('plano', '')
         is_renewable = plano not in PLANOS_NAO_RENOVAVEIS and plano in PLANOS_COM_VENCIMENTO
         self.renew_button.setVisible(is_renewable)
+
+    def _open_history_tab(self):
+        self.member_tabs.setCurrentIndex(1)
+        self.history_requested.emit()
 
     def display_member_history(self, history: list):
         """Exibe o histórico do membro."""
@@ -503,20 +508,39 @@ class MembersListScreen(QWidget):
                 <div style="padding: 20px;">
                     <h3 style="color: #007ACC;">Histórico de {member_name}</h3>
                     <p style="color: #888888; font-style: italic;">
-                        Nenhum check-in registrado ainda.
+                        Ainda não há check-ins. Faça um check-in para iniciar o histórico.
                     </p>
                 </div>
             """
+
+        ultimo_checkin = None
+        try:
+            ultimo_checkin = max(datetime.fromisoformat(c["checkin_datetime"]) for c in history)
+        except Exception:
+            pass
+        ultimo_checkin_label = (
+            ultimo_checkin.strftime("%d/%m/%Y às %H:%M")
+            if ultimo_checkin else "Não disponível"
+        )
         
         html = f"""
             <div style="padding: 20px; font-family: 'Segoe UI', Arial, sans-serif;">
                 <h3 style="color: #007ACC; margin-bottom: 15px;">
                     Histórico de Frequência: {member_name}
                 </h3>
-                <p style="color: #333333; margin-bottom: 20px;">
-                    Total de check-ins: <strong style="color: #007ACC;">{len(history)}</strong>
-                </p>
-                <div style="max-height: 500px; overflow-y: auto;">
+                <div style="background:#F8F9FA; border:1px solid #E2E8F0; border-radius:8px; padding:12px; margin-bottom:14px;">
+                    <div style="color:#1A2540; margin-bottom:6px;">
+                        Total de check-ins: <strong style="color:#E67E22;">{len(history)}</strong>
+                    </div>
+                    <div style="color:#4A5568;">
+                        Último check-in: <strong>{ultimo_checkin_label}</strong>
+                    </div>
+                </div>
+                <details>
+                    <summary style="cursor:pointer; color:#E67E22; font-weight:700; margin-bottom:10px;">
+                        Ver histórico completo
+                    </summary>
+                    <div style="max-height: 500px; overflow-y: auto; padding-top:8px;">
         """
         
         # Agrupar por mês/ano
@@ -578,7 +602,8 @@ class MembersListScreen(QWidget):
             """
         
         html += """
-                </div>
+                    </div>
+                </details>
             </div>
         """
         
@@ -591,7 +616,7 @@ class MembersListScreen(QWidget):
                 <div style="padding: 20px;">
                     <h3 style="color: #007ACC;">Histórico Financeiro: {member_name}</h3>
                     <p style="color: #888888; font-style: italic;">
-                        Nenhum pagamento registrado ainda.
+                        Ainda não há pagamentos. Use o atalho “Registrar Pagamento” para lançar a primeira transação.
                     </p>
                 </div>
             """
@@ -626,8 +651,11 @@ class MembersListScreen(QWidget):
                 </div>
                 
                 <!-- Lista de Transações -->
-                <h4 style="color: #007ACC; margin-bottom: 10px;">Histórico de Transações</h4>
-                <div style="max-height: 400px; overflow-y: auto;">
+                <details>
+                    <summary style="cursor:pointer; color:#E67E22; font-weight:700; margin-bottom:10px;">
+                        Ver histórico financeiro completo
+                    </summary>
+                    <div style="max-height: 400px; overflow-y: auto;">
         """
         
         # Ordenar pagamentos por data (mais recente primeiro)
@@ -662,7 +690,8 @@ class MembersListScreen(QWidget):
             """
         
         html += """
-                </div>
+                    </div>
+                </details>
             </div>
         """
         

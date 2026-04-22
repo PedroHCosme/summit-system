@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from datetime import datetime
+import re
+import webbrowser
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QDialog, QMessageBox
+from PyQt6.QtWidgets import QDialog, QMessageBox, QInputDialog
 
 from src.ui.dialogs import AddMemberDialog
 from src.ui.workers import MemberSearchWorker
@@ -48,6 +50,136 @@ class MembersCoordinator:
             lambda msg: self.window.home_screen.append_status(msg)
         )
         self.window.worker.start()
+
+    # ------------------------------------------------------------------
+    # Ações rápidas contextuais
+    # ------------------------------------------------------------------
+
+    def on_whatsapp_clicked(self):
+        self._open_whatsapp_for_member(self.window.member_search_screen.current_member_data)
+
+    def on_list_whatsapp_clicked(self):
+        self._open_whatsapp_for_member(self.window.members_list_screen.current_member_data)
+
+    def on_quick_payment_clicked(self):
+        self._register_quick_payment(self.window.member_search_screen.current_member_data)
+
+    def on_list_quick_payment_clicked(self):
+        self._register_quick_payment(self.window.members_list_screen.current_member_data)
+
+    def on_history_shortcut_clicked(self):
+        self.window.member_search_screen.member_tabs.setCurrentIndex(1)
+
+    def on_list_history_shortcut_clicked(self):
+        self.window.members_list_screen.member_tabs.setCurrentIndex(1)
+
+    def _open_whatsapp_for_member(self, member_data: dict | None):
+        if not member_data:
+            QMessageBox.warning(self.window, "Ação indisponível", "Selecione um membro primeiro.")
+            return
+        raw_phone = (member_data.get("whatsapp") or "").strip()
+        digits = re.sub(r"\D", "", raw_phone)
+        if not digits:
+            QMessageBox.warning(
+                self.window,
+                "WhatsApp não encontrado",
+                "Este membro não possui número de WhatsApp cadastrado.",
+            )
+            return
+        if not digits.startswith("55"):
+            digits = f"55{digits}"
+        url = f"https://wa.me/{digits}"
+        webbrowser.open(url)
+
+    def _register_quick_payment(self, member_data: dict | None):
+        if not member_data:
+            QMessageBox.warning(self.window, "Ação indisponível", "Selecione um membro primeiro.")
+            return
+
+        tipos = [
+            "Renovação Plano",
+            "Treino",
+            "Diária",
+            "Gympass",
+            "Totalpass",
+            "Venda Produto",
+            "Pagamento Manual",
+        ]
+        tipo, ok = QInputDialog.getItem(
+            self.window,
+            "Registrar Pagamento",
+            "Tipo de transação:",
+            tipos,
+            editable=False,
+        )
+        if not ok:
+            return
+
+        valor, ok = QInputDialog.getDouble(
+            self.window,
+            "Registrar Pagamento",
+            "Valor (R$):",
+            0.0,
+            0.0,
+            999999.99,
+            2,
+        )
+        if not ok:
+            return
+        if valor <= 0:
+            QMessageBox.warning(self.window, "Valor inválido", "Informe um valor maior que zero.")
+            return
+
+        metodos = ["PIX", "Cartão de Crédito", "Cartão de Débito", "Dinheiro", "Transferência"]
+        metodo, ok = QInputDialog.getItem(
+            self.window,
+            "Registrar Pagamento",
+            "Método de pagamento:",
+            metodos,
+            editable=False,
+        )
+        if not ok:
+            return
+
+        descricao, ok = QInputDialog.getText(
+            self.window,
+            "Registrar Pagamento",
+            "Descrição (opcional):",
+        )
+        if not ok:
+            return
+
+        try:
+            from src.data.db import create_session
+            from src.services.payment_service import PaymentService
+
+            session = create_session()
+            try:
+                payment_service = PaymentService(db_session=session)
+                result = payment_service.create_payment(
+                    member_id=member_data["id"],
+                    valor=valor,
+                    tipo_transacao=tipo,
+                    descricao=descricao.strip() if descricao else "",
+                    metodo_pagamento=metodo,
+                )
+            finally:
+                session.close()
+
+            if result.success:
+                QMessageBox.information(
+                    self.window,
+                    "Pagamento Registrado",
+                    f"Pagamento de R$ {valor:.2f} registrado para {member_data.get('nome', 'membro')}.",
+                )
+                member_id = member_data["id"]
+                member_name = member_data.get("nome", "Membro")
+                self.load_member_financial_history(member_id, member_name)
+                self.load_list_member_financial_history(member_id, member_name)
+            else:
+                QMessageBox.warning(self.window, "Erro", result.message or "Não foi possível registrar o pagamento.")
+        except Exception as e:
+            QMessageBox.critical(self.window, "Erro", f"Falha ao registrar pagamento: {e}")
 
     def on_member_search_completed(self, results):
         if not results:

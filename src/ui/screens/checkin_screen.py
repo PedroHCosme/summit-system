@@ -3,7 +3,7 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
     QLineEdit, QPushButton, QListWidget, QListWidgetItem,
-    QTextBrowser
+    QTextBrowser, QFrame
 )
 from PyQt6.QtCore import Qt
 
@@ -26,9 +26,34 @@ class CheckinScreen(QWidget):
 
         # Título
         title_label = QLabel("Check-in de Membro")
-        title_label.setObjectName("title")
+        title_label.setObjectName("pageTitle")
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title_label)
+
+        subtitle_label = QLabel("Buscar membro → Confirmar dados → Concluir check-in")
+        subtitle_label.setObjectName("pageSubtitle")
+        subtitle_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(subtitle_label)
+
+        step_container = QFrame()
+        step_container.setStyleSheet(
+            "QFrame { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px; }"
+        )
+        step_layout = QHBoxLayout(step_container)
+        step_layout.setContentsMargins(8, 4, 8, 4)
+        step_layout.setSpacing(10)
+        self.step1_label = QLabel("1. Buscar")
+        self.step2_label = QLabel("2. Confirmar")
+        self.step3_label = QLabel("3. Concluir")
+        for step_label in [self.step1_label, self.step2_label, self.step3_label]:
+            step_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            step_layout.addWidget(step_label)
+        layout.addWidget(step_container)
+
+        self.flow_hint_label = QLabel("Digite o nome do membro e clique em Buscar.")
+        self.flow_hint_label.setObjectName("sectionHint")
+        self.flow_hint_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.flow_hint_label)
 
         # Campo de busca
         search_layout = QHBoxLayout()
@@ -37,6 +62,7 @@ class CheckinScreen(QWidget):
         search_layout.addWidget(self.name_input)
 
         self.search_button = QPushButton("Buscar")
+        self.search_button.setProperty("role", "primary")
         search_layout.addWidget(self.search_button)
         layout.addLayout(search_layout)
 
@@ -47,7 +73,7 @@ class CheckinScreen(QWidget):
         results_container = QWidget()
         results_layout = QVBoxLayout(results_container)
         results_label = QLabel("Resultados da Busca:")
-        results_label.setStyleSheet("color: #007ACC; font-weight: bold; font-size: 14px;")
+        results_label.setStyleSheet("color: #1a2540; font-weight: bold; font-size: 14px;")
         results_layout.addWidget(results_label)
         
         self.results_list = QListWidget()
@@ -67,7 +93,7 @@ class CheckinScreen(QWidget):
                 background-color: #F0F0F0;
             }
             QListWidget::item:selected {
-                background-color: #007ACC;
+                background-color: #E67E22;
                 color: white;
             }
         """)
@@ -83,37 +109,38 @@ class CheckinScreen(QWidget):
         checkin_details_layout.addWidget(self.member_details_browser)
 
         self.confirm_button = QPushButton("Confirmar Check-in")
+        self.confirm_button.setProperty("role", "primary")
         self.confirm_button.setEnabled(False)
         self.confirm_button.setMinimumHeight(50)
-        self.confirm_button.setStyleSheet("font-size: 18px; font-weight: bold;")
         self.confirm_button.setStyleSheet("font-size: 18px; font-weight: bold;")
         checkin_details_layout.addWidget(self.confirm_button)
 
         # Botão de Perfil do Membro
         self.profile_button = QPushButton("Perfil do Membro")
+        self.profile_button.setProperty("role", "secondary")
         self.profile_button.setEnabled(False)
         self.profile_button.setMinimumHeight(40)
-        self.profile_button.setStyleSheet("""
-            QPushButton {
-                background-color: #17a2b8;
-                color: white;
-                font-size: 16px;
-                font-weight: bold;
-                border: none;
-                border-radius: 4px;
-            }
-            QPushButton:hover {
-                background-color: #138496;
-            }
-            QPushButton:disabled {
-                background-color: #cccccc;
-            }
-        """)
         checkin_details_layout.addWidget(self.profile_button)
         
         main_content_layout.addWidget(checkin_details_container, 2)
 
         layout.addLayout(main_content_layout)
+        self._set_step(1)
+
+    def _set_step(self, step: int):
+        styles = {
+            "active": "background:#E67E22;color:white;border-radius:6px;padding:8px;font-weight:700;",
+            "done": "background:#e3fbec;color:#27ae60;border-radius:6px;padding:8px;font-weight:700;",
+            "idle": "background:#f8f9fa;color:#718096;border-radius:6px;padding:8px;font-weight:600;",
+        }
+        labels = [self.step1_label, self.step2_label, self.step3_label]
+        for i, label in enumerate(labels, start=1):
+            if i < step:
+                label.setStyleSheet(styles["done"])
+            elif i == step:
+                label.setStyleSheet(styles["active"])
+            else:
+                label.setStyleSheet(styles["idle"])
     
     def set_searching_state(self):
         """Define o estado de busca."""
@@ -124,18 +151,24 @@ class CheckinScreen(QWidget):
         self.confirm_button.setEnabled(False)
         self.profile_button.setEnabled(False)
         self.current_member_id = None
+        self._set_step(1)
+        self.flow_hint_label.setText("Procurando membro... aguarde.")
     
     def set_ready_state(self):
         """Define o estado pronto."""
         self.search_button.setText("Buscar")
         self.search_button.setEnabled(True)
+        if self.results_list.count() == 0:
+            self.flow_hint_label.setText("Não encontramos esse membro. Tente nome ou sobrenome.")
     
     def populate_results(self, results: list):
         """Popula a lista de resultados."""
         self.results_list.clear()
         if not results:
-            self.member_details_browser.setHtml("<p style='color: #FF6B6B; text-align: center;'>Nenhum membro encontrado.</p>")
+            self.member_details_browser.setHtml("<p style='color: #FF6B6B; text-align: center;'>Não encontramos esse membro. Tente nome ou sobrenome.</p>")
+            self._set_step(1)
         else:
+            self.flow_hint_label.setText("Selecione o membro para confirmar os dados.")
             for result in results:
                 nome = result.get('nome', '')
                 apelido = result.get('apelido', '')
@@ -148,6 +181,8 @@ class CheckinScreen(QWidget):
     def display_member_for_checkin(self, member_id: int, member_data: dict):
         """Exibe dados do membro para check-in."""
         self.current_member_id = member_id
+        self._set_step(2)
+        self.flow_hint_label.setText("Confira os dados e clique em Confirmar Check-in.")
         
         # Extrair dados (sem default 'N/A' para facilitar verificação)
         nome = member_data.get('nome')
@@ -258,6 +293,8 @@ class CheckinScreen(QWidget):
         self.confirm_button.setEnabled(False)
         self.profile_button.setEnabled(False)
         self.current_member_id = None
+        self._set_step(1)
+        self.flow_hint_label.setText("Não foi possível carregar os dados. Tente novamente.")
     
     def clear_after_checkin(self):
         """Limpa a tela após check-in bem-sucedido."""
@@ -267,3 +304,15 @@ class CheckinScreen(QWidget):
         self.confirm_button.setEnabled(False)
         self.profile_button.setEnabled(False)
         self.current_member_id = None
+        self._set_step(1)
+        self.flow_hint_label.setText("Check-in concluído! Você já pode iniciar o próximo.")
+
+    def show_checkin_success_feedback(self, payment_generated: bool = False, payment_amount: float = 0.0):
+        """Atualiza a trilha visual para conclusão do fluxo."""
+        self._set_step(3)
+        if payment_generated:
+            self.flow_hint_label.setText(
+                f"Check-in concluído. Pagamento de R$ {payment_amount:.2f} registrado."
+            )
+        else:
+            self.flow_hint_label.setText("Check-in concluído com sucesso.")

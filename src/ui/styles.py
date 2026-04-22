@@ -69,6 +69,25 @@ STYLESHEET = """
         color: #1a2540;
         padding-bottom: 10px;
     }
+
+    /* Hierarquia tipográfica de páginas */
+    QLabel#pageTitle {
+        font-size: 24px;
+        font-weight: 700;
+        color: #1a2540;
+        padding-bottom: 2px;
+    }
+
+    QLabel#pageSubtitle {
+        font-size: 13px;
+        color: #718096;
+        padding-bottom: 8px;
+    }
+
+    QLabel#sectionHint {
+        font-size: 12px;
+        color: #718096;
+    }
     
     QLabel#sectionTitle {
         font-size: 11px;
@@ -146,6 +165,50 @@ STYLESHEET = """
     
     QPushButton#danger:hover, QPushButton[danger="true"]:hover {
         background-color: #c0392b;
+    }
+
+    /* Papéis semânticos de botões (padronização UX) */
+    QPushButton[role="primary"] {
+        background-color: #E67E22;
+        color: white;
+        border: none;
+        font-weight: 700;
+    }
+    QPushButton[role="primary"]:hover {
+        background-color: #D35400;
+    }
+    QPushButton[role="primary"]:disabled {
+        background-color: #e2e8f0;
+        color: #a0aec0;
+    }
+
+    QPushButton[role="secondary"] {
+        background-color: #ffffff;
+        color: #1a2540;
+        border: 1px solid #cbd5e0;
+        font-weight: 600;
+    }
+    QPushButton[role="secondary"]:hover {
+        background-color: #f0f4f8;
+        border-color: #94a3b8;
+    }
+    QPushButton[role="secondary"]:disabled {
+        background-color: #f8f9fa;
+        color: #a0aec0;
+    }
+
+    QPushButton[role="danger"] {
+        background-color: #e74c3c;
+        color: white;
+        border: none;
+        font-weight: 700;
+    }
+    QPushButton[role="danger"]:hover {
+        background-color: #c0392b;
+    }
+    QPushButton[role="danger"]:disabled {
+        background-color: #f3c7c3;
+        color: #ffffff;
     }
     
     /* Line Edit */

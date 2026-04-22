@@ -1,52 +1,45 @@
-"""Gerador de relatório financeiro."""
+"""Gerador de relatorio financeiro com foco em retencao e decisao."""
 
 from __future__ import annotations
 
 import json
-from datetime import datetime, date, timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Any, Dict, List, Optional
 
 from jinja2 import Environment, FileSystemLoader
 
-from src.services.payment_service import PaymentService
+from src.reports.analytics import (
+    SEGMENTO_MUITO_ATIVO,
+    SEGMENTO_REATIVACAO_URGENTE,
+    SEGMENTO_RISCO_ALTO,
+    ReportAnalyticsService,
+    period_bounds,
+    previous_period_bounds,
+)
 from src.services.member_service import MemberService
-from src.services.plan_service import PlanService
+from src.services.payment_service import PaymentService
 
 
-# =============================================================================
-# Classificacao DRE — mapeamento de tipo_transacao para categoria
-# =============================================================================
-
-# Palavras-chave que identificam receita de TREINO PERSONAL
 _PALAVRAS_TREINO = ("TREINO", "PERSONAL", " PT ")
-
-# Palavras-chave que identificam MENSALIDADES / RENOVACOES / VOUCHERS
 _PALAVRAS_MENSALIDADE = (
-    "RENOVA",   # Renovação Plano Mensal, Renovação Plano Trimestral...
-    "VOUCHER",  # Compra Voucher Pacote 10
-    "COMPRA",   # Compra de plano genérico
-    "MENSAL",   # Mensal, Mens. c/ Treino
-    "TRIMEST",  # Trimestral
-    "SEMEST",   # Semestral
-    "ANUAL",    # Anual
+    "RENOVA",
+    "VOUCHER",
+    "COMPRA",
+    "MENSAL",
+    "TRIMEST",
+    "SEMEST",
+    "ANUAL",
     "ESCOLINHA",
 )
 
 
 def _categoria_dre(tipo: str) -> str:
-    """
-    Classifica tipo_transacao em categoria do DRE.
-
-    Returns:
-        "treino" | "mensalidades" | "avulsos"
-    """
     t = (tipo or "").upper()
     if any(k in t for k in _PALAVRAS_TREINO):
         return "treino"
     if any(k in t for k in _PALAVRAS_MENSALIDADE):
         return "mensalidades"
-    # Diária, Gympass, Totalpass, Check-in, e qualquer outro
     return "avulsos"
 
 
@@ -56,242 +49,338 @@ def _get_reports_dir() -> Path:
     reports_dir.mkdir(exist_ok=True)
     return reports_dir
 
+
 def _get_template_env() -> Environment:
     project_root = Path(__file__).parent.parent.parent
     templates_dir = project_root / "src" / "templates" / "reports"
     return Environment(loader=FileSystemLoader(str(templates_dir)))
+
+
+def _safe_delta_pct(current: float, previous: float) -> float:
+    if previous <= 0:
+        return 0.0
+    return round(((current - previous) / previous) * 100, 1)
+
+
+def _build_financial_recommendations(
+    risk_metrics: Dict[str, Any],
+    segment_revenue: List[Dict[str, Any]],
+    comparison: Dict[str, Any],
+) -> List[Dict[str, str]]:
+    recs: List[Dict[str, str]] = []
+    receita_risco = risk_metrics.get("receita_em_risco", 0.0)
+    receita_total = risk_metrics.get("receita_realizada", 0.0)
+    if receita_total > 0 and receita_risco / receita_total > 0.35:
+        recs.append(
+            {
+                "titulo": "Ativar operacao de blindagem de receita",
+                "descricao": "Receita em risco acima de 35% da receita realizada no periodo.",
+                "impacto": "alto",
+                "esforco": "rapido",
+            }
+        )
+
+    muito_ativo = next((s for s in segment_revenue if s["segment"] == SEGMENTO_MUITO_ATIVO), None)
+    if muito_ativo and muito_ativo["pct_receita"] > 45:
+        recs.append(
+            {
+                "titulo": "Programa de fidelidade para base premium",
+                "descricao": "Concentracao alta de receita em membros muito ativos. Reduzir risco de concentracao.",
+                "impacto": "medio",
+                "esforco": "medio",
+            }
+        )
+
+    if comparison.get("delta_ticket_pct", 0.0) < -8:
+        recs.append(
+            {
+                "titulo": "Revisar mix de produtos e ticket medio",
+                "descricao": "Ticket medio caiu de forma relevante vs periodo anterior.",
+                "impacto": "medio",
+                "esforco": "estrutural",
+            }
+        )
+
+    if comparison.get("delta_risk_revenue_pct", 0.0) > 10:
+        recs.append(
+            {
+                "titulo": "Contato prioritario para risco alto e urgente",
+                "descricao": "Receita em risco aumentou frente ao periodo anterior.",
+                "impacto": "alto",
+                "esforco": "rapido",
+            }
+        )
+
+    if not recs:
+        recs.append(
+            {
+                "titulo": "Manter monitoramento semanal de risco financeiro",
+                "descricao": "Indicadores estaveis no periodo atual. Sustentar rotina de acompanhamento.",
+                "impacto": "baixo",
+                "esforco": "rapido",
+            }
+        )
+
+    return recs[:5]
+
 
 def generate_finance_report(
     period: str,
     start_date: datetime,
     end_date: datetime,
     payment_service: Optional[PaymentService] = None,
-    member_service: Optional[MemberService] = None
+    member_service: Optional[MemberService] = None,
 ) -> str:
     """
-    Gera relatório financeiro (DRE/DFC) do período especificado usando Jinja2.
+    Gera relatorio financeiro retention-first mantendo entrypoint atual.
     """
-    
     from src.data.db import create_session
+
     close_session = False
     session = None
-    
+
     if payment_service is None or member_service is None:
         session = create_session()
         payment_service = PaymentService(db_session=session)
         member_service = MemberService(db_session=session)
         close_session = True
-        
+
     try:
-        # Carregar planos do banco (fonte de verdade — não config.py)
-        plan_service = PlanService(db_session=member_service.session)
-        planos_precos = plan_service.get_plan_prices()
-        planos_checkin = plan_service.get_checkin_payment_plans()
+        start_dt, end_dt = period_bounds(start_date, end_date)
+        prev_start_dt, prev_end_dt = previous_period_bounds(start_date, end_date)
+        period_days = max((end_dt.date() - start_dt.date()).days + 1, 1)
 
-        # Obter dados operacionais através dos Serviços já tipados do sistema
-        summary = payment_service.get_summary(start_date, end_date)
-        breakdown = payment_service.get_breakdown(start_date, end_date)
-        transactions = payment_service.get_transactions(start_date, end_date, limit=200)
+        summary = payment_service.get_summary(start_dt, end_dt)
+        prev_summary = payment_service.get_summary(prev_start_dt, prev_end_dt)
+        breakdown = payment_service.get_breakdown(start_dt, end_dt)
+        transactions = payment_service.get_transactions(start_dt, end_dt, limit=5000)
 
-        # =====================================================================
-        # (a) Comparativo com período anterior
-        # =====================================================================
-        period_duration = end_date - start_date
-        prev_end = start_date - timedelta(days=1)
-        prev_start = prev_end - period_duration
+        analytics = ReportAnalyticsService(member_service.session)
+        retention_current = analytics.compute_member_features(start_dt, end_dt)
+        retention_previous = analytics.compute_member_features(prev_start_dt, prev_end_dt)
 
-        comparativo = None
-        try:
-            prev_summary = payment_service.get_summary(prev_start, prev_end)
-            receita_anterior = prev_summary.total_receita
-            transacoes_anterior = prev_summary.total_transacoes
+        member_features = retention_current["member_features"]
+        prev_features = retention_previous["member_features"]
 
-            delta_receita_pct = (
-                ((summary.total_receita - receita_anterior) / receita_anterior * 100)
-                if receita_anterior > 0 else 0.0
-            )
-            delta_transacoes_pct = (
-                ((summary.total_transacoes - transacoes_anterior) / transacoes_anterior * 100)
-                if transacoes_anterior > 0 else 0.0
-            )
-
-            comparativo = {
-                "receita_anterior": receita_anterior,
-                "delta_receita_pct": round(delta_receita_pct, 1),
-                "transacoes_anterior": transacoes_anterior,
-                "delta_transacoes_pct": round(delta_transacoes_pct, 1),
-            }
-        except Exception:
-            comparativo = None
-
-        # =====================================================================
-        # (b) Taxa de inadimplência — excluindo PENDENTE
-        # =====================================================================
-        inadimplencia = None
-        try:
-            members = member_service.get_all_excluding_pending()
-            total_membros = len(members)
-            inativos = sum(1 for m in members if m.estado_plano == 'INATIVO')
-            taxa_pct = (inativos / total_membros * 100) if total_membros > 0 else 0.0
-
-            inadimplencia = {
-                "total_membros": total_membros,
-                "inativos": inativos,
-                "taxa_pct": round(taxa_pct, 1),
-            }
-        except Exception:
-            inadimplencia = None
-
-        # =====================================================================
-        # (c) Projeção de receita mensal (usando preços do banco)
-        # =====================================================================
-        projecao_receita = 0.0
-        try:
-            ativos = [m for m in members if m.estado_plano == 'ATIVO']
-            period_duration = end_date - start_date
-            dias_periodo = max(period_duration.days, 1)
-            for m in ativos:
-                plano_nome = m.plano or ""
-                preco = planos_precos.get(plano_nome, 0.0)
-                projecao_receita += preco
-                # Planos per-checkin: estimar com base na média do período
-                if plano_nome in planos_checkin:
-                    preco_checkin = planos_checkin[plano_nome]
-                    if summary.total_transacoes > 0:
-                        checkins_por_dia = summary.total_transacoes / dias_periodo
-                        projecao_receita += preco_checkin * checkins_por_dia * 30
-                    else:
-                        projecao_receita += preco_checkin * 8  # fallback conservador
-            projecao_receita = round(projecao_receita, 2)
-        except Exception:
-            projecao_receita = 0.0
-
-        # Processar Extrato Formatado
-        extrato_formatado = []
-
-        for t in transactions: # transactions é List[Dict[str, Any]]
-            membro_nome = t.get("member_nome") or "Sistema / Avulso"
-
-            # Formatar Data
-            data_fmt = "—"
-            dt_val = t.get("data_pagamento")
-            if dt_val:
-                try:
-                    # dt_val pode ser string ou datetime a depender de como tá modelado
-                    if isinstance(dt_val, str):
-                        d_obj = datetime.fromisoformat(dt_val.replace('Z', '+00:00'))
-                        data_fmt = d_obj.strftime("%d/%m/%Y")
-                    else:
-                        data_fmt = dt_val.strftime("%d/%m/%Y")
-                except Exception:
-                    data_fmt = str(dt_val)
-
-            extrato_formatado.append({
-                "data": data_fmt,
-                "membro": membro_nome,
-                "plano": t.get("tipo_transacao") or "Produto/Avulso",
-                "metodo": t.get("metodo_pagamento") or "Não Informado",
-                "status": "PAGO", # Simulando sucesso retroativo
-                "total": t.get("valor", 0.0)
-            })
-
-        # KPIs Básicos
-        v_total = summary.total_receita
-        t_count = summary.total_transacoes
-        t_medio = summary.ticket_medio
-
-        kpis = {
-            "receita_bruta": v_total,
-            "ticket_medio": t_medio,
-            "total_transacoes": t_count,
-            # Descontos nao sao rastreados no modelo Pagamento — campo removido do DRE
-            "receita_liquida": v_total,
-        }
-
-        # DRE Simplificado — classificacao robusta por tipo_transacao
+        # DRE e auditoria
         mensalidades = 0.0
         treino_receita = 0.0
         avulsos_receita = 0.0
-
-        categorias_auditoria: Dict[str, str] = {}  # tipo_transacao -> categoria
-        for b in breakdown:
-            cat = _categoria_dre(b.tipo_transacao)
-            categorias_auditoria[b.tipo_transacao or "Outros"] = cat
-            if cat == "treino":
-                treino_receita += b.total_valor
-            elif cat == "mensalidades":
-                mensalidades += b.total_valor
+        categorias_auditoria: Dict[str, str] = {}
+        for item in breakdown:
+            categoria = _categoria_dre(item.tipo_transacao)
+            categorias_auditoria[item.tipo_transacao or "Outros"] = categoria
+            if categoria == "mensalidades":
+                mensalidades += item.total_valor
+            elif categoria == "treino":
+                treino_receita += item.total_valor
             else:
-                avulsos_receita += b.total_valor
+                avulsos_receita += item.total_valor
 
         dre = {
             "mensalidades": mensalidades,
             "treino": treino_receita,
             "avulsos": avulsos_receita,
         }
-
-        # Auditoria: DRE total deve bater com receita bruta do servico
         dre_total = mensalidades + treino_receita + avulsos_receita
-        diferenca = round(v_total - dre_total, 2)
+        diferenca = round(summary.total_receita - dre_total, 2)
         auditoria = {
-            "receita_bruta": v_total,
+            "receita_bruta": summary.total_receita,
             "dre_total": round(dre_total, 2),
             "diferenca": diferenca,
             "balanceado": abs(diferenca) < 0.01,
             "categorias": sorted(
                 [{"tipo": k, "categoria": v} for k, v in categorias_auditoria.items()],
-                key=lambda x: (x["categoria"], x["tipo"])
+                key=lambda row: (row["categoria"], row["tipo"]),
             ),
         }
 
-        # Gráficos — agregar por método usando breakdown completo do serviço
+        # Receita por segmento de retencao
+        receita_total_membros = sum(feature.valor_receita_periodo for feature in member_features)
+        segment_totais: Dict[str, float] = {}
+        for feature in member_features:
+            segment_totais[feature.segmento] = segment_totais.get(feature.segmento, 0.0) + feature.valor_receita_periodo
+
+        segment_revenue = []
+        for item in retention_current["segment_distribution"]["items"]:
+            total_segmento = segment_totais.get(item["segment"], 0.0)
+            pct_receita = (total_segmento / receita_total_membros * 100) if receita_total_membros > 0 else 0.0
+            segment_revenue.append(
+                {
+                    "segment": item["segment"],
+                    "label": item["label"],
+                    "receita": round(total_segmento, 2),
+                    "pct_receita": round(pct_receita, 1),
+                }
+            )
+
+        # Receita em risco e recuperavel
+        receita_em_risco = sum(
+            f.valor_mensal_estimado
+            for f in member_features
+            if f.segmento in (SEGMENTO_RISCO_ALTO, SEGMENTO_REATIVACAO_URGENTE)
+        )
+        receita_recuperavel = sum(
+            f.valor_mensal_estimado * (0.5 if f.segmento == SEGMENTO_RISCO_ALTO else 0.35)
+            for f in member_features
+            if f.segmento in (SEGMENTO_RISCO_ALTO, SEGMENTO_REATIVACAO_URGENTE)
+        )
+        receita_em_risco_prev = sum(
+            f.valor_mensal_estimado
+            for f in prev_features
+            if f.segmento in (SEGMENTO_RISCO_ALTO, SEGMENTO_REATIVACAO_URGENTE)
+        )
+        risk_revenue_metrics = {
+            "receita_realizada": round(summary.total_receita, 2),
+            "receita_em_risco": round(receita_em_risco, 2),
+            "receita_recuperavel": round(receita_recuperavel, 2),
+        }
+
+        # Ranking de fontes de receita (tipo + metodo + plano)
         metodos_map: Dict[str, float] = {}
-        for t in transactions:
-            m = t.get("metodo_pagamento") or "Outros"
-            metodos_map[m] = metodos_map.get(m, 0.0) + t.get("valor", 0.0)
+        for tx in transactions:
+            metodo = tx.get("metodo_pagamento") or "Nao informado"
+            metodos_map[metodo] = metodos_map.get(metodo, 0.0) + float(tx.get("valor") or 0.0)
 
-        metodos_labels = list(metodos_map.keys())
-        metodos_values = list(metodos_map.values())
+        planos_map: Dict[str, float] = {}
+        for feature in member_features:
+            planos_map[feature.plano] = planos_map.get(feature.plano, 0.0) + feature.valor_receita_periodo
 
-        planos_labels = [b.tipo_transacao or "Outros" for b in breakdown]
-        planos_values = [b.total_valor for b in breakdown]
+        total_receita_rank = max(summary.total_receita, 1.0)
+        ranking_pool: List[Dict[str, Any]] = []
+        for item in breakdown:
+            ranking_pool.append(
+                {
+                    "categoria": "Tipo",
+                    "nome": item.tipo_transacao or "Outros",
+                    "valor": round(item.total_valor, 2),
+                    "pct": round(item.total_valor / total_receita_rank * 100, 1),
+                }
+            )
+        for metodo, valor in metodos_map.items():
+            ranking_pool.append(
+                {
+                    "categoria": "Metodo",
+                    "nome": metodo,
+                    "valor": round(valor, 2),
+                    "pct": round(valor / total_receita_rank * 100, 1),
+                }
+            )
+        for plano, valor in planos_map.items():
+            ranking_pool.append(
+                {
+                    "categoria": "Plano",
+                    "nome": plano,
+                    "valor": round(valor, 2),
+                    "pct": round(valor / total_receita_rank * 100, 1),
+                }
+            )
+        ranking_pool = [row for row in ranking_pool if row["valor"] > 0]
+        ranking_pool.sort(key=lambda row: row["valor"], reverse=True)
+        top_fontes_receita = ranking_pool[:8]
+        menores_fontes_receita = sorted(ranking_pool, key=lambda row: row["valor"])[:8]
+
+        # Comparativo com periodo anterior
+        comparison_previous_period = {
+            "start_date": prev_start_dt.strftime("%d/%m/%Y"),
+            "end_date": prev_end_dt.strftime("%d/%m/%Y"),
+            "period_days": period_days,
+            "delta_receita_pct": _safe_delta_pct(summary.total_receita, prev_summary.total_receita),
+            "delta_transacoes_pct": _safe_delta_pct(summary.total_transacoes, prev_summary.total_transacoes),
+            "delta_ticket_pct": _safe_delta_pct(summary.ticket_medio, prev_summary.ticket_medio),
+            "delta_risk_revenue_pct": _safe_delta_pct(receita_em_risco, receita_em_risco_prev),
+        }
+
+        retention_recommendations = _build_financial_recommendations(
+            risk_metrics=risk_revenue_metrics,
+            segment_revenue=segment_revenue,
+            comparison=comparison_previous_period,
+        )
+
+        # Lista operacional (transacoes)
+        extrato_formatado = []
+        for tx in transactions[:250]:
+            dt_value = tx.get("data_pagamento")
+            data_fmt = "—"
+            if dt_value:
+                try:
+                    if isinstance(dt_value, str):
+                        data_fmt = datetime.fromisoformat(dt_value.replace("Z", "+00:00")).strftime("%d/%m/%Y")
+                    else:
+                        data_fmt = dt_value.strftime("%d/%m/%Y")
+                except Exception:
+                    data_fmt = str(dt_value)[:10]
+            extrato_formatado.append(
+                {
+                    "data": data_fmt,
+                    "membro": tx.get("member_nome") or "Sistema / Avulso",
+                    "plano": tx.get("tipo_transacao") or "Produto/Avulso",
+                    "metodo": tx.get("metodo_pagamento") or "Nao Informado",
+                    "status": "PAGO",
+                    "total": float(tx.get("valor") or 0.0),
+                }
+            )
+
+        # Graficos de alta acao
+        segment_chart_json = json.dumps(
+            {
+                "labels": [item["label"] for item in segment_revenue],
+                "values": [item["receita"] for item in segment_revenue],
+            }
+        )
+        risk_vs_revenue_json = json.dumps(
+            {
+                "labels": ["Receita realizada", "Receita em risco", "Receita recuperavel"],
+                "values": [
+                    risk_revenue_metrics["receita_realizada"],
+                    risk_revenue_metrics["receita_em_risco"],
+                    risk_revenue_metrics["receita_recuperavel"],
+                ],
+            }
+        )
 
         context = {
-            "title": f"Balanço Financeiro — {period}",
-            "subtitle": "Demonstrativo de Resultados e Análise de Receita",
-            "generate_date": datetime.now().strftime('%d/%m/%Y às %H:%M'),
+            "title": f"Balanco Financeiro - {period}",
+            "subtitle": "Economia de Retencao e Resultado Operacional",
+            "generate_date": datetime.now().strftime("%d/%m/%Y as %H:%M"),
             "current_year": datetime.now().year,
-            "kpis": kpis,
+            "executive_summary": {
+                "receita_bruta": round(summary.total_receita, 2),
+                "ticket_medio": round(summary.ticket_medio, 2),
+                "total_transacoes": summary.total_transacoes,
+                "receita_em_risco": risk_revenue_metrics["receita_em_risco"],
+            },
+            "segment_distribution": retention_current["segment_distribution"],
+            "action_queues": retention_current["action_queues"],
+            "outreach_scripts": retention_current["outreach_scripts"],
+            "retention_recommendations": retention_recommendations,
+            "risk_revenue_metrics": risk_revenue_metrics,
+            "comparison_previous_period": comparison_previous_period,
+            "segment_revenue": segment_revenue,
+            "top_fontes_receita": top_fontes_receita,
+            "menores_fontes_receita": menores_fontes_receita,
             "dre": dre,
             "auditoria": auditoria,
             "transacoes": extrato_formatado,
-            "comparativo": comparativo,
-            "inadimplencia": inadimplencia,
-            "projecao_receita": projecao_receita,
-            "chart_json": json.dumps({
-                "methods": {"labels": metodos_labels, "values": metodos_values},
-                "plans":   {"labels": planos_labels,  "values": planos_values},
-            }),
+            "segment_chart_json": segment_chart_json,
+            "risk_vs_revenue_json": risk_vs_revenue_json,
         }
-        
-        # Renderizar com Jinja2
+
         env = _get_template_env()
         template = env.get_template("finance_report.html")
         html_output = template.render(**context)
-        
-        # Salvar arquivo HTML
+
         reports_dir = _get_reports_dir()
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        # Adicionar o período à string sanitizada para o arquivo
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         safe_period = period.replace("/", "_").replace(" ", "_")
         filename = f"relatorio_financeiro_{safe_period}_{timestamp}.html"
         filepath = reports_dir / filename
-        
-        with open(filepath, 'w', encoding='utf-8') as f:
-            f.write(html_output)
-            
+
+        with open(filepath, "w", encoding="utf-8") as report_file:
+            report_file.write(html_output)
+
         return str(filepath)
-    
     finally:
         if close_session and session is not None:
             session.close()
+

@@ -7,13 +7,17 @@ from PyQt6.QtWidgets import (
     QLineEdit, QPushButton, QListWidget, QListWidgetItem,
     QTextBrowser, QTabWidget
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSignal
 
 from src.config import PLANOS_COM_VENCIMENTO
 
 
 class MemberSearchScreen(QWidget):
     """Tela de busca de membros."""
+
+    whatsapp_requested = pyqtSignal()
+    quick_payment_requested = pyqtSignal()
+    history_requested = pyqtSignal()
     
     def __init__(self):
         super().__init__()
@@ -28,7 +32,7 @@ class MemberSearchScreen(QWidget):
         
         # Título
         title_label = QLabel("Buscar Membro")
-        title_label.setObjectName("title")
+        title_label.setObjectName("pageTitle")
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title_label)
         
@@ -36,8 +40,9 @@ class MemberSearchScreen(QWidget):
         from src.utils.utils import get_current_sheet_name
         mes_atual = get_current_sheet_name()
         self.mes_label = QLabel(f"Consultando aba: {mes_atual}")
+        self.mes_label.setObjectName("pageSubtitle")
         self.mes_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.mes_label.setStyleSheet("font-size: 14px; color: #555555;")
+        self.mes_label.setStyleSheet("font-size: 13px; color: #718096;")
         layout.addWidget(self.mes_label)
         
         # Campo de busca
@@ -48,6 +53,7 @@ class MemberSearchScreen(QWidget):
         search_layout.addWidget(self.name_input)
         
         self.search_button = QPushButton("Buscar")
+        self.search_button.setProperty("role", "primary")
         search_layout.addWidget(self.search_button)
         
         layout.addLayout(search_layout)
@@ -61,7 +67,7 @@ class MemberSearchScreen(QWidget):
         left_layout.setContentsMargins(0, 0, 0, 0)
         
         results_label = QLabel("Resultados:")
-        results_label.setStyleSheet("color: #007ACC; font-weight: bold; font-size: 14px;")
+        results_label.setStyleSheet("color: #1a2540; font-weight: bold; font-size: 14px;")
         left_layout.addWidget(results_label)
         
         self.results_list = QListWidget()
@@ -81,7 +87,7 @@ class MemberSearchScreen(QWidget):
                 background-color: #F0F0F0;
             }
             QListWidget::item:selected {
-                background-color: #007ACC;
+                background-color: #E67E22;
                 color: white;
             }
         """)
@@ -96,7 +102,7 @@ class MemberSearchScreen(QWidget):
         
         # Header com título apenas
         details_label = QLabel("Detalhes:")
-        details_label.setStyleSheet("color: #007ACC; font-weight: bold; font-size: 14px;")
+        details_label.setStyleSheet("color: #1a2540; font-weight: bold; font-size: 14px;")
         right_layout.addWidget(details_label)
         
         # Tab Widget para Informações e Histórico
@@ -113,7 +119,7 @@ class MemberSearchScreen(QWidget):
                 margin-right: 2px;
             }
             QTabBar::tab:selected {
-                background: #007ACC;
+                background: #E67E22;
                 color: white;
             }
             QTabBar::tab:hover {
@@ -140,68 +146,49 @@ class MemberSearchScreen(QWidget):
         
         # Botão Deletar
         self.delete_button = QPushButton("🗑️ Deletar")
+        self.delete_button.setProperty("role", "danger")
         self.delete_button.setFixedWidth(120)
         self.delete_button.setFixedHeight(35)
-        self.delete_button.setStyleSheet("""
-            QPushButton {
-                background-color: #D32F2F;
-                color: white;
-                font-weight: bold;
-                border: none;
-                border-radius: 4px;
-                padding: 8px;
-                font-size: 14px;
-            }
-            QPushButton:hover {
-                background-color: #B71C1C;
-            }
-        """)
         self.delete_button.setVisible(False)  # Escondido até que um membro seja selecionado
         button_layout.addWidget(self.delete_button)
         
         # Botão Renovar Plano
         self.renew_button = QPushButton("🔄 Renovar Plano")
+        self.renew_button.setProperty("role", "secondary")
         self.renew_button.setFixedWidth(150)
         self.renew_button.setFixedHeight(35)
-        self.renew_button.setStyleSheet("""
-            QPushButton {
-                background-color: #28A745;
-                color: white;
-                font-weight: bold;
-                border: none;
-                border-radius: 4px;
-                padding: 8px;
-                font-size: 14px;
-            }
-            QPushButton:hover {
-                background-color: #218838;
-            }
-            QPushButton:disabled {
-                background-color: #CCCCCC;
-                color: #666666;
-            }
-        """)
         self.renew_button.setVisible(False)  # Escondido até que um membro seja selecionado
         button_layout.addWidget(self.renew_button)
+
+        self.quick_payment_button = QPushButton("💵 Registrar Pagamento")
+        self.quick_payment_button.setProperty("role", "secondary")
+        self.quick_payment_button.setFixedWidth(180)
+        self.quick_payment_button.setFixedHeight(35)
+        self.quick_payment_button.clicked.connect(self.quick_payment_requested.emit)
+        self.quick_payment_button.setVisible(False)
+        button_layout.addWidget(self.quick_payment_button)
+
+        self.whatsapp_button = QPushButton("💬 WhatsApp")
+        self.whatsapp_button.setProperty("role", "secondary")
+        self.whatsapp_button.setFixedWidth(130)
+        self.whatsapp_button.setFixedHeight(35)
+        self.whatsapp_button.clicked.connect(self.whatsapp_requested.emit)
+        self.whatsapp_button.setVisible(False)
+        button_layout.addWidget(self.whatsapp_button)
+
+        self.history_button = QPushButton("📜 Histórico")
+        self.history_button.setProperty("role", "secondary")
+        self.history_button.setFixedWidth(120)
+        self.history_button.setFixedHeight(35)
+        self.history_button.clicked.connect(self._open_history_tab)
+        self.history_button.setVisible(False)
+        button_layout.addWidget(self.history_button)
         
         # Botão Editar
         self.edit_button = QPushButton("✏️ Editar")
+        self.edit_button.setProperty("role", "secondary")
         self.edit_button.setFixedWidth(120)
         self.edit_button.setFixedHeight(35)
-        self.edit_button.setStyleSheet("""
-            QPushButton {
-                background-color: #007ACC;
-                color: white;
-                font-weight: bold;
-                border: none;
-                border-radius: 4px;
-                padding: 8px;
-                font-size: 14px;
-            }
-            QPushButton:hover {
-                background-color: #005FA3;
-            }
-        """)
         self.edit_button.setVisible(False)  # Escondido até que um membro seja selecionado
         button_layout.addWidget(self.edit_button)
         
@@ -233,7 +220,7 @@ class MemberSearchScreen(QWidget):
         return """
             <div style="text-align: center; padding: 40px;">
                 <h3 style="color: #007ACC;">Buscar Membro</h3>
-                <p style="color: #333333;">Digite o nome do membro e clique em buscar.</p>
+                <p style="color: #333333;">Digite nome ou sobrenome e clique em buscar para ver os detalhes.</p>
             </div>
         """
     
@@ -245,6 +232,10 @@ class MemberSearchScreen(QWidget):
         self.member_result_browser.clear()
         self.edit_button.setVisible(False)  # Esconde os botões durante a busca
         self.delete_button.setVisible(False)
+        self.renew_button.setVisible(False)
+        self.quick_payment_button.setVisible(False)
+        self.whatsapp_button.setVisible(False)
+        self.history_button.setVisible(False)
         self.current_member_data = None
     
     def set_ready_state(self):
@@ -257,21 +248,27 @@ class MemberSearchScreen(QWidget):
         self.member_result_browser.setHtml("""
             <div style="text-align: center; padding: 20px;">
                 <h3 style="color: #FF6B6B;">Nenhum membro encontrado</h3>
-                <p style="color: #555555;">Tente buscar com outros termos.</p>
+                <p style="color: #555555;">Não encontramos esse membro. Tente nome ou sobrenome.</p>
             </div>
         """)
         self.edit_button.setVisible(False)
         self.delete_button.setVisible(False)
+        self.quick_payment_button.setVisible(False)
+        self.whatsapp_button.setVisible(False)
+        self.history_button.setVisible(False)
     
     def show_empty_search_warning(self):
         """Mostra aviso de busca vazia."""
         self.member_result_browser.setHtml("""
             <div style="text-align: center; padding: 20px;">
-                <p style="color: #FF6B6B;">Por favor, digite um nome para buscar.</p>
+                <p style="color: #FF6B6B;">Digite um nome para iniciar a busca.</p>
             </div>
         """)
         self.edit_button.setVisible(False)
         self.delete_button.setVisible(False)
+        self.quick_payment_button.setVisible(False)
+        self.whatsapp_button.setVisible(False)
+        self.history_button.setVisible(False)
     
     def populate_results(self, results: list):
         """Popula a lista de resultados."""
@@ -288,7 +285,7 @@ class MemberSearchScreen(QWidget):
         self.member_result_browser.setHtml(f"""
             <div style="text-align: center; padding: 20px;">
                 <h3 style="color: #007ACC;">{len(results)} resultado(s) encontrado(s)</h3>
-                <p style="color: #555555;">Clique em um nome na lista ao lado para ver os detalhes.</p>
+                <p style="color: #555555;">Clique em um nome na lista para abrir detalhes e ações rápidas.</p>
             </div>
         """)
         self.edit_button.setVisible(False)  # Esconde até selecionar um membro
@@ -301,6 +298,9 @@ class MemberSearchScreen(QWidget):
         self.member_result_browser.setHtml(html)
         self.edit_button.setVisible(True)  # Mostra os botões de ação
         self.delete_button.setVisible(True)
+        self.quick_payment_button.setVisible(True)
+        self.whatsapp_button.setVisible(True)
+        self.history_button.setVisible(True)
         
         # Mostrar botão de renovar apenas para planos renováveis
         plano = member_data.get('plano', '')
@@ -334,6 +334,13 @@ class MemberSearchScreen(QWidget):
         self.edit_button.setVisible(False)
         self.delete_button.setVisible(False)
         self.renew_button.setVisible(False)
+        self.quick_payment_button.setVisible(False)
+        self.whatsapp_button.setVisible(False)
+        self.history_button.setVisible(False)
+
+    def _open_history_tab(self):
+        self.member_tabs.setCurrentIndex(1)
+        self.history_requested.emit()
     
     def open_edit_dialog(self):
         """Abre o diálogo de edição do membro atual."""
@@ -411,20 +418,40 @@ class MemberSearchScreen(QWidget):
                 <div style="padding: 20px;">
                     <h3 style="color: #007ACC;">Histórico de {member_name}</h3>
                     <p style="color: #888888; font-style: italic;">
-                        Nenhum check-in registrado ainda.
+                        Ainda não há check-ins. Use o botão de check-in para iniciar o histórico deste membro.
                     </p>
                 </div>
             """
-        
+
+        ultimo_checkin = None
+        try:
+            ultimo_checkin = max(datetime.fromisoformat(c["checkin_datetime"]) for c in history)
+        except Exception:
+            pass
+
+        ultimo_checkin_label = (
+            ultimo_checkin.strftime("%d/%m/%Y às %H:%M")
+            if ultimo_checkin else "Não disponível"
+        )
+
         html = f"""
             <div style="padding: 20px; font-family: 'Segoe UI', Arial, sans-serif;">
                 <h3 style="color: #007ACC; margin-bottom: 15px;">
                     Histórico de Frequência: {member_name}
                 </h3>
-                <p style="color: #333333; margin-bottom: 20px;">
-                    Total de check-ins: <strong style="color: #007ACC;">{len(history)}</strong>
-                </p>
-                <div style="max-height: 500px; overflow-y: auto;">
+                <div style="background:#F8F9FA; border:1px solid #E2E8F0; border-radius:8px; padding:12px; margin-bottom:14px;">
+                    <div style="color:#1A2540; margin-bottom:6px;">
+                        Total de check-ins: <strong style="color:#E67E22;">{len(history)}</strong>
+                    </div>
+                    <div style="color:#4A5568;">
+                        Último check-in: <strong>{ultimo_checkin_label}</strong>
+                    </div>
+                </div>
+                <details>
+                    <summary style="cursor:pointer; color:#E67E22; font-weight:700; margin-bottom:10px;">
+                        Ver histórico completo
+                    </summary>
+                    <div style="max-height: 500px; overflow-y: auto; padding-top:8px;">
         """
         
         # Agrupar por mês/ano
@@ -487,7 +514,8 @@ class MemberSearchScreen(QWidget):
             """
         
         html += """
-                </div>
+                    </div>
+                </details>
             </div>
         """
         
@@ -507,7 +535,7 @@ class MemberSearchScreen(QWidget):
                 <div style="padding: 20px;">
                     <h3 style="color: #007ACC;">Histórico Financeiro: {member_name}</h3>
                     <p style="color: #888888; font-style: italic;">
-                        Nenhum pagamento registrado ainda.
+                        Ainda não há pagamentos. Use o atalho “Registrar Pagamento” para lançar a primeira transação.
                     </p>
                 </div>
             """
@@ -585,8 +613,11 @@ class MemberSearchScreen(QWidget):
                 </div>
                 
                 <!-- Lista de Transações -->
-                <h4 style="color: #007ACC; margin-bottom: 10px;">Histórico de Transações</h4>
-                <div style="max-height: 400px; overflow-y: auto;">
+                <details>
+                    <summary style="cursor:pointer; color:#E67E22; font-weight:700; margin-bottom:10px;">
+                        Ver histórico financeiro completo
+                    </summary>
+                    <div style="max-height: 400px; overflow-y: auto;">
         """
         
         # Ordenar pagamentos por data (mais recente primeiro)
@@ -651,7 +682,8 @@ class MemberSearchScreen(QWidget):
             """
         
         html += """
-                </div>
+                    </div>
+                </details>
             </div>
         """
         

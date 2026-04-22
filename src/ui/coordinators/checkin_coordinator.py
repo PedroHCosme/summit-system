@@ -47,12 +47,16 @@ class CheckinCoordinator:
 
     def on_checkin_worker_completed(self, success, message, details):
         self.window.checkin_screen.confirm_button.setEnabled(True)
-        self.window.checkin_screen.confirm_button.setText("Confirmar Presença")
+        self.window.checkin_screen.confirm_button.setText("Confirmar Check-in")
 
         if success:
             msg = "Check-in confirmado com sucesso!"
             if details.get("payment_generated"):
                 msg += f"\n\n💰 Pagamento de R$ {details.get('payment_amount', 0):.2f} gerado."
+            self.window.checkin_screen.show_checkin_success_feedback(
+                payment_generated=details.get("payment_generated", False),
+                payment_amount=details.get("payment_amount", 0.0),
+            )
             QMessageBox.information(self.window, "Check-in Realizado", msg)
             self.window.checkin_screen.clear_after_checkin()
             if self.window.stacked_widget.currentIndex() == 1:
