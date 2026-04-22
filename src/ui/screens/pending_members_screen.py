@@ -2,7 +2,7 @@
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QListWidget, QListWidgetItem,
-    QPushButton, QLabel, QMessageBox, QTextBrowser, QComboBox, QGroupBox
+    QPushButton, QLabel, QMessageBox, QTextBrowser, QComboBox, QGroupBox, QInputDialog
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from src.data.database_manager import DatabaseManager
@@ -111,7 +111,7 @@ class PendingMembersScreen(QWidget):
         members = result.get('members', [])
         
         if not members:
-            self.members_list.addItem("Nenhum membro pendente.")
+            self.members_list.addItem("Nenhum membro pendente. Novos cadastros aparecerão aqui.")
             self.members_list.item(0).setFlags(Qt.ItemFlag.NoItemFlags) # Desabilita seleção
             return
 
@@ -199,10 +199,27 @@ class PendingMembersScreen(QWidget):
         """Rejeita (deleta) o membro selecionado."""
         if not self.current_member_data:
             return
+
+        motivo, ok = QInputDialog.getText(
+            self,
+            "Motivo da Rejeição",
+            "Informe o motivo da rejeição (obrigatório):",
+        )
+        if not ok:
+            return
+        motivo = (motivo or "").strip()
+        if len(motivo) < 5:
+            QMessageBox.warning(
+                self,
+                "Motivo obrigatório",
+                "Digite um motivo com pelo menos 5 caracteres para confirmar a rejeição.",
+            )
+            return
             
         confirm = QMessageBox.question(
             self, "Confirmar Rejeição",
-            f"Deseja REJEITAR e REMOVER o membro {self.current_member_data['nome']}?\n\nEsta ação não pode ser desfeita.",
+            f"Deseja REJEITAR e REMOVER o membro {self.current_member_data['nome']}?\n\n"
+            f"Motivo informado: {motivo}\n\nEsta ação não pode ser desfeita.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         )
         

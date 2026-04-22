@@ -49,20 +49,22 @@ class ReportPeriodDialog(QDialog):
 
         # Título
         title = QLabel(f"📊 {self._report_title}")
+        title.setObjectName("pageTitle")
         title.setStyleSheet(
-            "font-size: 18px; font-weight: bold; color: #E67E22;"
+            "font-size: 22px; font-weight: bold; color: #1a2540;"
         )
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title)
 
         subtitle = QLabel("Selecione o período de análise")
-        subtitle.setStyleSheet("font-size: 13px; color: #888;")
+        subtitle.setObjectName("pageSubtitle")
+        subtitle.setStyleSheet("font-size: 13px; color: #718096;")
         subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(subtitle)
 
         # --- Preset buttons ---
         presets_label = QLabel("Períodos rápidos:")
-        presets_label.setStyleSheet("font-weight: bold; font-size: 13px; color: #ccc;")
+        presets_label.setStyleSheet("font-weight: bold; font-size: 13px; color: #1a2540;")
         layout.addWidget(presets_label)
 
         grid = QGridLayout()
@@ -82,19 +84,19 @@ class ReportPeriodDialog(QDialog):
         # --- Separator ---
         sep = QFrame()
         sep.setFixedHeight(1)
-        sep.setStyleSheet("background-color: #444; margin: 4px 0;")
+        sep.setStyleSheet("background-color: #e2e8f0; margin: 4px 0;")
         layout.addWidget(sep)
 
         # --- Custom date pickers ---
         custom_label = QLabel("Ou defina datas manualmente:")
-        custom_label.setStyleSheet("font-weight: bold; font-size: 13px; color: #ccc;")
+        custom_label.setStyleSheet("font-weight: bold; font-size: 13px; color: #1a2540;")
         layout.addWidget(custom_label)
 
         dates_layout = QHBoxLayout()
         dates_layout.setSpacing(12)
 
         de_label = QLabel("De:")
-        de_label.setStyleSheet("font-size: 13px; color: #aaa;")
+        de_label.setStyleSheet("font-size: 13px; color: #4a5568;")
         self.start_date_edit = QDateEdit()
         self.start_date_edit.setCalendarPopup(True)
         self.start_date_edit.setDisplayFormat("dd/MM/yyyy")
@@ -102,7 +104,7 @@ class ReportPeriodDialog(QDialog):
         self.start_date_edit.dateChanged.connect(self._on_custom_date_changed)
 
         ate_label = QLabel("Até:")
-        ate_label.setStyleSheet("font-size: 13px; color: #aaa;")
+        ate_label.setStyleSheet("font-size: 13px; color: #4a5568;")
         self.end_date_edit = QDateEdit()
         self.end_date_edit.setCalendarPopup(True)
         self.end_date_edit.setDisplayFormat("dd/MM/yyyy")
@@ -121,37 +123,15 @@ class ReportPeriodDialog(QDialog):
         btn_layout.setSpacing(12)
 
         cancel_btn = QPushButton("Cancelar")
+        cancel_btn.setProperty("role", "danger")
         cancel_btn.setMinimumHeight(40)
-        cancel_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #DC3545;
-                color: white;
-                border: none;
-                padding: 10px 24px;
-                border-radius: 6px;
-                font-size: 13px;
-                font-weight: bold;
-            }
-            QPushButton:hover { background-color: #C82333; }
-        """)
         cancel_btn.clicked.connect(self.reject)
 
         generate_btn = QPushButton("📄 Gerar Relatório")
+        generate_btn.setProperty("role", "primary")
         generate_btn.setMinimumHeight(40)
         generate_btn.setDefault(True)
         generate_btn.setAutoDefault(True)
-        generate_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #E67E22;
-                color: white;
-                border: none;
-                padding: 10px 24px;
-                border-radius: 6px;
-                font-size: 13px;
-                font-weight: bold;
-            }
-            QPushButton:hover { background-color: #D35400; }
-        """)
         generate_btn.clicked.connect(self.accept)
 
         btn_layout.addWidget(cancel_btn)
@@ -214,17 +194,17 @@ class ReportPeriodDialog(QDialog):
     def _preset_btn_style() -> str:
         return """
             QPushButton {
-                background-color: #2d3748;
-                color: #a0aec0;
-                border: 1px solid #4a5568;
+                background-color: #ffffff;
+                color: #4a5568;
+                border: 1px solid #cbd5e0;
                 border-radius: 6px;
                 padding: 8px 12px;
                 font-size: 12px;
                 font-weight: 600;
             }
             QPushButton:hover {
-                background-color: #4a5568;
-                color: #fff;
+                background-color: #f0f4f8;
+                color: #1a2540;
             }
             QPushButton:checked {
                 background-color: rgba(230, 126, 34, 0.25);
@@ -239,19 +219,19 @@ class ReportPeriodDialog(QDialog):
         return """
             QDateEdit {
                 padding: 8px;
-                border: 2px solid #4a5568;
+                border: 1px solid #cbd5e0;
                 border-radius: 6px;
                 font-size: 13px;
-                background-color: #2d3748;
-                color: #fff;
+                background-color: #ffffff;
+                color: #1a2540;
             }
             QDateEdit:focus {
-                border: 2px solid #E67E22;
+                border: 1px solid #E67E22;
             }
             QDateEdit::drop-down {
                 subcontrol-origin: padding;
                 subcontrol-position: top right;
                 width: 28px;
-                border-left: 1px solid #4a5568;
+                border-left: 1px solid #cbd5e0;
             }
         """

@@ -405,6 +405,15 @@ class MainWindow(QMainWindow):
         self.member_search_screen.delete_button.clicked.connect(
             self._on_delete_member_clicked
         )
+        self.member_search_screen.whatsapp_requested.connect(
+            self._on_member_whatsapp_clicked
+        )
+        self.member_search_screen.quick_payment_requested.connect(
+            self._on_member_quick_payment_clicked
+        )
+        self.member_search_screen.history_requested.connect(
+            self._on_member_history_shortcut_clicked
+        )
         # Substituir o método request_delete_checkin por nossa implementação
         self.member_search_screen.request_delete_checkin = self._on_delete_checkin_requested
         # Substituir o método request_edit_checkin por nossa implementação
@@ -417,6 +426,15 @@ class MainWindow(QMainWindow):
         self.members_list_screen.edit_requested.connect(self._on_list_edit_member_clicked)
         self.members_list_screen.renew_requested.connect(self._on_list_renew_plan_clicked)
         self.members_list_screen.delete_requested.connect(self._on_list_delete_member_clicked)
+        self.members_list_screen.whatsapp_requested.connect(
+            self._on_list_member_whatsapp_clicked
+        )
+        self.members_list_screen.quick_payment_requested.connect(
+            self._on_list_member_quick_payment_clicked
+        )
+        self.members_list_screen.history_requested.connect(
+            self._on_list_member_history_shortcut_clicked
+        )
         
         # Check-in
         self.checkin_screen.name_input.returnPressed.connect(
@@ -661,6 +679,21 @@ class MainWindow(QMainWindow):
     def _on_delete_member_clicked(self):
         """Abre o diálogo de confirmação de exclusão do membro atual."""
         self.members_coordinator.on_delete_member_clicked()
+
+    def _on_member_whatsapp_clicked(self):
+        """Atalho de WhatsApp na tela de busca de membro."""
+        if self.members_coordinator:
+            self.members_coordinator.on_whatsapp_clicked()
+
+    def _on_member_quick_payment_clicked(self):
+        """Atalho de pagamento rápido na tela de busca de membro."""
+        if self.members_coordinator:
+            self.members_coordinator.on_quick_payment_clicked()
+
+    def _on_member_history_shortcut_clicked(self):
+        """Atalho para abrir histórico na tela de busca de membro."""
+        if self.members_coordinator:
+            self.members_coordinator.on_history_shortcut_clicked()
     
     def _delete_member(self, member_data: dict):
         """Executa a exclusão do membro."""
@@ -854,6 +887,21 @@ class MainWindow(QMainWindow):
     def _on_list_delete_member_clicked(self):
         """Abre o diálogo de confirmação de exclusão do membro atual da lista."""
         self.members_coordinator.on_list_delete_member_clicked()
+
+    def _on_list_member_whatsapp_clicked(self):
+        """Atalho de WhatsApp na lista de membros."""
+        if self.members_coordinator:
+            self.members_coordinator.on_list_whatsapp_clicked()
+
+    def _on_list_member_quick_payment_clicked(self):
+        """Atalho de pagamento rápido na lista de membros."""
+        if self.members_coordinator:
+            self.members_coordinator.on_list_quick_payment_clicked()
+
+    def _on_list_member_history_shortcut_clicked(self):
+        """Atalho para abrir histórico na lista de membros."""
+        if self.members_coordinator:
+            self.members_coordinator.on_list_history_shortcut_clicked()
 
     def _on_list_member_updated(self, updated_data: dict):
         """Manipula a atualização de um membro na lista."""
