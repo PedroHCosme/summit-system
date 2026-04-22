@@ -214,19 +214,19 @@ def generate_finance_report(
                 }
             )
 
-        # Receita em risco e recuperavel
+        # Receita em risco e recuperavel (baseado na receita realizada no periodo)
         receita_em_risco = sum(
-            f.valor_mensal_estimado
+            f.valor_receita_periodo
             for f in member_features
             if f.segmento in (SEGMENTO_RISCO_ALTO, SEGMENTO_REATIVACAO_URGENTE)
         )
         receita_recuperavel = sum(
-            f.valor_mensal_estimado * (0.5 if f.segmento == SEGMENTO_RISCO_ALTO else 0.35)
+            f.valor_receita_periodo * (0.5 if f.segmento == SEGMENTO_RISCO_ALTO else 0.35)
             for f in member_features
             if f.segmento in (SEGMENTO_RISCO_ALTO, SEGMENTO_REATIVACAO_URGENTE)
         )
         receita_em_risco_prev = sum(
-            f.valor_mensal_estimado
+            f.valor_receita_periodo
             for f in prev_features
             if f.segmento in (SEGMENTO_RISCO_ALTO, SEGMENTO_REATIVACAO_URGENTE)
         )
