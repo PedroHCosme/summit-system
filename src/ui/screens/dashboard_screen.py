@@ -211,9 +211,9 @@ class DashboardScreen(QWidget):
             plan_item = QTableWidgetItem(plano)
             date_item = QTableWidgetItem(date_text)
             time_item = QTableWidgetItem(time_text)
-            status_item = QTableWidgetItem(self._format_plan_status_label(status_plano))
+            status_item = QTableWidgetItem(self._format_plan_status_label(checkin))
 
-            needs_renewal = self._needs_plan_renewal(estado_plano, status_plano)
+            needs_renewal = self._needs_plan_renewal(checkin)
             if needs_renewal:
                 name_item.setForeground(Qt.GlobalColor.red)
                 plan_item.setForeground(Qt.GlobalColor.red)
@@ -229,15 +229,30 @@ class DashboardScreen(QWidget):
             self.today_checkins_table.setItem(row, 3, time_item)
             self.today_checkins_table.setItem(row, 4, status_item)
 
-    def _needs_plan_renewal(self, estado_plano: str, status_plano: str) -> bool:
+    def _needs_plan_renewal(self, checkin: dict) -> bool:
+        estado_plano = checkin.get("estado_plano", "")
+        status_plano = checkin.get("status_plano", "")
+        is_quota_plan = bool(checkin.get("is_quota_plan", False))
+        voucher_credits = int(checkin.get("voucher_credits", 0) or 0)
+
+        if is_quota_plan and voucher_credits <= 0:
+            return True
         if status_plano and status_plano.strip().upper() == "VENCIDO":
             return True
         if estado_plano and not plan_is_active(estado_plano):
             return True
         return False
 
-    def _format_plan_status_label(self, status_plano: str) -> str:
+    def _format_plan_status_label(self, checkin: dict) -> str:
         """Normaliza rótulos de status do plano para o padrão da dashboard."""
+        is_quota_plan = bool(checkin.get("is_quota_plan", False))
+        voucher_credits = int(checkin.get("voucher_credits", 0) or 0)
+        if is_quota_plan:
+            if voucher_credits <= 0:
+                return "Sem vouchers"
+            return f"{voucher_credits} voucher(s)"
+
+        status_plano = checkin.get("status_plano", "")
         normalized = (status_plano or "").strip().upper()
         if normalized == "EM DIA":
             return "Em dia"
@@ -411,10 +426,10 @@ class DashboardScreen(QWidget):
 
                         nome_item = QTableWidgetItem(nome)
                         status_item = QTableWidgetItem(
-                            self._format_plan_status_label(status_plano)
+                            self._format_plan_status_label(checkin)
                         )
                         cor = Qt.GlobalColor.blue
-                        if self._needs_plan_renewal(estado_plano, status_plano):
+                        if self._needs_plan_renewal(checkin):
                             cor = Qt.GlobalColor.red
                         nome_item.setForeground(cor)
                         status_item.setForeground(cor)
