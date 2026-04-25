@@ -183,7 +183,14 @@ class MembersCoordinator:
                 member_id = member_data["id"]
                 member_name = member_data.get("nome", "Membro")
                 self.load_member_financial_history(member_id, member_name)
-                self.load_list_member_financial_history(member_id, member_name)
+
+                member_list_screen = getattr(self.window, "members_list_screen", None)
+                current_member_data = getattr(member_list_screen, "current_member_data", None)
+                if (
+                    isinstance(current_member_data, dict)
+                    and current_member_data.get("id") == member_id
+                ):
+                    self.load_list_member_financial_history(member_id, member_name)
             else:
                 QMessageBox.warning(self.window, "Erro", result.message or "Não foi possível registrar o pagamento.")
         except Exception as e:
