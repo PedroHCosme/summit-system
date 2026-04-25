@@ -30,13 +30,11 @@ class MemberSearchScreen(QWidget):
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(15)
         
-        # Título
         title_label = QLabel("Buscar Membro")
         title_label.setObjectName("pageTitle")
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title_label)
         
-        # Informação do mês atual
         from src.utils.utils import get_current_sheet_name
         mes_atual = get_current_sheet_name()
         self.mes_label = QLabel(f"Consultando aba: {mes_atual}")
@@ -45,7 +43,6 @@ class MemberSearchScreen(QWidget):
         self.mes_label.setStyleSheet("font-size: 13px; color: #718096;")
         layout.addWidget(self.mes_label)
         
-        # Campo de busca
         search_layout = QHBoxLayout()
         
         self.name_input = QLineEdit()
@@ -58,10 +55,8 @@ class MemberSearchScreen(QWidget):
         
         layout.addLayout(search_layout)
         
-        # Container com duas colunas: lista de resultados e detalhes
         results_layout = QHBoxLayout()
         
-        # Coluna esquerda: Lista de resultados
         left_container = QWidget()
         left_layout = QVBoxLayout(left_container)
         left_layout.setContentsMargins(0, 0, 0, 0)
@@ -95,17 +90,14 @@ class MemberSearchScreen(QWidget):
         
         results_layout.addWidget(left_container, 1)
         
-        # Coluna direita: Detalhes do membro com abas
         right_container = QWidget()
         right_layout = QVBoxLayout(right_container)
         right_layout.setContentsMargins(0, 0, 0, 0)
         
-        # Header com título apenas
         details_label = QLabel("Detalhes:")
         details_label.setStyleSheet("color: #1a2540; font-weight: bold; font-size: 14px;")
         right_layout.addWidget(details_label)
         
-        # Tab Widget para Informações e Histórico
         self.member_tabs = QTabWidget()
         self.member_tabs.setStyleSheet("""
             QTabWidget::pane {
@@ -127,7 +119,6 @@ class MemberSearchScreen(QWidget):
             }
         """)
         
-        # Aba 1: Informações do Membro com botão de editar
         info_tab_container = QWidget()
         info_tab_layout = QVBoxLayout(info_tab_container)
         info_tab_layout.setContentsMargins(0, 0, 0, 0)
@@ -138,26 +129,23 @@ class MemberSearchScreen(QWidget):
         self.member_result_browser.setHtml(self._get_initial_message())
         info_tab_layout.addWidget(self.member_result_browser)
         
-        # Botões de ação no canto inferior direito
         button_container = QWidget()
         button_layout = QHBoxLayout(button_container)
         button_layout.setContentsMargins(10, 10, 10, 10)
         button_layout.addStretch()
         
-        # Botão Deletar
         self.delete_button = QPushButton("🗑️ Deletar")
         self.delete_button.setProperty("role", "danger")
         self.delete_button.setFixedWidth(120)
         self.delete_button.setFixedHeight(35)
-        self.delete_button.setVisible(False)  # Escondido até que um membro seja selecionado
+        self.delete_button.setVisible(False)
         button_layout.addWidget(self.delete_button)
         
-        # Botão Renovar Plano
         self.renew_button = QPushButton("🔄 Renovar Plano")
         self.renew_button.setProperty("role", "secondary")
         self.renew_button.setFixedWidth(150)
         self.renew_button.setFixedHeight(35)
-        self.renew_button.setVisible(False)  # Escondido até que um membro seja selecionado
+        self.renew_button.setVisible(False)
         button_layout.addWidget(self.renew_button)
 
         self.quick_payment_button = QPushButton("💵 Registrar Pagamento")
@@ -184,26 +172,23 @@ class MemberSearchScreen(QWidget):
         self.history_button.setVisible(False)
         button_layout.addWidget(self.history_button)
         
-        # Botão Editar
         self.edit_button = QPushButton("✏️ Editar")
         self.edit_button.setProperty("role", "secondary")
         self.edit_button.setFixedWidth(120)
         self.edit_button.setFixedHeight(35)
-        self.edit_button.setVisible(False)  # Escondido até que um membro seja selecionado
+        self.edit_button.setVisible(False)
         button_layout.addWidget(self.edit_button)
         
         info_tab_layout.addWidget(button_container)
         
         self.member_tabs.addTab(info_tab_container, "Informações")
         
-        # Aba 2: Histórico de Frequência
         self.member_history_browser = QTextBrowser()
         self.member_history_browser.setOpenExternalLinks(False)
         self.member_history_browser.setHtml("<p style='color: #888888;'>Selecione um membro para ver o histórico.</p>")
         self.member_history_browser.anchorClicked.connect(self._on_history_link_clicked)
         self.member_tabs.addTab(self.member_history_browser, "Histórico de Frequência")
         
-        # Aba 3: Histórico Financeiro
         self.member_financial_browser = QTextBrowser()
         self.member_financial_browser.setOpenExternalLinks(False)
         self.member_financial_browser.setHtml("<p style='color: #888888;'>Selecione um membro para ver o histórico financeiro.</p>")
@@ -230,7 +215,7 @@ class MemberSearchScreen(QWidget):
         self.search_button.setEnabled(False)
         self.results_list.clear()
         self.member_result_browser.clear()
-        self.edit_button.setVisible(False)  # Esconde os botões durante a busca
+        self.edit_button.setVisible(False)
         self.delete_button.setVisible(False)
         self.renew_button.setVisible(False)
         self.quick_payment_button.setVisible(False)
@@ -339,6 +324,7 @@ class MemberSearchScreen(QWidget):
         self.history_button.setVisible(False)
 
     def _open_history_tab(self):
+        """Abre a aba de histórico de frequência no atalho rápido."""
         self.member_tabs.setCurrentIndex(1)
         self.history_requested.emit()
     

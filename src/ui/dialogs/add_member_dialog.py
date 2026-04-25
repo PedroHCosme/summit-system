@@ -16,10 +16,11 @@ class AddMemberDialog(QDialog):
     """Janela de diálogo para adicionar um novo membro."""
     
     def __init__(self, parent=None):
+        """Inicializa o diálogo e prepara campos dependentes de plano/treino."""
         super().__init__(parent)
         self.setWindowTitle("Adicionar Novo Membro")
         self.setMinimumWidth(350)
-        self.plans_cache = {}  # {nome: {preco, is_quota, quota_amount}}
+        self.plans_cache = {}
         self._setup_ui()
         self._connect_signals()
         self._toggle_vencimento_visibility(self.plano_combo.currentText())
@@ -27,18 +28,15 @@ class AddMemberDialog(QDialog):
         self._toggle_voucher_visibility(self.plano_combo.currentText())
 
     def _load_plans_from_db(self):
-        """Load plans from database using centralized PlanService."""
+        """Carrega planos ativos usando o serviço centralizado."""
         try:
             from src.services.plan_service import get_plan_service
             plan_service = get_plan_service()
-            
-            # Get plans as dict from centralized service
             self.plans_cache = plan_service.get_plans_as_dict()
             return plan_service.get_plan_names()
         except Exception as e:
             print(f"Error loading plans from PlanService: {e}")
         
-        # Fallback to config (should not happen in normal operation)
         from src import config
         return config.PLANOS
 
@@ -48,7 +46,6 @@ class AddMemberDialog(QDialog):
         self.layout.setContentsMargins(10, 10, 10, 10)
         self.layout.setSpacing(10)
 
-        # Scroll Area
         from PyQt6.QtWidgets import QScrollArea, QWidget
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
@@ -58,10 +55,8 @@ class AddMemberDialog(QDialog):
         scroll_layout = QVBoxLayout(scroll_content)
         scroll_layout.setContentsMargins(0, 0, 10, 0)
         
-        # Formulário
         self.form_layout = QFormLayout()
         
-        # Campos
         self.nome_input = QLineEdit()
         self.nome_input.setPlaceholderText("Primeiro nome")
         self.sobrenome_input = QLineEdit()
@@ -70,7 +65,6 @@ class AddMemberDialog(QDialog):
         self.apelido_input.setPlaceholderText("Opcional")
         
         self.plano_combo = QComboBox()
-        # Load plans from database
         plan_names = self._load_plans_from_db()
         self.plano_combo.addItems(plan_names)
         
@@ -79,13 +73,11 @@ class AddMemberDialog(QDialog):
         self.vencimento_plano_input.setDate(QDate.currentDate())
         self.vencimento_plano_input.setDisplayFormat("dd/MM/yyyy")
         
-        # --- Voucher fields ---
         self.voucher_widget = QWidget()
         voucher_layout = QVBoxLayout(self.voucher_widget)
         voucher_layout.setContentsMargins(0, 0, 0, 0)
         voucher_layout.setSpacing(5)
         
-        # Voucher credits
         vc_layout = QHBoxLayout()
         vc_label = QLabel("Quantidade de Diárias:")
         self.voucher_credits_spin = QSpinBox()
@@ -95,7 +87,6 @@ class AddMemberDialog(QDialog):
         vc_layout.addWidget(self.voucher_credits_spin, 1)
         voucher_layout.addLayout(vc_layout)
         
-        # Voucher price
         vp_layout = QHBoxLayout()
         vp_label = QLabel("Valor Pago (R$):")
         self.voucher_price_spin = QDoubleSpinBox()
@@ -106,8 +97,6 @@ class AddMemberDialog(QDialog):
         vp_layout.addWidget(vp_label)
         vp_layout.addWidget(self.voucher_price_spin, 1)
         voucher_layout.addLayout(vp_layout)
-        # --- End voucher fields ---
-        
         self.data_nascimento_input = QLineEdit()
         self.data_nascimento_input.setPlaceholderText("dd/mm/aaaa")
 
@@ -134,7 +123,6 @@ class AddMemberDialog(QDialog):
         self.observacoes_input.setMaximumHeight(80)
 
         
-        # Campos de treino
         self.treina_combo = QComboBox()
         self.treina_combo.addItems(["Não", "Sim"])
         
@@ -143,13 +131,12 @@ class AddMemberDialog(QDialog):
         self.vencimento_treino_input.setDate(QDate.currentDate())
         self.vencimento_treino_input.setDisplayFormat("dd/MM/yyyy")
 
-        # Adiciona campos ao formulário
         self.form_layout.addRow("Nome (*):", self.nome_input)
         self.form_layout.addRow("Sobrenome (*):", self.sobrenome_input)
         self.form_layout.addRow("Apelido:", self.apelido_input)
         self.form_layout.addRow("Plano (*):", self.plano_combo)
         self.vencimento_row = self.form_layout.addRow("Vencimento do Plano:", self.vencimento_plano_input)
-        self.form_layout.addRow("", self.voucher_widget)  # Voucher fields
+        self.form_layout.addRow("", self.voucher_widget)
         self.form_layout.addRow("Data de Nascimento (*):", self.data_nascimento_input)
         self.form_layout.addRow("WhatsApp (*):", self.whatsapp_input)
         self.form_layout.addRow("Gênero (*):", self.genero_combo)
@@ -165,7 +152,6 @@ class AddMemberDialog(QDialog):
         scroll_area.setWidget(scroll_content)
         self.layout.addWidget(scroll_area)
 
-        # Botões
         self.button_layout = QHBoxLayout()
         self.save_button = QPushButton("Salvar")
         self.cancel_button = QPushButton("Cancelar")
@@ -198,11 +184,10 @@ class AddMemberDialog(QDialog):
         self.treina_combo.currentTextChanged.connect(self._toggle_treino_visibility)
 
     def _on_plano_changed(self, plano: str):
-        """Handle plan change - update visibility of vencimento and voucher fields."""
+        """Atualiza visibilidade e defaults ao trocar o plano."""
         self._toggle_vencimento_visibility(plano)
         self._toggle_voucher_visibility(plano)
         
-        # Update default voucher values based on plan
         if plano in self.plans_cache:
             plan_info = self.plans_cache[plano]
             if plan_info.get('is_quota'):
@@ -215,7 +200,6 @@ class AddMemberDialog(QDialog):
         from src.utils.utils import parse_date
         from datetime import date
         
-        # Validar nome e sobrenome
         if not self.nome_input.text().strip():
             QMessageBox.warning(self, "Atenção", "Por favor, informe o nome.")
             return
@@ -224,7 +208,6 @@ class AddMemberDialog(QDialog):
             QMessageBox.warning(self, "Atenção", "Por favor, informe o sobrenome.")
             return
         
-        # Validar data de nascimento
         data_nasc_text = self.data_nascimento_input.text().strip()
         if not data_nasc_text:
             QMessageBox.warning(self, "Atenção", "Por favor, informe a data de nascimento.")
@@ -235,19 +218,16 @@ class AddMemberDialog(QDialog):
             QMessageBox.warning(self, "Atenção", "Data de nascimento inválida. Use o formato dd/mm/aaaa.")
             return
         
-        # Não permitir data de nascimento hoje ou no futuro (>= data atual)
         data_nasc_date = data_nasc.date() if hasattr(data_nasc, 'date') else data_nasc
         if data_nasc_date >= date.today():
             QMessageBox.warning(self, "Atenção", "A data de nascimento não pode ser hoje ou uma data futura.")
             return
 
-        # Validar WhatsApp
         if not self.whatsapp_input.text().strip():
             QMessageBox.warning(self, "Atenção", "Por favor, informe o telefone (WhatsApp).")
             self.whatsapp_input.setFocus()
             return
 
-        # Validar calçado
         if not self.calcado_input.text().strip():
             QMessageBox.warning(self, "Atenção", "Por favor, informe o número de calçado.")
             self.calcado_input.setFocus()
@@ -257,7 +237,6 @@ class AddMemberDialog(QDialog):
 
     def _toggle_vencimento_visibility(self, plano: str):
         """Mostra ou esconde o campo de vencimento baseado no plano e calcula a data automaticamente."""
-        # Check if it's a quota plan (no vencimento needed)
         is_quota = False
         if plano in self.plans_cache:
             is_quota = self.plans_cache[plano].get('is_quota', False)
@@ -266,18 +245,16 @@ class AddMemberDialog(QDialog):
         self.form_layout.labelForField(self.vencimento_plano_input).setVisible(is_visible)
         self.vencimento_plano_input.setVisible(is_visible)
         
-        # Calcula automaticamente a data de vencimento
         if is_visible:
             from src.utils.utils import calculate_new_due_date
             
             new_due_date = calculate_new_due_date(plano)
             if new_due_date and isinstance(new_due_date, datetime):
-                # Já é um objeto datetime, converter diretamente para QDate
                 qdate = QDate(new_due_date.year, new_due_date.month, new_due_date.day)
                 self.vencimento_plano_input.setDate(qdate)
     
     def _toggle_voucher_visibility(self, plano: str):
-        """Show or hide voucher fields based on plan type."""
+        """Mostra ou esconde os campos de voucher para planos quota."""
         is_quota = False
         if plano in self.plans_cache:
             is_quota = self.plans_cache[plano].get('is_quota', False)
@@ -290,7 +267,6 @@ class AddMemberDialog(QDialog):
         self.form_layout.labelForField(self.vencimento_treino_input).setVisible(is_visible)
         self.vencimento_treino_input.setVisible(is_visible)
         
-        # Calcula automaticamente a data de vencimento do treino (1 mês)
         if is_visible:
             from datetime import timedelta
             from src import config
@@ -305,12 +281,10 @@ class AddMemberDialog(QDialog):
         plano = self.plano_combo.currentText()
         treina = self.treina_combo.currentText()
         
-        # Check if quota plan
         is_quota = False
         if plano in self.plans_cache:
             is_quota = self.plans_cache[plano].get('is_quota', False)
         
-        # Concatena nome + sobrenome para salvar como campo único no banco
         nome_completo = f"{self.nome_input.text().strip()} {self.sobrenome_input.text().strip()}".strip()
         
         data = {
@@ -328,17 +302,14 @@ class AddMemberDialog(QDialog):
             "treina": treina,
         }
         
-        # For quota plans, include voucher data
         if is_quota:
             data["voucher_credits"] = self.voucher_credits_spin.value()
             data["price"] = self.voucher_price_spin.value()
-            data["vencimento_plano"] = None  # Quota plans don't expire
+            data["vencimento_plano"] = None
             data["estado_plano"] = "ATIVO"
         elif plano in PLANOS_COM_VENCIMENTO:
-            # Para planos com vencimento, sempre incluir a data
             data["vencimento_plano"] = self.vencimento_plano_input.date().toPyDate()
         
-        # Para treino ativo, incluir a data de vencimento
         if treina == "Sim":
             data["vencimento_treino"] = self.vencimento_treino_input.date().toPyDate()
         

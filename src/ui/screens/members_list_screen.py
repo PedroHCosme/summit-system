@@ -17,7 +17,6 @@ from src.core.plan_status import ATIVO, INATIVO
 class MembersListScreen(QWidget):
     """Tela de listagem paginada de membros."""
     
-    # Sinais
     member_selected = pyqtSignal(dict)  # Sinal emitido quando um membro é selecionado
     edit_requested = pyqtSignal()
     renew_requested = pyqtSignal()
@@ -41,7 +40,6 @@ class MembersListScreen(QWidget):
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(15)
         
-        # Título
         title_label = QLabel("Lista de Membros")
         title_label.setObjectName("pageTitle")
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -52,32 +50,27 @@ class MembersListScreen(QWidget):
         subtitle_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(subtitle_label)
         
-        # Filtros
         filters_layout = QHBoxLayout()
         filters_layout.setSpacing(10)
         
-        # Filtro de busca por nome
         filters_layout.addWidget(QLabel("Buscar:"))
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("Digite o nome...")
         self.search_input.setMaximumWidth(250)
         filters_layout.addWidget(self.search_input)
         
-        # Filtro por plano
         filters_layout.addWidget(QLabel("Plano:"))
         self.plan_filter = QComboBox()
         self.plan_filter.addItem("Todos", "")
         self.plan_filter.setMaximumWidth(150)
         filters_layout.addWidget(self.plan_filter)
         
-        # Filtro por status
         filters_layout.addWidget(QLabel("Status:"))
         self.status_filter = QComboBox()
         self.status_filter.addItems(["Todos", ATIVO, INATIVO])
         self.status_filter.setMaximumWidth(120)
         filters_layout.addWidget(self.status_filter)
         
-        # Ordenação
         filters_layout.addWidget(QLabel("Ordenar por:"))
         self.sort_combo = QComboBox()
         self.sort_combo.addItem("Nome (A→Z)", ("nome", "asc"))
@@ -89,13 +82,11 @@ class MembersListScreen(QWidget):
         self.sort_combo.setMaximumWidth(200)
         filters_layout.addWidget(self.sort_combo)
         
-        # Botão de filtrar
         self.filter_button = QPushButton("Filtrar")
         self.filter_button.setProperty("role", "primary")
         self.filter_button.setMaximumWidth(100)
         filters_layout.addWidget(self.filter_button)
         
-        # Botão de limpar filtros
         self.clear_filters_button = QPushButton("Limpar")
         self.clear_filters_button.setProperty("role", "secondary")
         self.clear_filters_button.setMaximumWidth(100)
@@ -104,15 +95,12 @@ class MembersListScreen(QWidget):
         filters_layout.addStretch()
         layout.addLayout(filters_layout)
         
-        # Informações de paginação
         self.info_label = QLabel("Carregando...")
         self.info_label.setStyleSheet("color: #555555; font-size: 12px;")
         layout.addWidget(self.info_label)
         
-        # Container principal com duas colunas
         content_layout = QHBoxLayout()
         
-        # Coluna esquerda: Lista de membros
         left_container = QWidget()
         left_layout = QVBoxLayout(left_container)
         left_layout.setContentsMargins(0, 0, 0, 0)
@@ -143,7 +131,6 @@ class MembersListScreen(QWidget):
         
         content_layout.addWidget(left_container, 1)
         
-        # Coluna direita: Detalhes com abas
         right_container = QWidget()
         right_layout = QVBoxLayout(right_container)
         right_layout.setContentsMargins(0, 0, 0, 0)
@@ -152,7 +139,6 @@ class MembersListScreen(QWidget):
         details_label.setStyleSheet("color: #1a2540; font-weight: bold; font-size: 14px;")
         right_layout.addWidget(details_label)
         
-        # Tab Widget
         self.member_tabs = QTabWidget()
         self.member_tabs.setStyleSheet("""
             QTabWidget::pane {
@@ -174,7 +160,6 @@ class MembersListScreen(QWidget):
             }
         """)
         
-        # Aba 1: Informações
         info_tab_container = QWidget()
         info_tab_layout = QVBoxLayout(info_tab_container)
         info_tab_layout.setContentsMargins(0, 0, 0, 0)
@@ -184,13 +169,11 @@ class MembersListScreen(QWidget):
         self.details_browser.setHtml("<div style='text-align: center; color: #666; margin-top: 20px;'>Selecione um membro para ver os detalhes</div>")
         info_tab_layout.addWidget(self.details_browser)
         
-        # Botões de ação
         button_container = QWidget()
         button_layout = QHBoxLayout(button_container)
         button_layout.setContentsMargins(10, 10, 10, 10)
         button_layout.addStretch()
         
-        # Botão Deletar
         self.delete_button = QPushButton("🗑️ Deletar")
         self.delete_button.setProperty("role", "danger")
         self.delete_button.setFixedWidth(120)
@@ -199,7 +182,6 @@ class MembersListScreen(QWidget):
         self.delete_button.setVisible(False)
         button_layout.addWidget(self.delete_button)
         
-        # Botão Renovar Plano
         self.renew_button = QPushButton("🔄 Renovar Plano")
         self.renew_button.setProperty("role", "secondary")
         self.renew_button.setFixedWidth(150)
@@ -232,7 +214,6 @@ class MembersListScreen(QWidget):
         self.history_button.setVisible(False)
         button_layout.addWidget(self.history_button)
         
-        # Botão Editar
         self.edit_button = QPushButton("✏️ Editar")
         self.edit_button.setProperty("role", "secondary")
         self.edit_button.setFixedWidth(120)
@@ -244,13 +225,11 @@ class MembersListScreen(QWidget):
         info_tab_layout.addWidget(button_container)
         self.member_tabs.addTab(info_tab_container, "Informações")
         
-        # Aba 2: Histórico de Frequência
         self.history_browser = QTextBrowser()
         self.history_browser.setOpenExternalLinks(False)
         self.history_browser.setHtml("<p style='color: #888888;'>Selecione um membro para ver o histórico.</p>")
         self.member_tabs.addTab(self.history_browser, "Histórico de Frequência")
         
-        # Aba 3: Histórico Financeiro
         self.financial_browser = QTextBrowser()
         self.financial_browser.setOpenExternalLinks(False)
         self.financial_browser.setHtml("<p style='color: #888888;'>Selecione um membro para ver o histórico financeiro.</p>")
@@ -262,7 +241,6 @@ class MembersListScreen(QWidget):
         
         layout.addLayout(content_layout)
         
-        # Controles de paginação
         pagination_layout = QHBoxLayout()
         pagination_layout.setSpacing(10)
         
@@ -292,7 +270,6 @@ class MembersListScreen(QWidget):
         
         layout.addLayout(pagination_layout)
         
-        # Conectar sinais
         self._connect_signals()
     
     def _connect_signals(self):
@@ -478,6 +455,7 @@ class MembersListScreen(QWidget):
         self.renew_button.setVisible(is_renewable)
 
     def _open_history_tab(self):
+        """Abre a aba de histórico de frequência no atalho rápido."""
         self.member_tabs.setCurrentIndex(1)
         self.history_requested.emit()
 

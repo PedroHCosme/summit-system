@@ -17,12 +17,7 @@ from src.utils.utils import parse_date, get_current_sheet_name
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
-
-# ============================================================================
-# FLAG DE CONTROLE PRINCIPAL
-# ============================================================================
 USE_SQLITE = True  # Sempre usar SQLite com SQLAlchemy agora
-# ============================================================================
 
 
 class DataProvider:
@@ -87,10 +82,6 @@ class DataProvider:
             self._plan_service = PlanService(db_session=self.session)
         return self._plan_service
     
-    # ========================================================================
-    # MÉTODOS DE MEMBRO
-    # ========================================================================
-    
     def get_all_members(self) -> List[Dict[str, Any]]:
         """
         Retorna todos os membros.
@@ -140,10 +131,8 @@ class DataProvider:
                 'page_size': result.page_size
             }
         else:
-            # Para Google Sheets, retornar todos e paginar em memória
             all_members = self._get_all_members_from_sheets()
             
-            # Aplicar filtros
             filtered = all_members
             if filter_text:
                 tokens = filter_text.lower().split()
@@ -153,11 +142,9 @@ class DataProvider:
             if filter_status:
                 filtered = [m for m in filtered if m.get('estado_plano') == filter_status]
             
-            # Ordenar por coluna selecionada
             reverse = (sort_dir == "desc")
             filtered.sort(key=lambda x: (x.get(sort_by) is None, x.get(sort_by, '')), reverse=reverse)
             
-            # Paginar
             total = len(filtered)
             total_pages = (total + page_size - 1) // page_size if total > 0 else 0
             page = max(1, min(page, total_pages)) if total_pages > 0 else 1
@@ -276,10 +263,6 @@ class DataProvider:
             return self.member_service.update_expired_plans()
         return 0
     
-    # ========================================================================
-    # MÉTODOS DE CHECK-IN
-    # ========================================================================
-    
     def get_member_checkin_history(self, member_id: int) -> List[Dict[str, Any]]:
         """Busca o histórico de check-ins de um membro."""
         if self.use_sqlite:
@@ -385,10 +368,6 @@ class DataProvider:
             return self.checkin_service.get_today_list()
         return []
     
-    # ========================================================================
-    # MÉTODOS DE PAGAMENTO
-    # ========================================================================
-    
     def get_member_payment_history(self, member_id: int) -> List[Dict[str, Any]]:
         """Retorna o histórico de pagamentos de um membro."""
         if self.use_sqlite:
@@ -446,10 +425,6 @@ class DataProvider:
             return self.payment_service.get_transactions(start_date, end_date, limit)
         return []
     
-    # ========================================================================
-    # MÉTODOS PRIVADOS - Google Sheets (legado)
-    # ========================================================================
-    
     def _get_all_members_from_sheets(self) -> List[Dict[str, Any]]:
         """Busca todos os membros do Google Sheets."""
         sheet_name = get_current_sheet_name()
@@ -464,7 +439,7 @@ class DataProvider:
         
         members = []
         for row_index, row in enumerate(data):
-            if row_index == 0:  # Pular cabeçalho
+            if row_index == 0:
                 continue
             
             member_dict = self._row_to_dict(row, row_index)
@@ -511,15 +486,14 @@ class DataProvider:
                 if birth_date and birth_date.month == month:
                     birthdays.append(member)
         
-        # Função auxiliar para ordenação segura
         def get_day(member_dict: Dict[str, Any]) -> int:
+            """Extrai o dia da data de nascimento para ordenação."""
             date_str = member_dict.get('data_nascimento')
             if not date_str:
                 return 0
             date_obj = parse_date(date_str)
             return date_obj.day if date_obj else 0
 
-        # Ordenar por dia
         birthdays.sort(key=get_day)
         return birthdays
     
@@ -535,6 +509,7 @@ class DataProvider:
             Dicionário com os dados do membro
         """
         def get_value(col_index: int) -> str:
+            """Obtém valor da coluna com fallback para string vazia."""
             if col_index < len(row) and row[col_index]:
                 return str(row[col_index]).strip()
             return ""
@@ -561,11 +536,6 @@ class DataProvider:
             self._session = None
 
 
-# ============================================================================
-# FUNÇÕES DE CONVENIÊNCIA (API Funcional)
-# ============================================================================
-
-# Instância global do provider
 _provider = None
 
 

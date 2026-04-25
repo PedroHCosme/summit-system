@@ -26,7 +26,6 @@ def format_member_data(member_data: dict, monthly_frequency: int = 0) -> str:
             <div style="background-color: #F8F8F8; border: 1px solid #DDDDDD; border-radius: 8px; padding: 15px;">
     """
 
-    # 1. Nome
     nome = member_data.get('nome', '')
     apelido = member_data.get('apelido', '')
     nome_display = f"{nome} ({apelido})" if apelido else (nome if nome else '<span style="color: #888888; font-style: italic;">Não informado</span>')
@@ -38,7 +37,6 @@ def format_member_data(member_data: dict, monthly_frequency: int = 0) -> str:
         </div>
     """
 
-    # 2. Data de Nascimento
     data_nascimento = member_data.get('data_nascimento', '')
     html += f"""
         <div style="margin-bottom: 10px;">
@@ -47,7 +45,6 @@ def format_member_data(member_data: dict, monthly_frequency: int = 0) -> str:
         </div>
     """
 
-    # 3. Gênero e Profissão
     genero = member_data.get('genero', '')
     html += f"""
         <div style="margin-bottom: 10px;">
@@ -61,7 +58,6 @@ def format_member_data(member_data: dict, monthly_frequency: int = 0) -> str:
         </div>
     """
 
-    # 4. WhatsApp
     whatsapp = member_data.get('whatsapp', '')
     if whatsapp:
         digits = ''.join(filter(str.isdigit, whatsapp))
@@ -89,7 +85,6 @@ def format_member_data(member_data: dict, monthly_frequency: int = 0) -> str:
             </div>
         """
 
-    # 4a. Contato de Emergência (Always show)
     html += f"""
         <div style="margin-bottom: 10px;">
             <strong style="color: #333333;">Contato de Emergência:</strong>
@@ -97,7 +92,6 @@ def format_member_data(member_data: dict, monthly_frequency: int = 0) -> str:
         </div>
     """
 
-    # 5. Email
     email = member_data.get('email', '')
     html += f"""
         <div style="margin-bottom: 10px;">
@@ -106,7 +100,6 @@ def format_member_data(member_data: dict, monthly_frequency: int = 0) -> str:
         </div>
     """
 
-    # 6. Calçado
     calcado = member_data.get('calcado', '')
     html += f"""
         <div style="margin-bottom: 10px;">
@@ -115,7 +108,6 @@ def format_member_data(member_data: dict, monthly_frequency: int = 0) -> str:
         </div>
     """
 
-    # 6a. Data de Cadastro
     data_cadastro = member_data.get('data_cadastro', '')
     html += f"""
         <div style="margin-bottom: 10px;">
@@ -124,12 +116,10 @@ def format_member_data(member_data: dict, monthly_frequency: int = 0) -> str:
         </div>
     """
 
-    # Separador visual
     html += """
         <hr style="border: none; border-top: 1px solid #DDDDDD; margin: 15px 0;">
     """
 
-    # 7. Plano
     plano = member_data.get('plano', '')
     html += f"""
         <div style="margin-bottom: 10px;">
@@ -138,7 +128,6 @@ def format_member_data(member_data: dict, monthly_frequency: int = 0) -> str:
         </div>
     """
 
-    # 8. Vencimento do Plano (se aplicável)
     if plano in PLANOS_COM_VENCIMENTO:
         vencimento_plano = member_data.get('vencimento_plano', '')
         html += f"""
@@ -148,7 +137,6 @@ def format_member_data(member_data: dict, monthly_frequency: int = 0) -> str:
             </div>
         """
 
-    # 9. Estado do Plano
     estado_plano = member_data.get('estado_plano', '')
     from src.core.plan_status import is_active as plan_is_active, INATIVO, display_label
     estado_color = '#28a745' if plan_is_active(estado_plano) else '#FF6B6B'
@@ -159,7 +147,6 @@ def format_member_data(member_data: dict, monthly_frequency: int = 0) -> str:
         </div>
     """
 
-    # 9b. Saldo de Voucher (se aplicável)
     from src.services.plan_service import get_plan_service
     is_quota_plan = get_plan_service().is_quota_plan(plano)
     if is_quota_plan:
@@ -172,7 +159,6 @@ def format_member_data(member_data: dict, monthly_frequency: int = 0) -> str:
             </div>
         """
 
-    # 10. Treino
     treina = member_data.get('treina', 'Não')
     treina_color = '#28a745' if treina == 'Sim' else '#888888'
     html += f"""
@@ -187,7 +173,6 @@ def format_member_data(member_data: dict, monthly_frequency: int = 0) -> str:
         </div>
     """
 
-    # 11. Vencimento do Treino (se treina)
     if treina == 'Sim':
         vencimento_treino = member_data.get('vencimento_treino', '')
         html += f"""
@@ -197,7 +182,6 @@ def format_member_data(member_data: dict, monthly_frequency: int = 0) -> str:
             </div>
         """
 
-    # 12. Frequência do Mês
     html += f"""
         <div style="margin-bottom: 10px;">
             <strong style="color: #333333;">Frequência (Este Mês):</strong>
@@ -235,27 +219,22 @@ def calculate_monthly_frequency(member_id: int) -> int:
     try:
         from src.data.data_provider import get_provider
 
-        # Buscar histórico completo do membro
         history = get_provider().get_member_checkin_history(member_id)
 
         if not history:
             return 0
 
-        # Obter mês e ano atuais
         now = datetime.now()
         current_month = now.month
         current_year = now.year
 
-        # Contar check-ins do mês atual
         count = 0
         for checkin in history:
             checkin_datetime_str = checkin.get('checkin_datetime', '')
 
             try:
-                # Tentar parsear a data
                 checkin_dt = datetime.fromisoformat(checkin_datetime_str.replace(' ', 'T'))
 
-                # Verificar se é do mês atual
                 if checkin_dt.month == current_month and checkin_dt.year == current_year:
                     count += 1
             except (ValueError, AttributeError):

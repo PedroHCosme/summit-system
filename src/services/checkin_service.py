@@ -464,12 +464,7 @@ class CheckinService:
 
     def _compute_plan_status(self, member: Membro) -> str:
         """Calcula status do plano para exibição em listas de check-in."""
-        plan = None
-        if member.plano_id:
-            plan = self._session.query(Plano).filter(Plano.id == member.plano_id).first()
-        if not plan and member.plano:
-            plan = self._session.query(Plano).filter(Plano.nome == member.plano).first()
-
+        plan = self._resolve_member_plan(member)
         is_quota = bool(plan.is_quota) if plan else False
         valor_por_checkin = float(plan.valor_por_checkin or 0.0) if plan else 0.0
         return calcular_status_plano(
@@ -478,6 +473,15 @@ class CheckinService:
             is_quota=is_quota,
             valor_por_checkin=valor_por_checkin,
         )
+
+    def _resolve_member_plan(self, member: Membro) -> Optional[Plano]:
+        """Resolve o plano canônico do membro por `plano_id` ou nome legado."""
+        plan = None
+        if member.plano_id:
+            plan = self._session.query(Plano).filter(Plano.id == member.plano_id).first()
+        if not plan and member.plano:
+            plan = self._session.query(Plano).filter(Plano.nome == member.plano).first()
+        return plan
     
     def get_today_details(self) -> list:
         """
@@ -493,6 +497,7 @@ class CheckinService:
         
         payload = []
         for f, member in results:
+            plan = self._resolve_member_plan(member)
             payload.append(
                 {
                     'id': f.id,
@@ -501,6 +506,8 @@ class CheckinService:
                     'plano': member.plano,
                     'estado_plano': member.estado_plano,
                     'status_plano': self._compute_plan_status(member),
+                    'is_quota_plan': bool(plan.is_quota) if plan else False,
+                    'voucher_credits': int(member.voucher_credits or 0),
                     'checkin_datetime': f.checkin_datetime.isoformat() if f.checkin_datetime else None
                 }
             )
@@ -522,6 +529,7 @@ class CheckinService:
         ).order_by(Frequencia.checkin_datetime.desc()).all()
         payload = []
         for f, member in results:
+            plan = self._resolve_member_plan(member)
             payload.append(
                 {
                     'id': f.id,
@@ -530,6 +538,8 @@ class CheckinService:
                     'plano': member.plano,
                     'estado_plano': member.estado_plano,
                     'status_plano': self._compute_plan_status(member),
+                    'is_quota_plan': bool(plan.is_quota) if plan else False,
+                    'voucher_credits': int(member.voucher_credits or 0),
                     'checkin_datetime': f.checkin_datetime.isoformat() if f.checkin_datetime else None
                 }
             )
@@ -552,6 +562,7 @@ class CheckinService:
         ).limit(limit).all()
         payload = []
         for f, member in results:
+            plan = self._resolve_member_plan(member)
             payload.append(
                 {
                     'id': f.id,
@@ -560,6 +571,8 @@ class CheckinService:
                     'plano': member.plano,
                     'estado_plano': member.estado_plano,
                     'status_plano': self._compute_plan_status(member),
+                    'is_quota_plan': bool(plan.is_quota) if plan else False,
+                    'voucher_credits': int(member.voucher_credits or 0),
                     'checkin_datetime': f.checkin_datetime.isoformat() if f.checkin_datetime else None
                 }
             )

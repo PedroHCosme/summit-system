@@ -27,6 +27,7 @@ class PlanCard(QFrame):
     COLOR_QUOTA = "#E67E22"
 
     def __init__(self, plano: Plano, parent=None):
+        """Inicializa o card visual de um plano."""
         super().__init__(parent)
         self.plano = plano
         self._selected = False
@@ -34,8 +35,8 @@ class PlanCard(QFrame):
         self.setFixedSize(200, 150)
         self._build()
 
-    # ---- visual -----------------------------------------------------------
     def _build(self):
+        """Monta os elementos visuais do card."""
         border_color = self.COLOR_QUOTA if self.plano.is_quota else self.COLOR_TIME
         self._border_color = border_color
         self._apply_style(selected=False)
@@ -78,6 +79,7 @@ class PlanCard(QFrame):
         layout.addStretch()
 
     def _apply_style(self, selected: bool):
+        """Aplica o estilo do card conforme estado de seleção."""
         border_color = self._border_color if hasattr(self, '_border_color') else "#ccc"
         bg = "#EBF5FB" if selected and not getattr(self, 'plano', None) or False else "#FFFFFF"
         if selected:
@@ -94,10 +96,12 @@ class PlanCard(QFrame):
         """)
 
     def set_selected(self, selected: bool):
+        """Marca o card como selecionado ou não selecionado."""
         self._selected = selected
         self._apply_style(selected)
 
     def mousePressEvent(self, event):
+        """Emite o plano selecionado ao clicar no card."""
         self.clicked.emit(self.plano)
         super().mousePressEvent(event)
 
@@ -112,17 +116,15 @@ class PlansScreen(QWidget):
     plans_updated = pyqtSignal()
 
     def __init__(self, parent=None):
+        """Inicializa a tela de catálogo de planos."""
         super().__init__(parent)
         self._cards: list[PlanCard] = []
         self._current_plano: Plano | None = None
         self._is_new = False
         self._setup_ui()
 
-    # =====================================================================
-    # UI SETUP
-    # =====================================================================
-
     def _setup_ui(self):
+        """Cria layout principal com grade de cards e painel editor."""
         root = QVBoxLayout(self)
         root.setContentsMargins(20, 20, 20, 10)
         root.setSpacing(10)
@@ -202,8 +204,8 @@ class PlansScreen(QWidget):
 
         root.addLayout(body)
 
-    # ------------------------------------------------------------------ editor
     def _build_editor(self) -> QFrame:
+        """Cria o painel lateral de edição/criação de planos."""
         frame = QFrame()
         frame.setStyleSheet("""
             QFrame#editorFrame {
@@ -327,10 +329,6 @@ class PlansScreen(QWidget):
 
         return frame
 
-    # =====================================================================
-    # REFRESH / LOAD
-    # =====================================================================
-
     def refresh(self):
         """Recarrega os planos do banco e reconstrói os cards."""
         plan_service = get_provider().plan_service
@@ -342,14 +340,12 @@ class PlansScreen(QWidget):
             QMessageBox.warning(self, "Erro", f"Erro ao carregar planos: {e}")
             return
 
-        # Limpar grid
         self._cards.clear()
         while self._cards_grid.count():
             item = self._cards_grid.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
 
-        # Criar cards
         col_count = 3
         for i, plano in enumerate(planos):
             card = PlanCard(plano)
@@ -357,7 +353,6 @@ class PlansScreen(QWidget):
             self._cards_grid.addWidget(card, i // col_count, i % col_count)
             self._cards.append(card)
 
-        # Se tínhamos um plano selecionado, reselecionar
         if self._current_plano:
             for card in self._cards:
                 if card.plano.id == self._current_plano.id:
@@ -368,15 +363,11 @@ class PlansScreen(QWidget):
             else:
                 self._clear_editor()
 
-    # =====================================================================
-    # CARD SELECTION
-    # =====================================================================
-
     def _on_card_clicked(self, plano: Plano):
+        """Seleciona um plano e carrega seus dados no editor."""
         self._is_new = False
         self._current_plano = plano
 
-        # Visual: desmarcar todos, marcar o clicado
         for card in self._cards:
             card.set_selected(card.plano.id == plano.id)
 
@@ -385,11 +376,8 @@ class PlansScreen(QWidget):
         self._btn_deactivate.setEnabled(True)
         self._editor_title.setText(f"Editando: {plano.nome}")
 
-    # =====================================================================
-    # EDITOR HELPERS
-    # =====================================================================
-
     def _populate_editor(self, plano: Plano):
+        """Preenche o editor com os dados de um plano existente."""
         self._input_nome.setText(plano.nome)
         self._input_preco.setValue(plano.preco or 0)
         self._input_checkin.setValue(plano.valor_por_checkin or 0)
@@ -404,6 +392,7 @@ class PlansScreen(QWidget):
         self._on_type_changed()
 
     def _clear_editor(self):
+        """Limpa o editor e remove seleção de cards."""
         self._current_plano = None
         self._is_new = False
         self._input_nome.clear()
@@ -420,6 +409,7 @@ class PlansScreen(QWidget):
             card.set_selected(False)
 
     def _set_editor_enabled(self, enabled: bool):
+        """Habilita ou desabilita todos os controles de edição."""
         self._input_nome.setEnabled(enabled)
         self._input_preco.setEnabled(enabled)
         self._input_checkin.setEnabled(enabled)
@@ -434,19 +424,14 @@ class PlansScreen(QWidget):
         """Adapta campos visíveis conforme o tipo selecionado."""
         is_quota = self._radio_quota.isChecked()
 
-        # Quota fields
         self._lbl_quota.setVisible(is_quota)
         self._input_quota.setVisible(is_quota)
 
-        # Time fields
         self._lbl_vencimento.setVisible(not is_quota)
         self._check_vencimento.setVisible(not is_quota)
 
-    # =====================================================================
-    # ACTIONS
-    # =====================================================================
-
     def _on_new_plan(self):
+        """Prepara o editor para criação de um novo plano."""
         self._clear_editor()
         self._is_new = True
         self._set_editor_enabled(True)
@@ -455,6 +440,7 @@ class PlansScreen(QWidget):
         self._input_nome.setFocus()
 
     def _on_save(self):
+        """Salva criação/edição do plano atual com validações de nome único."""
         nome = self._input_nome.text().strip()
         if not nome:
             QMessageBox.warning(self, "Campo Obrigatório", "O nome do plano é obrigatório.")
@@ -510,6 +496,7 @@ class PlansScreen(QWidget):
             QMessageBox.critical(self, "Erro ao Salvar", f"Erro: {e}")
 
     def _on_deactivate(self):
+        """Desativa o plano selecionado sem removê-lo fisicamente."""
         if not self._current_plano:
             return
 
@@ -544,6 +531,7 @@ class PlansScreen(QWidget):
             QMessageBox.critical(self, "Erro", f"Erro ao desativar: {e}")
 
     def _on_restore_defaults(self):
+        """Restaura o catálogo para os valores padrão definidos em configuração."""
         reply = QMessageBox.question(
             self, "Restaurar Padrões",
             "Deseja restaurar todos os planos para os valores padrão?\n\n"
@@ -583,18 +571,16 @@ class PlansScreen(QWidget):
         except Exception as e:
             QMessageBox.critical(self, "Erro", f"Erro ao restaurar: {e}")
 
-    # =====================================================================
-    # STYLE HELPERS
-    # =====================================================================
-
     @staticmethod
     def _make_label(text: str) -> QLabel:
+        """Cria um label padrão para campos do editor."""
         lbl = QLabel(text)
         lbl.setStyleSheet("font-size: 12px; font-weight: bold; color: #555; margin-top: 4px;")
         return lbl
 
     @staticmethod
     def _input_style() -> str:
+        """Retorna estilo padrão de campos de texto."""
         return """
             QLineEdit {
                 font-size: 14px; padding: 8px 10px;
@@ -606,6 +592,7 @@ class PlansScreen(QWidget):
 
     @staticmethod
     def _spin_style() -> str:
+        """Retorna estilo padrão de campos numéricos."""
         return """
             QDoubleSpinBox, QSpinBox {
                 font-size: 14px; padding: 8px 10px;
