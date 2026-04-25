@@ -11,7 +11,6 @@ from src.services.plan_service import PlanService
 class PendingMembersScreen(QWidget):
     """Tela para aprovar ou rejeitar membros pendentes."""
     
-    # Sinais
     member_approved = pyqtSignal()
     member_rejected = pyqtSignal()
     
@@ -30,16 +29,13 @@ class PendingMembersScreen(QWidget):
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(15)
         
-        # Título
         title_label = QLabel("Aprovação de Novos Membros")
         title_label.setStyleSheet("font-size: 24px; font-weight: bold; color: #333;")
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title_label)
         
-        # Container principal
         content_layout = QHBoxLayout()
         
-        # Lista de membros pendentes
         left_layout = QVBoxLayout()
         left_layout.addWidget(QLabel("Membros Pendentes:"))
         
@@ -49,7 +45,6 @@ class PendingMembersScreen(QWidget):
         
         content_layout.addLayout(left_layout, 1)
         
-        # Detalhes do membro
         right_layout = QVBoxLayout()
         right_layout.addWidget(QLabel("Detalhes:"))
         
@@ -57,7 +52,6 @@ class PendingMembersScreen(QWidget):
         self.details_browser.setHtml("<div style='text-align: center; color: #666; margin-top: 20px;'>Selecione um membro para ver os detalhes</div>")
         right_layout.addWidget(self.details_browser)
         
-        # Seleção de plano
         plan_group = QGroupBox("Plano a Atribuir")
         plan_layout = QVBoxLayout(plan_group)
         
@@ -71,7 +65,6 @@ class PendingMembersScreen(QWidget):
         
         right_layout.addWidget(plan_group)
         
-        # Botões de ação
         buttons_layout = QHBoxLayout()
         
         self.approve_button = QPushButton("Aprovar")
@@ -92,7 +85,6 @@ class PendingMembersScreen(QWidget):
         
         layout.addLayout(content_layout)
         
-        # Botão de atualizar
         refresh_button = QPushButton("Atualizar Lista")
         refresh_button.clicked.connect(self.refresh_list)
         layout.addWidget(refresh_button)
@@ -105,14 +97,12 @@ class PendingMembersScreen(QWidget):
         self.approve_button.setEnabled(False)
         self.reject_button.setEnabled(False)
         
-        # Busca membros com status PENDENTE
-        # Usamos page_size grande para pegar todos, ou poderíamos implementar paginação se fossem muitos
         result = self.db_manager.get_members_paginated(page=1, page_size=100, filter_status="PENDENTE")
         members = result.get('members', [])
         
         if not members:
             self.members_list.addItem("Nenhum membro pendente. Novos cadastros aparecerão aqui.")
-            self.members_list.item(0).setFlags(Qt.ItemFlag.NoItemFlags) # Desabilita seleção
+            self.members_list.item(0).setFlags(Qt.ItemFlag.NoItemFlags)
             return
 
         for member in members:
@@ -134,14 +124,12 @@ class PendingMembersScreen(QWidget):
         self.approve_button.setEnabled(True)
         self.reject_button.setEnabled(True)
         
-        # Pre-seleciona o plano desejado pelo membro (se houver)
         desired_plan = member_data.get('plano', '')
         if desired_plan:
             index = self.plan_combo.findText(desired_plan)
             if index >= 0:
                 self.plan_combo.setCurrentIndex(index)
         
-        # Formata detalhes em HTML
         plano_label = member_data.get('plano', '-') or 'Nao informado'
         html = f"""
             <h3>{member_data['nome']}</h3>

@@ -1,12 +1,12 @@
+"""Aplicação web Flask para cadastro e check-in de membros."""
 
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, g
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
-# Adiciona o diretório raiz ao PYTHONPATH para importar módulos do projeto
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 from src.data.db import get_session_factory
@@ -16,12 +16,10 @@ from src.services.member_service import MemberService
 from src.core.models import Pessoa
 from src.utils.utils import calculate_new_due_date
 from src.config import TREINO_VALIDADE_DIAS
-from datetime import timedelta
 
 app = Flask(__name__)
-app.secret_key = 'summit_mobile_pass_secret_key'  # Em produção, usar variável de ambiente
+app.secret_key = 'summit_mobile_pass_secret_key'
 
-# Configuração do Rate Limiter (Segurança contra força bruta)
 limiter = Limiter(
     get_remote_address,
     app=app,
@@ -29,7 +27,6 @@ limiter = Limiter(
     storage_uri="memory://"
 )
 
-# Session factory para SQLAlchemy
 SessionLocal = get_session_factory()
 
 
@@ -57,17 +54,14 @@ def index():
 def checkin():
     """Página e processamento de Check-in."""
     if request.method == 'POST':
-        # Verifica se foi enviado um ID específico (seleção da lista)
         member_id = request.form.get('member_id')
         identifier = request.form.get('identifier')
-        
-        # Obtém sessão do banco de dados
+
         db = get_db()
         member_service = MemberService(db_session=db)
         checkin_service = CheckinService(db_session=db)
 
         if member_id:
-            # Caso 1: ID específico fornecido (clique no botão Confirmar)
             try:
                 member_id = int(member_id)
                 member = member_service.get_by_id(member_id)
@@ -77,14 +71,12 @@ def checkin():
                 return redirect(url_for('checkin'))
         
         elif identifier:
-            # Caso 2: Busca por nome/apelido
             results = member_service.search_by_name(identifier)
             
             if not results:
                 flash('Membro não encontrado. Tente novamente ou faça seu cadastro.', 'error')
                 return redirect(url_for('checkin'))
             
-            # Sempre mostrar a lista de resultados para confirmação (mesmo que seja apenas 1)
             results_dicts = [m.to_dict() if hasattr(m, 'to_dict') else m for m in results]
             
             if len(results) == 1:
@@ -94,13 +86,10 @@ def checkin():
             
             return render_template('checkin.html', results=results_dicts, identifier=identifier)
 
-        # Realiza o check-in usando o serviço (Lógica comum para ambos os casos)
         if member_data:
-            # Usa o CheckinService para realizar o check-in
             result = checkin_service.perform_checkin(member_id, datetime.now())
             
             if result.success:
-                # Verifica status do plano para mensagem personalizada
                 estado_plano = member_data.get('estado_plano', 'ATIVO')
                 if estado_plano != 'ATIVO':
                     flash(f'Check-in realizado, mas atenção: Seu plano está {estado_plano}!', 'warning')
@@ -108,7 +97,6 @@ def checkin():
                     flash(f'Bem-vindo(a), {member_data["nome"]}! Bom treino!', 'success')
                 return redirect(url_for('index'))
             else:
-                # Erro no check-in (duplicado ou outro problema)
                 flash(result.message, 'error')
                 return redirect(url_for('checkin'))
         else:
@@ -122,7 +110,6 @@ def checkin():
 def register():
     """Página e processamento de Cadastro."""
     if request.method == 'POST':
-        # Coleta dados do formulário
         nome = request.form.get('nome', '').strip()
         sobrenome = request.form.get('sobrenome', '').strip()
         apelido = request.form.get('apelido')
@@ -147,7 +134,6 @@ def register():
             flash('Tamanho do calçado é obrigatório.', 'error')
             return redirect(url_for('register'))
         
-        # Validar data de nascimento (não pode ser hoje)
         data_nascimento = request.form.get('data_nascimento')
         if data_nascimento:
             from datetime import date as date_cls
@@ -160,10 +146,8 @@ def register():
                 flash('Data de nascimento inválida.', 'error')
                 return redirect(url_for('register'))
         
-        # Concatena nome + sobrenome para armazenar no banco
         nome_completo = f"{nome} {sobrenome}"
-        
-        # Obtém sessão do banco de dados
+
         db = get_db()
         member_service = MemberService(db_session=db)
             
@@ -178,24 +162,20 @@ def register():
             'calcado': request.form.get('calcado'),
             'treina': request.form.get('treina', 'Não'),
             'observacoes': request.form.get('observacoes'),
-            'estado_plano': 'PENDENTE'  # Aguarda aprovação
+            'estado_plano': 'PENDENTE'
         }
 
-        # Buscar detalhes do plano no banco
         selected_plan_obj = db.query(Plano).filter_by(nome=plano, ativo=True).first()
 
-        # Calcular vencimento do plano
         if selected_plan_obj and selected_plan_obj.requer_vencimento:
             new_due_date = calculate_new_due_date(plano)
             if new_due_date:
                  member_data['vencimento_plano'] = new_due_date.date() if hasattr(new_due_date, 'date') else new_due_date
         
-        # Calcular vencimento do treino
         if member_data['treina'] == 'Sim':
             vencimento_treino = datetime.now() + timedelta(days=TREINO_VALIDADE_DIAS)
             member_data['vencimento_treino'] = vencimento_treino.date()
         
-        # Adiciona membro usando o serviço
         try:
             result = member_service.create(member_data)
             if result.success:
@@ -206,7 +186,6 @@ def register():
         except Exception as e:
             flash(f'Erro interno: {str(e)}', 'error')
             
-    # Carrega planos ativos do banco
     db = get_db()
     plans = db.query(Plano).filter(Plano.ativo == True).all()
     plan_names = [p.nome for p in plans]
@@ -214,10 +193,8 @@ def register():
 
 
 if __name__ == '__main__':
-    # Garante que as tabelas existam usando SQLAlchemy
     from src.data.db import init_db
     init_db()
-    
-    # Roda em todas as interfaces locais na porta 5000
+
     app.run(host='0.0.0.0', port=5000, debug=True)
 

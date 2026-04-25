@@ -1,9 +1,4 @@
-"""
-Dynamic Sidebar Navigation Component
-
-Barra lateral de navegação dinâmica que muda conforme o contexto atual.
-Suporta diferentes menus para: Home, Membros, Check-in, Financeiro, Configurações.
-"""
+"""Componente de navegação lateral dinâmica da aplicação desktop."""
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QPushButton, QLabel, QSpacerItem, QSizePolicy, QFrame
@@ -63,9 +58,9 @@ class Sidebar(QWidget):
     notes_clicked = pyqtSignal()
     
     def __init__(self):
+        """Inicializa a sidebar no contexto inicial de dashboard."""
         super().__init__()
         self.setObjectName("sidebar")
-        # Largura inicial: 60px (apenas ícones). Expande para 200px no hover.
         self.setFixedWidth(65) 
         self.buttons = []
         self.current_context = SidebarContext.HOME
@@ -97,14 +92,12 @@ class Sidebar(QWidget):
     def expand(self):
         """Expande para mostrar texto."""
         self.animation.setStartValue(self.width())
-        self.animation.setEndValue(240) # Aumentado para 240px
+        self.animation.setEndValue(240)
         self.animation.start()
         
         self.max_animation.setStartValue(self.width())
-        self.max_animation.setEndValue(240) # Aumentado para 240px
+        self.max_animation.setEndValue(240)
         self.max_animation.start()
-        
-        # Ajusta logo se necessário (opcional, pode ser fixo pequeno)
 
     def collapse(self):
         """Contrai para mostrar apenas ícones."""
@@ -122,39 +115,33 @@ class Sidebar(QWidget):
         from PyQt6.QtGui import QPixmap
         
         self.layout = QVBoxLayout(self)
-        self.layout.setContentsMargins(5, 20, 5, 20) # Margens reduzidas
+        self.layout.setContentsMargins(5, 20, 5, 20)
         self.layout.setSpacing(5)
         
-        # Logo
         logo_label = QLabel()
         logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        base_path = os.path.dirname(os.path.dirname(__file__))  # Vai para src/ui
+        base_path = os.path.dirname(os.path.dirname(__file__))
         logo_path = os.path.join(base_path, "assets", "summit.png")
         if os.path.exists(logo_path):
             pixmap = QPixmap(logo_path)
-            # Logo pequena (40px) para caber no modo colapsado
             scaled_pixmap = pixmap.scaledToWidth(40, Qt.TransformationMode.SmoothTransformation)
             logo_label.setPixmap(scaled_pixmap)
         else:
-            # Fallback para texto se a logo não existir
-            logo_label.setText("S") # Apenas S
+            logo_label.setText("S")
             logo_label.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
             logo_label.setStyleSheet("color: #E67E22;")
         
         logo_label.setStyleSheet("margin-bottom: 20px;")
         self.layout.addWidget(logo_label)
         
-        # Container para botões dinâmicos
         self.buttons_container = QWidget()
         self.buttons_layout = QVBoxLayout(self.buttons_container)
         self.buttons_layout.setContentsMargins(0, 0, 0, 0)
         self.buttons_layout.setSpacing(5)
         self.layout.addWidget(self.buttons_container)
         
-        # Espaçador
         self.layout.addSpacerItem(QSpacerItem(20, 40, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding))
-        
-        # Estilo do container - Dark Navy sidebar
+
         self.setStyleSheet("""
             QWidget#sidebar {
                 background-color: #1a2540;
@@ -164,7 +151,6 @@ class Sidebar(QWidget):
     
     def _clear_buttons(self):
         """Remove todos os widgets do layout de botões."""
-        # Remove todos os widgets do layout
         while self.buttons_layout.count():
             item = self.buttons_layout.takeAt(0)
             widget = item.widget()
@@ -181,7 +167,6 @@ class Sidebar(QWidget):
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
         
         if is_back:
-            # Estilo especial para botão de voltar
             btn.setStyleSheet("""
                 QPushButton {
                     background-color: rgba(230, 126, 34, 0.1);
@@ -220,7 +205,6 @@ class Sidebar(QWidget):
                 }
             """)
         
-        # Conecta o sinal
         btn.clicked.connect(lambda: self._on_button_clicked(btn, signal))
         
         return btn
@@ -247,20 +231,12 @@ class Sidebar(QWidget):
     
     def _on_button_clicked(self, clicked_btn: QPushButton, signal: pyqtSignal):
         """Gerencia o estado dos botões e emite o sinal."""
-        # Desmarca todos os outros botões
         for btn in self.buttons:
             if btn != clicked_btn:
                 btn.setChecked(False)
-        
-        # Marca o botão clicado
+
         clicked_btn.setChecked(True)
-        
-        # Emite o sinal correspondente
         signal.emit()
-    
-    # =========================================================================
-    # MENUS CONTEXTUAIS
-    # =========================================================================
     
     def _build_home_menu(self):
         """Constrói o menu principal (Dashboard)."""
@@ -292,7 +268,6 @@ class Sidebar(QWidget):
         self._clear_buttons()
         self.current_context = SidebarContext.MEMBERS
         
-        # Botão de voltar
         back_btn = self._create_nav_button("🏠 Dashboard", self.home_clicked, is_back=True)
         self.buttons_layout.addWidget(back_btn)
         self.buttons.append(back_btn)
@@ -317,7 +292,6 @@ class Sidebar(QWidget):
         self._clear_buttons()
         self.current_context = SidebarContext.CHECKIN
         
-        # Botão de voltar
         back_btn = self._create_nav_button("🏠 Dashboard", self.home_clicked, is_back=True)
         self.buttons_layout.addWidget(back_btn)
         self.buttons.append(back_btn)
@@ -338,7 +312,6 @@ class Sidebar(QWidget):
         self._clear_buttons()
         self.current_context = SidebarContext.FINANCIAL
         
-        # Botão de voltar
         back_btn = self._create_nav_button("🏠 Dashboard", self.home_clicked, is_back=True)
         self.buttons_layout.addWidget(back_btn)
         self.buttons.append(back_btn)
@@ -361,7 +334,6 @@ class Sidebar(QWidget):
         self._clear_buttons()
         self.current_context = SidebarContext.SETTINGS
         
-        # Botão de voltar
         back_btn = self._create_nav_button("🏠 Dashboard", self.home_clicked, is_back=True)
         self.buttons_layout.addWidget(back_btn)
         self.buttons.append(back_btn)
@@ -384,7 +356,6 @@ class Sidebar(QWidget):
         self._clear_buttons()
         self.current_context = SidebarContext.REPORTS
         
-        # Botão de voltar
         back_btn = self._create_nav_button("🏠 Dashboard", self.home_clicked, is_back=True)
         self.buttons_layout.addWidget(back_btn)
         self.buttons.append(back_btn)
@@ -401,10 +372,6 @@ class Sidebar(QWidget):
             self.buttons_layout.addWidget(btn)
             self.buttons.append(btn)
 
-    # =========================================================================
-    # API PÚBLICA
-    # =========================================================================
-    
     def set_context(self, context: SidebarContext):
         """Define o contexto atual e reconstrói o menu."""
         if context == SidebarContext.HOME:
@@ -420,7 +387,6 @@ class Sidebar(QWidget):
         elif context == SidebarContext.REPORTS:
             self._build_reports_menu()
         elif context == SidebarContext.NOTES:
-            # Notas não tem submenu, apenas emite o sinal
             pass
     
     def go_home(self):

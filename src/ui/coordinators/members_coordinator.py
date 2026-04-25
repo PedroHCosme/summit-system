@@ -56,24 +56,31 @@ class MembersCoordinator:
     # ------------------------------------------------------------------
 
     def on_whatsapp_clicked(self):
+        """Abre conversa no WhatsApp para o membro selecionado na busca."""
         self._open_whatsapp_for_member(self.window.member_search_screen.current_member_data)
 
     def on_list_whatsapp_clicked(self):
+        """Abre conversa no WhatsApp para o membro selecionado na lista."""
         self._open_whatsapp_for_member(self.window.members_list_screen.current_member_data)
 
     def on_quick_payment_clicked(self):
+        """Abre fluxo rápido de registro de pagamento na tela de busca."""
         self._register_quick_payment(self.window.member_search_screen.current_member_data)
 
     def on_list_quick_payment_clicked(self):
+        """Abre fluxo rápido de registro de pagamento na lista de membros."""
         self._register_quick_payment(self.window.members_list_screen.current_member_data)
 
     def on_history_shortcut_clicked(self):
+        """Atalho para focar a aba de histórico na tela de busca."""
         self.window.member_search_screen.member_tabs.setCurrentIndex(1)
 
     def on_list_history_shortcut_clicked(self):
+        """Atalho para focar a aba de histórico na tela de lista."""
         self.window.members_list_screen.member_tabs.setCurrentIndex(1)
 
     def _open_whatsapp_for_member(self, member_data: dict | None):
+        """Valida número e abre URL do WhatsApp Web para o membro informado."""
         if not member_data:
             QMessageBox.warning(self.window, "Ação indisponível", "Selecione um membro primeiro.")
             return
@@ -92,6 +99,7 @@ class MembersCoordinator:
         webbrowser.open(url)
 
     def _register_quick_payment(self, member_data: dict | None):
+        """Registra um pagamento manual simplificado para o membro selecionado."""
         if not member_data:
             QMessageBox.warning(self.window, "Ação indisponível", "Selecione um membro primeiro.")
             return
