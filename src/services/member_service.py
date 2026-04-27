@@ -10,6 +10,8 @@ Este módulo utiliza SQLAlchemy para type safety e queries tipadas.
 from datetime import datetime, date
 from typing import Optional, List, Dict, Any, Tuple, Union, TYPE_CHECKING
 from dataclasses import dataclass
+import re
+import unicodedata
 
 from sqlalchemy import func, or_, and_
 from sqlalchemy.orm import Session
@@ -105,6 +107,10 @@ class MemberService:
                 success=False,
                 message="O campo 'nome' é obrigatório."
             )
+
+        duplicate_error = self._validate_unique_registration(member_data)
+        if duplicate_error:
+            return MemberResult(success=False, message=duplicate_error)
         
         # Definir estado padrão se não fornecido
         if 'estado_plano' not in member_data:
@@ -448,6 +454,74 @@ class MemberService:
             success=False,
             message="Erro ao criar membro."
         )
+
+    def _validate_unique_registration(self, member_data: Dict[str, Any]) -> str:
+        """
+        Valida duplicidade nos dados-chave de cadastro.
+
+        Nome, email e WhatsApp identificam cadastros duplicados. WhatsApp repetido
+        é permitido quando o novo membro é menor de idade, pois pode ser o contato
+        do responsável.
+        """
+        nome = self._normalize_name(member_data.get('nome'))
+        email = self._normalize_email(member_data.get('email'))
+        whatsapp = self._normalize_phone(member_data.get('whatsapp'))
+        is_minor = self._is_minor(member_data.get('data_nascimento'))
+
+        for member in self.get_all():
+            existing = member.to_dict() if isinstance(member, Membro) else member
+
+            if nome and self._normalize_name(existing.get('nome')) == nome:
+                return "Já existe um membro cadastrado com este nome."
+
+            if email and self._normalize_email(existing.get('email')) == email:
+                return "Já existe um membro cadastrado com este email."
+
+            if (
+                whatsapp
+                and not is_minor
+                and self._normalize_phone(existing.get('whatsapp')) == whatsapp
+            ):
+                return "Já existe um membro maior de idade cadastrado com este WhatsApp."
+
+        return ""
+
+    @staticmethod
+    def _normalize_name(value: Any) -> str:
+        """Normaliza nome para comparação de duplicidade."""
+        if value is None:
+            return ""
+        text = str(value).strip().casefold()
+        text = unicodedata.normalize('NFD', text)
+        text = ''.join(char for char in text if unicodedata.category(char) != 'Mn')
+        return ' '.join(text.split())
+
+    @staticmethod
+    def _normalize_email(value: Any) -> str:
+        """Normaliza email para comparação de duplicidade."""
+        if value is None:
+            return ""
+        return str(value).strip().casefold()
+
+    @staticmethod
+    def _normalize_phone(value: Any) -> str:
+        """Mantém apenas dígitos para comparação de WhatsApp."""
+        if value is None:
+            return ""
+        return re.sub(r'\D+', '', str(value))
+
+    @staticmethod
+    def _is_minor(data_nascimento: Any) -> bool:
+        """Retorna True quando a data de nascimento indica menor de 18 anos."""
+        birth_date = coerce_to_date(data_nascimento)
+        if not birth_date:
+            return False
+
+        today = date.today()
+        age = today.year - birth_date.year
+        if (today.month, today.day) < (birth_date.month, birth_date.day):
+            age -= 1
+        return age < 18
     
     def _search_by_name_sqlalchemy(self, name_query: str) -> List[Membro]:
         """Busca membros por nome usando SQLAlchemy."""
