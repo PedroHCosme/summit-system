@@ -30,6 +30,79 @@ class TestMemberManagement:
         assert member.nome == "New User"
         assert member.email == "new@example.com"
 
+    def test_add_member_blocks_duplicate_name(self, member_service):
+        member_service.create({
+            "nome": "João da Silva",
+            "plano": "Mensal",
+            "email": "joao@example.com",
+            "whatsapp": "(11) 99999-0000",
+        })
+
+        result = member_service.create({
+            "nome": "joao   da silva",
+            "plano": "Mensal",
+            "email": "outro@example.com",
+            "whatsapp": "(11) 98888-0000",
+        })
+
+        assert result.success is False
+        assert "nome" in result.message.lower()
+
+    def test_add_member_blocks_duplicate_email(self, member_service):
+        member_service.create({
+            "nome": "Maria Um",
+            "plano": "Mensal",
+            "email": "Maria@Example.com",
+            "whatsapp": "(11) 99999-1111",
+        })
+
+        result = member_service.create({
+            "nome": "Maria Dois",
+            "plano": "Mensal",
+            "email": "maria@example.com",
+            "whatsapp": "(11) 99999-2222",
+        })
+
+        assert result.success is False
+        assert "email" in result.message.lower()
+
+    def test_add_member_blocks_duplicate_whatsapp_for_adult(self, member_service):
+        member_service.create({
+            "nome": "Responsavel Adulto",
+            "plano": "Mensal",
+            "email": "adulto1@example.com",
+            "whatsapp": "(11) 99999-3333",
+        })
+
+        result = member_service.create({
+            "nome": "Outro Adulto",
+            "plano": "Mensal",
+            "email": "adulto2@example.com",
+            "whatsapp": "11999993333",
+            "data_nascimento": date.today() - timedelta(days=365 * 20),
+        })
+
+        assert result.success is False
+        assert "whatsapp" in result.message.lower()
+
+    def test_add_member_allows_duplicate_whatsapp_for_minor(self, member_service):
+        member_service.create({
+            "nome": "Responsavel Menor",
+            "plano": "Mensal",
+            "email": "responsavel@example.com",
+            "whatsapp": "(11) 99999-4444",
+        })
+
+        result = member_service.create({
+            "nome": "Aluno Menor",
+            "plano": "Mensal",
+            "email": "menor@example.com",
+            "whatsapp": "11999994444",
+            "data_nascimento": date.today() - timedelta(days=365 * 12),
+        })
+
+        assert result.success is True
+
     def test_update_member_info(self, member_service):
         # Create
         create_result = member_service.create({"nome": "Update Me", "plano": "Mensal"})
