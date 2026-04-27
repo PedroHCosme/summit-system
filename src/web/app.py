@@ -2,7 +2,7 @@
 
 import os
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, g
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -15,7 +15,6 @@ from src.services.checkin_service import CheckinService
 from src.services.member_service import MemberService
 from src.core.models import Pessoa
 from src.utils.utils import calculate_new_due_date
-from src.config import TREINO_VALIDADE_DIAS
 
 app = Flask(__name__)
 app.secret_key = 'summit_mobile_pass_secret_key'
@@ -160,7 +159,7 @@ def register():
             'email': request.form.get('email'),
             'genero': request.form.get('genero'),
             'calcado': request.form.get('calcado'),
-            'treina': request.form.get('treina', 'Não'),
+            'treina': 'Não',
             'observacoes': request.form.get('observacoes'),
             'estado_plano': 'PENDENTE'
         }
@@ -171,10 +170,6 @@ def register():
             new_due_date = calculate_new_due_date(plano)
             if new_due_date:
                  member_data['vencimento_plano'] = new_due_date.date() if hasattr(new_due_date, 'date') else new_due_date
-        
-        if member_data['treina'] == 'Sim':
-            vencimento_treino = datetime.now() + timedelta(days=TREINO_VALIDADE_DIAS)
-            member_data['vencimento_treino'] = vencimento_treino.date()
         
         try:
             result = member_service.create(member_data)
