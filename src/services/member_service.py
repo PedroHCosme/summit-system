@@ -116,10 +116,9 @@ class MemberService:
         if 'estado_plano' not in member_data:
             member_data['estado_plano'] = ATIVO
         
-        # Limpar vencimento para planos sem vencimento
-        from src.config import PLANOS_COM_VENCIMENTO
+        # Limpar vencimento para planos sem vencimento.
         plano = member_data.get('plano')
-        if plano and plano not in PLANOS_COM_VENCIMENTO:
+        if plano and not self._plan_requires_vencimento(plano):
             member_data['vencimento_plano'] = None
         
         if self._session is not None:
@@ -205,6 +204,30 @@ class MemberService:
             m.to_dict() if isinstance(m, Membro) else m
             for m in results
         ]
+
+    def get_recent_members(self, limit: int = 10) -> List[Dict[str, Any]]:
+        """
+        Retorna os membros cadastrados mais recentemente.
+
+        Usa ID como critério secundário para ordenar cadastros feitos no mesmo dia.
+        """
+        if self._session is not None:
+            members = (
+                self._session.query(Membro)
+                .order_by(Membro.data_cadastro.desc().nulls_last(), Membro.id.desc())
+                .limit(limit)
+                .all()
+            )
+            return [member.to_dict() for member in members]
+
+        all_members = self._db_manager.get_all_members()
+
+        def sort_key(member: Dict[str, Any]):
+            data_cadastro = coerce_to_date(member.get('data_cadastro')) or date.min
+            member_id = member.get('id') or 0
+            return data_cadastro, member_id
+
+        return sorted(all_members, key=sort_key, reverse=True)[:limit]
     
     def get_paginated(
         self,
@@ -486,6 +509,29 @@ class MemberService:
 
         return ""
 
+    def _get_plan_by_name(self, plan_name: str) -> Optional[Plano]:
+        """Busca plano ativo pelo nome quando há sessão SQLAlchemy disponível."""
+        if not plan_name or self._session is None:
+            return None
+        return self._session.query(Plano).filter(
+            Plano.nome == plan_name,
+            Plano.ativo == True
+        ).first()
+
+    def _plan_requires_vencimento(self, plan_name: str) -> bool:
+        """Define se um plano exige vencimento usando a tabela Plano como fonte principal."""
+        plan = self._get_plan_by_name(plan_name)
+        if plan is not None:
+            return bool(plan.requer_vencimento and not plan.is_quota)
+
+        from src.config import PLANOS_COM_VENCIMENTO
+        return plan_name in PLANOS_COM_VENCIMENTO
+
+    @staticmethod
+    def _is_training_active(value: Any) -> bool:
+        """Normaliza o campo treina para comparação."""
+        return str(value or "").strip().casefold() == "sim"
+
     @staticmethod
     def _normalize_name(value: Any) -> str:
         """Normaliza nome para comparação de duplicidade."""
@@ -595,9 +641,12 @@ class MemberService:
             order_clause = sort_column.desc().nulls_last()
         else:
             order_clause = sort_column.asc().nulls_last()
+        order_clauses = [order_clause]
+        if sort_by == 'data_cadastro':
+            order_clauses.append(Membro.id.desc() if sort_dir == "desc" else Membro.id.asc())
         
         # Buscar membros da página
-        members = query.order_by(order_clause).offset(offset).limit(page_size).all()
+        members = query.order_by(*order_clauses).offset(offset).limit(page_size).all()
         
         return PaginatedResult(
             members=[m.to_dict() for m in members],
@@ -665,9 +714,22 @@ class MemberService:
             # Verificar se houve mudança de plano
             old_plan = member.plano
             old_vencimento = member.vencimento_plano
+            old_treina = member.treina
+            old_vencimento_treino = member.vencimento_treino
             new_plan = member_data.get('plano', old_plan)
-            new_vencimento = member_data.get('vencimento_plano', old_vencimento)
+            new_vencimento = coerce_to_date(member_data.get('vencimento_plano', old_vencimento))
+            new_treina = member_data.get('treina', old_treina)
+            new_vencimento_treino = coerce_to_date(
+                member_data.get('vencimento_treino', old_vencimento_treino)
+            )
             plan_changed = (old_plan != new_plan) or (old_vencimento != new_vencimento)
+            training_renewed = (
+                self._is_training_active(new_treina)
+                and (
+                    not self._is_training_active(old_treina)
+                    or old_vencimento_treino != new_vencimento_treino
+                )
+            )
             
             # Query new plan from database to check if quota-based
             new_plan_db = None
@@ -675,6 +737,11 @@ class MemberService:
             if new_plan:
                 new_plan_db = self._session.query(Plano).filter(Plano.nome == new_plan).first()
                 is_new_plan_quota = new_plan_db.is_quota if new_plan_db else False
+            quota_purchase_requested = (
+                is_new_plan_quota
+                and register_payment
+                and ('voucher_credits' in member_data or 'price' in member_data)
+            )
             
             # Query old plan to check if it was quota-based
             old_plan_db = None
@@ -684,7 +751,7 @@ class MemberService:
                 is_old_plan_quota = old_plan_db.is_quota if old_plan_db else False
             
             # Handle voucher credits based on plan type
-            if is_new_plan_quota and plan_changed:
+            if is_new_plan_quota and (plan_changed or quota_purchase_requested):
                 # Quota plan: accumulate credits
                 credits_to_add = member_data.get('voucher_credits')
                 if credits_to_add is None and new_plan_db:
@@ -697,6 +764,9 @@ class MemberService:
             elif not is_new_plan_quota and is_old_plan_quota and plan_changed:
                 # Switching from quota to time-based: reset credits (mutual exclusivity)
                 member.voucher_credits = 0
+
+            if new_plan and not is_new_plan_quota and not self._plan_requires_vencimento(new_plan):
+                member.vencimento_plano = None
             
             # Atualizar campos (excluding voucher_credits which is handled above for quota plans)
             updatable_fields = [
@@ -708,8 +778,12 @@ class MemberService:
             
             for field in updatable_fields:
                 if field in member_data:
-                    # Skip vencimento_plano for quota plans (already set to None above)
-                    if field == 'vencimento_plano' and is_new_plan_quota:
+                    # Skip vencimento_plano for plans without due date (already set to None above)
+                    if (
+                        field == 'vencimento_plano'
+                        and new_plan
+                        and not self._plan_requires_vencimento(new_plan)
+                    ):
                         continue
                     value = member_data[field]
                     # Coerce date fields from any format (str, QDate, etc.) to date
@@ -725,14 +799,15 @@ class MemberService:
             # We effectively allow update if provided, EXCEPT if it was already handled 
             # by the "new plan purchase" accumulation logic above (is_new_plan_quota and plan_changed)
             if 'voucher_credits' in member_data:
-                already_handled = is_new_plan_quota and plan_changed
+                already_handled = is_new_plan_quota and (plan_changed or quota_purchase_requested)
                 if not already_handled:
                     member.voucher_credits = member_data['voucher_credits']
             
             member.updated_at = datetime.now()
             
             # Registrar pagamento se necessário
-            if register_payment and plan_changed and new_plan:
+            if register_payment and new_plan and (plan_changed or quota_purchase_requested):
+                from src.core.payment_constants import TIPO_COMPRA_VOUCHER, TIPO_RENOVACAO_PLANO
                 valor = 0.0
                 
                 # For quota plans, use explicit price or plan price
@@ -756,7 +831,7 @@ class MemberService:
                     tipo_transacao = (
                         PlanPolicy(new_plan_db).renewal_transaction_type
                         if new_plan_db
-                        else ("Compra Voucher" if is_new_plan_quota else "Renovação Plano")
+                        else (TIPO_COMPRA_VOUCHER if is_new_plan_quota else TIPO_RENOVACAO_PLANO)
                     )
                     new_payment = Pagamento(
                         member_id=member_id,
@@ -768,6 +843,20 @@ class MemberService:
                         nova_data_vencimento=coerce_to_date(new_vencimento) if not is_new_plan_quota else None
                     )
                     self._session.add(new_payment)
+
+            if register_payment and training_renewed:
+                from src.config import TREINO_PRECO
+                from src.core.payment_constants import TIPO_PAGAMENTO_TREINO
+
+                self._session.add(Pagamento(
+                    member_id=member_id,
+                    data_pagamento=datetime.now(),
+                    tipo_transacao=TIPO_PAGAMENTO_TREINO,
+                    descricao=f"Treino - {member.nome}",
+                    valor=TREINO_PRECO,
+                    metodo_pagamento=metodo_pagamento,
+                    nova_data_vencimento=new_vencimento_treino
+                ))
             
             self._session.commit()
             
@@ -834,18 +923,17 @@ class MemberService:
 
         With native Date columns, comparison is direct — no string parsing needed.
         """
-        from src.config import PLANOS_COM_VENCIMENTO
-        
         today = date.today()
         updated_count = 0
         
         members = self._session.query(Membro).filter(
             Membro.vencimento_plano.isnot(None),
-            Membro.estado_plano == ATIVO,
-            Membro.plano.in_(PLANOS_COM_VENCIMENTO)
+            Membro.estado_plano == ATIVO
         ).all()
         
         for member in members:
+            if member.plano and not self._plan_requires_vencimento(member.plano):
+                continue
             if member.vencimento_plano < today:
                 member.estado_plano = INATIVO
                 member.updated_at = datetime.now()

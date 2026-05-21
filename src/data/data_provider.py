@@ -93,6 +93,21 @@ class DataProvider:
             return self.member_service.get_all_as_dicts()
         else:
             return self._get_all_members_from_sheets()
+
+    def get_recent_members(self, limit: int = 10) -> List[Dict[str, Any]]:
+        """Retorna os membros cadastrados mais recentemente."""
+        if self.use_sqlite:
+            return self.member_service.get_recent_members(limit)
+
+        all_members = self._get_all_members_from_sheets()
+        all_members.sort(
+            key=lambda member: (
+                parse_date(member.get('data_cadastro', '')) or datetime.min,
+                member.get('id') or 0,
+            ),
+            reverse=True,
+        )
+        return all_members[:limit]
     
     def get_members_paginated(self, page: int = 1, page_size: int = 50,
                               filter_text: str = "", filter_plan: str = "",
@@ -550,6 +565,11 @@ def get_provider() -> DataProvider:
 def get_all_members() -> List[Dict[str, Any]]:
     """Retorna todos os membros."""
     return get_provider().get_all_members()
+
+
+def get_recent_members(limit: int = 10) -> List[Dict[str, Any]]:
+    """Retorna os membros cadastrados mais recentemente."""
+    return get_provider().get_recent_members(limit)
 
 
 def find_members_by_name(name: str) -> List[Dict[str, Any]]:

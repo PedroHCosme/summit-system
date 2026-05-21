@@ -33,6 +33,7 @@ TIPO_RENOVACAO_PLANO = "Renovação Plano"
 TIPO_COMPRA_VOUCHER = "Compra Voucher"
 TIPO_PAGAMENTO_TREINO = "Pagamento Treino"
 TIPO_VENDA_PRODUTO = "Venda de Produto"
+TIPO_PAGAMENTO_MANUAL = "Pagamento Manual"
 
 # Legado — string incompleta usada antes da padronização; preferir TIPO_RENOVACAO_PLANO
 TIPO_RENOVACAO = "Renovação"

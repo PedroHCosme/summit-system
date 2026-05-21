@@ -75,7 +75,7 @@ class MembersListScreen(QWidget):
         self.sort_combo = QComboBox()
         self.sort_combo.addItem("Nome (A→Z)", ("nome", "asc"))
         self.sort_combo.addItem("Nome (Z→A)", ("nome", "desc"))
-        self.sort_combo.addItem("Cadastro (Mais Recente)", ("data_cadastro", "desc"))
+        self.sort_combo.addItem("Últimos cadastrados", ("data_cadastro", "desc"))
         self.sort_combo.addItem("Cadastro (Mais Antigo)", ("data_cadastro", "asc"))
         self.sort_combo.addItem("Vencimento (Próximo)", ("vencimento_plano", "asc"))
         self.sort_combo.addItem("Vencimento (Distante)", ("vencimento_plano", "desc"))

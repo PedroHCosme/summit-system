@@ -33,7 +33,7 @@ def db_session():
     session = Session()
     
     # Seed required data (e.g., Plans)
-    plan = Plano(nome="Mensal", preco=100.0, ativo=True)
+    plan = Plano(nome="Mensal", preco=100.0, requer_vencimento=True, ativo=True)
     session.add(plan)
     session.commit()
     

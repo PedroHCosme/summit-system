@@ -127,6 +127,34 @@ class TestMemberManagement:
         member = member_service.get_by_id(member_id)
         assert member is None
 
+    def test_get_recent_members_returns_latest_registrations(self, member_service, db_session):
+        older = Membro(nome="Older Member", plano="Mensal", data_cadastro=date(2024, 1, 1))
+        middle = Membro(nome="Middle Member", plano="Mensal", data_cadastro=date(2024, 2, 1))
+        newer = Membro(nome="Newer Member", plano="Mensal", data_cadastro=date(2024, 3, 1))
+        db_session.add_all([older, middle, newer])
+        db_session.commit()
+
+        recent = member_service.get_recent_members(limit=2)
+
+        assert [member["nome"] for member in recent] == ["Newer Member", "Middle Member"]
+
+    def test_paginated_members_can_sort_by_latest_registration(self, member_service, db_session):
+        first = Membro(nome="First Same Day", plano="Mensal", data_cadastro=date(2024, 4, 1))
+        second = Membro(nome="Second Same Day", plano="Mensal", data_cadastro=date(2024, 4, 1))
+        db_session.add_all([first, second])
+        db_session.commit()
+
+        result = member_service.get_paginated(
+            sort_by="data_cadastro",
+            sort_dir="desc",
+            page_size=2,
+        )
+
+        assert [member["nome"] for member in result.members] == [
+            "Second Same Day",
+            "First Same Day",
+        ]
+
 
 class TestMemberRegistrationAdvanced:
     """Advanced member registration tests."""
@@ -178,6 +206,47 @@ class TestMemberRegistrationAdvanced:
         member = member_service.get_by_id(result.member_id)
         assert member.vencimento_plano == future_date
         assert member.estado_plano == "ATIVO"
+
+    def test_add_member_respects_custom_plan_without_vencimento(self, member_service, db_session):
+        """Plano sem vencimento no banco sempre limpa vencimento informado."""
+        db_session.add(Plano(
+            nome="Plano Sem Vencimento Custom",
+            preco=80.0,
+            requer_vencimento=False,
+            ativo=True
+        ))
+        db_session.commit()
+
+        result = member_service.create({
+            "nome": "No Expiration User",
+            "plano": "Plano Sem Vencimento Custom",
+            "vencimento_plano": date.today() + timedelta(days=30)
+        })
+
+        assert result.success is True
+        member = member_service.get_by_id(result.member_id)
+        assert member.vencimento_plano is None
+
+    def test_add_member_respects_custom_plan_with_vencimento(self, member_service, db_session):
+        """Plano com vencimento no banco preserva a data mesmo fora do config.py."""
+        future_date = date.today() + timedelta(days=30)
+        db_session.add(Plano(
+            nome="Plano Com Vencimento Custom",
+            preco=120.0,
+            requer_vencimento=True,
+            ativo=True
+        ))
+        db_session.commit()
+
+        result = member_service.create({
+            "nome": "Custom Expiration User",
+            "plano": "Plano Com Vencimento Custom",
+            "vencimento_plano": future_date
+        })
+
+        assert result.success is True
+        member = member_service.get_by_id(result.member_id)
+        assert member.vencimento_plano == future_date
 
     def test_add_member_with_training(self, member_service):
         """Member with training service gets treina and vencimento_treino set."""
@@ -266,6 +335,32 @@ class TestEditMemberAdvanced:
         member = member_service.get_by_id(member_id)
         assert member.plano == "Pacote 10"
         assert member.voucher_credits == 10
+
+    def test_rebuy_same_quota_plan_accumulates_credits_and_registers_payment(
+        self, member_service, db_session, quota_plan
+    ):
+        """Comprar o mesmo pacote novamente acumula créditos e registra pagamento."""
+        result = member_service.create({
+            "nome": "Quota Rebuyer",
+            "plano": "Pacote 10",
+            "voucher_credits": 2
+        })
+
+        update_result = member_service.update_from_dict({
+            'id': result.member_id,
+            'plano': 'Pacote 10',
+            'voucher_credits': 10
+        }, register_payment=True, metodo_pagamento='PIX')
+
+        assert update_result.success is True
+        member = member_service.get_by_id(result.member_id)
+        assert member.voucher_credits == 12
+
+        payment = db_session.query(Pagamento).filter(
+            Pagamento.member_id == result.member_id
+        ).one()
+        assert payment.tipo_transacao == "Compra Voucher"
+        assert payment.valor == 200.0
 
     def test_update_training_activation(self, member_service, db_session):
         """Activating training sets treina='Sim' and vencimento_treino."""

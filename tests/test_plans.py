@@ -55,6 +55,43 @@ class TestSubscriptionPlans:
         member = member_service.get_by_id(member_result.member_id)
         assert member.estado_plano == ATIVO
 
+    def test_expiration_uses_database_plan_rules(self, member_service, db_session):
+        db_session.add_all([
+            Plano(
+                nome="Custom Time Plan",
+                preco=140.0,
+                requer_vencimento=True,
+                ativo=True
+            ),
+            Plano(
+                nome="Custom No Expiration Plan",
+                preco=90.0,
+                requer_vencimento=False,
+                ativo=True
+            ),
+        ])
+        db_session.commit()
+
+        past_date = date.today() - timedelta(days=1)
+        time_plan = member_service.create({
+            "nome": "Custom Expired User",
+            "plano": "Custom Time Plan",
+            "vencimento_plano": past_date,
+            "estado_plano": ATIVO
+        })
+        no_expiration = member_service.create({
+            "nome": "Custom No Expiration User",
+            "plano": "Custom No Expiration Plan",
+            "vencimento_plano": past_date,
+            "estado_plano": ATIVO
+        })
+
+        count = member_service.update_expired_plans()
+
+        assert count == 1
+        assert member_service.get_by_id(time_plan.member_id).estado_plano == INATIVO
+        assert member_service.get_by_id(no_expiration.member_id).estado_plano == ATIVO
+
 
 class TestPlanCRUD:
     """Tests for plan creation and modification."""

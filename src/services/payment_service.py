@@ -15,6 +15,7 @@ from sqlalchemy import func, and_, desc
 from sqlalchemy.orm import Session
 
 from src.data.models import Membro, Pagamento
+from src.core.payment_constants import TIPO_RENOVACAO_PLANO
 from src.utils.date_utils import coerce_to_date
 
 if TYPE_CHECKING:
@@ -151,7 +152,7 @@ class PaymentService:
         plan_name: str,
         vencimento: Optional[str] = None,
         metodo_pagamento: str = "",
-        tipo_transacao: str = "Renovação Plano",
+        tipo_transacao: str = TIPO_RENOVACAO_PLANO,
         descricao: Optional[str] = None,
         payment_date: Optional[datetime] = None
     ) -> PaymentResult:
@@ -170,9 +171,12 @@ class PaymentService:
         Returns:
             PaymentResult com o resultado da operação
         """
-        from src.config import PLANOS_PRECOS
-        
-        valor = PLANOS_PRECOS.get(plan_name, 0.0)
+        if self._session is not None:
+            from src.services.plan_service import PlanService
+            valor = PlanService(db_session=self._session).get_plan_price(plan_name)
+        else:
+            from src.config import PLANOS_PRECOS
+            valor = PLANOS_PRECOS.get(plan_name, 0.0)
         if valor <= 0:
             return PaymentResult(
                 success=False,

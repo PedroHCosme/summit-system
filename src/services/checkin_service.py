@@ -211,6 +211,30 @@ class CheckinService:
             Pagamento.metodo_pagamento == METODO_CHECKIN
         ).count()
         return count > 0
+
+    def _get_payment_for_checkin(self, member_id: int, checkin_datetime: datetime) -> Optional[Pagamento]:
+        """Busca o pagamento automático associado ao check-in do membro naquela data."""
+        from src.core.payment_constants import METODO_CHECKIN
+        checkin_date = checkin_datetime.date()
+        return self._session.query(Pagamento).filter(
+            Pagamento.member_id == member_id,
+            func.date(Pagamento.data_pagamento) == checkin_date,
+            Pagamento.metodo_pagamento == METODO_CHECKIN
+        ).first()
+
+    def _has_other_checkin_on_date(
+        self,
+        member_id: int,
+        checkin_datetime: datetime,
+        current_checkin_id: int
+    ) -> bool:
+        """Verifica duplicidade ao editar um check-in existente."""
+        checkin_date = checkin_datetime.date()
+        return self._session.query(Frequencia).filter(
+            Frequencia.member_id == member_id,
+            Frequencia.id != current_checkin_id,
+            func.date(Frequencia.checkin_datetime) == checkin_date
+        ).count() > 0
     
     # =========================================================================
     # MÉTODOS PRIVADOS - LÓGICA DE NEGÓCIO
@@ -387,7 +411,13 @@ class CheckinService:
                     success=False,
                     message=f"Check-in com ID {checkin_id} não encontrado."
                 )
-            
+
+            automatic_payment = self._get_payment_for_checkin(
+                checkin.member_id,
+                checkin.checkin_datetime
+            )
+            if automatic_payment:
+                self._session.delete(automatic_payment)
             self._session.delete(checkin)
             self._session.commit()
             
@@ -421,8 +451,21 @@ class CheckinService:
                     success=False,
                     message=f"Check-in com ID {checkin_id} não encontrado."
                 )
-            
+
+            if self._has_other_checkin_on_date(checkin.member_id, new_datetime, checkin_id):
+                return CheckinResult(
+                    success=False,
+                    checkin_id=checkin_id,
+                    message="Já existe um check-in deste membro na nova data."
+                )
+
+            automatic_payment = self._get_payment_for_checkin(
+                checkin.member_id,
+                checkin.checkin_datetime
+            )
             checkin.checkin_datetime = new_datetime
+            if automatic_payment:
+                automatic_payment.data_pagamento = new_datetime
             self._session.commit()
             
             return CheckinResult(
