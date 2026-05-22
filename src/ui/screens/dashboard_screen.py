@@ -147,11 +147,27 @@ class DashboardScreen(QWidget):
             header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         layout.addWidget(self.today_checkins_table)
 
-        # Placeholder para o gráfico
-        graph_label = QLabel("Gráfico de Frequência (Em breve)")
-        graph_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        graph_label.setStyleSheet("font-size: 16px; color: #4a5568;")
-        layout.addWidget(graph_label)
+        recent_members_label = QLabel("Últimos membros cadastrados")
+        recent_members_label.setStyleSheet("font-size: 18px; font-weight: bold; color: #1a2540;")
+        layout.addWidget(recent_members_label)
+
+        self.recent_members_table = QTableWidget()
+        self.recent_members_table.setColumnCount(4)
+        self.recent_members_table.setHorizontalHeaderLabels(
+            ["Nome do Membro", "Plano", "Cadastro", "Status do Plano"]
+        )
+        self.recent_members_table.setMaximumHeight(260)
+        self.recent_members_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.recent_members_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.recent_members_table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+        self.recent_members_table.cellDoubleClicked.connect(
+            self._on_recent_members_table_double_clicked
+        )
+        recent_header = self.recent_members_table.horizontalHeader()
+        if recent_header:
+            recent_header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        layout.addWidget(self.recent_members_table)
+
         layout.addStretch()
 
     def _create_stat_card(self, title: str, initial_value: str) -> QWidget:
@@ -188,46 +204,66 @@ class DashboardScreen(QWidget):
         last_checkins = data.get("last_checkins", [])
         if not last_checkins:
             self.today_checkins_table.setRowCount(0)
-            return
+        else:
+            self.today_checkins_table.setRowCount(len(last_checkins))
+            for row, checkin in enumerate(last_checkins):
+                nome = checkin.get("nome", "N/A")
+                plano = checkin.get("plano", "N/A")
+                status_plano = checkin.get("status_plano", "")
+                estado_plano = checkin.get("estado_plano", "")
+                member_id = checkin.get("member_id", 0)
 
-        self.today_checkins_table.setRowCount(len(last_checkins))
-        for row, checkin in enumerate(last_checkins):
-            nome = checkin.get("nome", "N/A")
-            plano = checkin.get("plano", "N/A")
-            status_plano = checkin.get("status_plano", "")
-            estado_plano = checkin.get("estado_plano", "")
-            member_id = checkin.get("member_id", 0)
+                dt_str = checkin.get("checkin_datetime")
+                date_text = "N/A"
+                time_text = "N/A"
+                if dt_str:
+                    dt_obj = datetime.fromisoformat(dt_str)
+                    date_text = dt_obj.strftime("%d/%m/%Y")
+                    time_text = dt_obj.strftime("%H:%M:%S")
 
-            dt_str = checkin.get("checkin_datetime")
-            date_text = "N/A"
-            time_text = "N/A"
-            if dt_str:
-                dt_obj = datetime.fromisoformat(dt_str)
-                date_text = dt_obj.strftime("%d/%m/%Y")
-                time_text = dt_obj.strftime("%H:%M:%S")
+                name_item = QTableWidgetItem(nome)
+                name_item.setData(Qt.ItemDataRole.UserRole, member_id)
+                plan_item = QTableWidgetItem(plano)
+                date_item = QTableWidgetItem(date_text)
+                time_item = QTableWidgetItem(time_text)
+                status_item = QTableWidgetItem(self._format_plan_status_label(checkin))
 
-            name_item = QTableWidgetItem(nome)
-            name_item.setData(Qt.ItemDataRole.UserRole, member_id)
-            plan_item = QTableWidgetItem(plano)
-            date_item = QTableWidgetItem(date_text)
-            time_item = QTableWidgetItem(time_text)
-            status_item = QTableWidgetItem(self._format_plan_status_label(checkin))
+                needs_renewal = self._needs_plan_renewal(checkin)
+                if needs_renewal:
+                    name_item.setForeground(Qt.GlobalColor.red)
+                    plan_item.setForeground(Qt.GlobalColor.red)
+                    status_item.setForeground(Qt.GlobalColor.red)
+                elif plan_is_active(estado_plano):
+                    name_item.setForeground(Qt.GlobalColor.blue)
+                    plan_item.setForeground(Qt.GlobalColor.blue)
+                    status_item.setForeground(Qt.GlobalColor.blue)
 
-            needs_renewal = self._needs_plan_renewal(checkin)
-            if needs_renewal:
-                name_item.setForeground(Qt.GlobalColor.red)
-                plan_item.setForeground(Qt.GlobalColor.red)
-                status_item.setForeground(Qt.GlobalColor.red)
-            elif plan_is_active(estado_plano):
-                name_item.setForeground(Qt.GlobalColor.blue)
-                plan_item.setForeground(Qt.GlobalColor.blue)
+                self.today_checkins_table.setItem(row, 0, name_item)
+                self.today_checkins_table.setItem(row, 1, plan_item)
+                self.today_checkins_table.setItem(row, 2, date_item)
+                self.today_checkins_table.setItem(row, 3, time_item)
+                self.today_checkins_table.setItem(row, 4, status_item)
+
+        recent_members = data.get("recent_members", [])
+        self.recent_members_table.setRowCount(len(recent_members))
+        for row, member in enumerate(recent_members):
+            member_id = member.get("id", 0)
+            nome_item = QTableWidgetItem(member.get("nome", "N/A"))
+            nome_item.setData(Qt.ItemDataRole.UserRole, member_id)
+            plano_item = QTableWidgetItem(member.get("plano") or "N/A")
+            cadastro_item = QTableWidgetItem(member.get("data_cadastro") or "N/A")
+            status_item = QTableWidgetItem(member.get("estado_plano") or "-")
+
+            estado_plano = member.get("estado_plano", "")
+            if plan_is_active(estado_plano):
+                nome_item.setForeground(Qt.GlobalColor.blue)
+                plano_item.setForeground(Qt.GlobalColor.blue)
                 status_item.setForeground(Qt.GlobalColor.blue)
 
-            self.today_checkins_table.setItem(row, 0, name_item)
-            self.today_checkins_table.setItem(row, 1, plan_item)
-            self.today_checkins_table.setItem(row, 2, date_item)
-            self.today_checkins_table.setItem(row, 3, time_item)
-            self.today_checkins_table.setItem(row, 4, status_item)
+            self.recent_members_table.setItem(row, 0, nome_item)
+            self.recent_members_table.setItem(row, 1, plano_item)
+            self.recent_members_table.setItem(row, 2, cadastro_item)
+            self.recent_members_table.setItem(row, 3, status_item)
 
     def _needs_plan_renewal(self, checkin: dict) -> bool:
         estado_plano = checkin.get("estado_plano", "")
@@ -272,9 +308,18 @@ class DashboardScreen(QWidget):
         if isinstance(member_id, int) and member_id > 0:
             self.member_clicked.emit(member_id)
 
+    def _on_recent_members_table_double_clicked(self, row: int, _column: int) -> None:
+        name_item = self.recent_members_table.item(row, 0)
+        if not name_item:
+            return
+        member_id = name_item.data(Qt.ItemDataRole.UserRole)
+        if isinstance(member_id, int) and member_id > 0:
+            self.member_clicked.emit(member_id)
+
     def show_error(self, error_message: str):
         """Exibe um erro no dashboard."""
         self.today_checkins_table.setRowCount(0)
+        self.recent_members_table.setRowCount(0)
         QMessageBox.warning(self, "Erro no Dashboard", error_message)
 
     def show_checkins_details(self):

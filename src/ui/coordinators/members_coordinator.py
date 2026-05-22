@@ -104,14 +104,22 @@ class MembersCoordinator:
             QMessageBox.warning(self.window, "Ação indisponível", "Selecione um membro primeiro.")
             return
 
+        from src.core.payment_constants import (
+            METODOS_PAGAMENTO_UI,
+            TIPO_PAGAMENTO_MANUAL,
+            TIPO_PAGAMENTO_TREINO,
+            TIPO_RENOVACAO_PLANO,
+            TIPO_VENDA_PRODUTO,
+        )
+
         tipos = [
-            "Renovação Plano",
-            "Treino",
+            TIPO_RENOVACAO_PLANO,
+            TIPO_PAGAMENTO_TREINO,
             "Diária",
             "Gympass",
             "Totalpass",
-            "Venda Produto",
-            "Pagamento Manual",
+            TIPO_VENDA_PRODUTO,
+            TIPO_PAGAMENTO_MANUAL,
         ]
         tipo, ok = QInputDialog.getItem(
             self.window,
@@ -138,7 +146,7 @@ class MembersCoordinator:
             QMessageBox.warning(self.window, "Valor inválido", "Informe um valor maior que zero.")
             return
 
-        metodos = ["PIX", "Cartão de Crédito", "Cartão de Débito", "Dinheiro", "Transferência"]
+        metodos = METODOS_PAGAMENTO_UI
         metodo, ok = QInputDialog.getItem(
             self.window,
             "Registrar Pagamento",

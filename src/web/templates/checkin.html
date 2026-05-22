@@ -14,27 +14,67 @@
         <button type="submit" class="btn btn-primary">CONFIRMAR</button>
     </form>
 
-    {% if results %}
-    <div class="alert alert-warning" style="margin-top: 20px; text-align: left;">
-        <p style="margin-bottom: 12px; font-weight: 600;">Encontramos varios membros:</p>
-        <ul class="member-list">
-            {% for member in results %}
-            <li>
-                <div class="member-info">
-                    <span class="member-name">{{ member.nome }}</span>
-                    {% if member.apelido %}
-                    <span class="member-nickname">{{ member.apelido }}</span>
-                    {% endif %}
-                </div>
-                <form method="POST" action="{{ url_for('checkin') }}" style="margin: 0;"
-                    onsubmit="return confirmCheckin('{{ member.nome }}')">
-                    <input type="hidden" name="member_id" value="{{ member.id }}">
-                    <button type="submit" class="btn btn-success btn-sm">Confirmar</button>
-                </form>
-            </li>
-            {% endfor %}
-        </ul>
+    {% if not_found %}
+    <div class="checkin-empty-state">
+        <h3>Membro não encontrado</h3>
+        <p>Não encontramos ninguém com "{{ identifier }}". Confira o nome ou faça seu cadastro.</p>
+        <a href="{{ url_for('register') }}" class="btn btn-outline">Fazer cadastro</a>
     </div>
+    {% endif %}
+
+    {% if results %}
+    <section class="checkin-results" aria-live="polite">
+        {% if results|length == 1 %}
+        <div class="checkin-results-header">
+            <h3>Encontramos você?</h3>
+            <p>Confirme seus dados antes de registrar o check-in.</p>
+        </div>
+        {% else %}
+        <div class="checkin-results-header">
+            <h3>Encontramos mais de um membro.</h3>
+            <p>Escolha seu nome para continuar.</p>
+        </div>
+        {% endif %}
+
+        <div class="member-card-list">
+            {% for member in results %}
+            <article class="checkin-member-card">
+                <div class="member-card-main">
+                    <div class="member-card-header">
+                        <span class="member-name">{{ member.nome }}</span>
+                        <span class="status-pill status-{{ member.status_class }}">{{ member.status_label }}</span>
+                    </div>
+                    {% if member.apelido %}
+                    <span class="member-nickname">Apelido: {{ member.apelido }}</span>
+                    {% endif %}
+                    <div class="member-card-meta">
+                        {% if member.plano %}
+                        <span>{{ member.plano }}</span>
+                        {% endif %}
+                        {% if member.whatsapp_hint %}
+                        <span>{{ member.whatsapp_hint }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                {% if member.can_checkin %}
+                    {% if member.requires_warning %}
+                    <p class="member-card-warning">Seu plano parece vencido. O check-in será registrado, mas fale com a recepção.</p>
+                    {% endif %}
+                    <form method="POST" action="{{ url_for('checkin') }}" class="member-checkin-form"
+                        onsubmit="return confirmCheckin('{{ member.nome }}', {{ 'true' if member.requires_warning else 'false' }})">
+                        <input type="hidden" name="member_id" value="{{ member.id }}">
+                        <button type="submit" class="btn btn-success member-checkin-button">
+                            {% if results|length == 1 %}Sou eu, fazer check-in{% else %}Sou eu{% endif %}
+                        </button>
+                    </form>
+                {% else %}
+                    <p class="member-card-warning">Seu cadastro ainda está aguardando aprovação da academia.</p>
+                {% endif %}
+            </article>
+            {% endfor %}
+        </div>
+    </section>
     {% endif %}
 
     <a href="{{ url_for('index') }}" class="back-link">Voltar</a>
@@ -47,8 +87,11 @@
 </div>
 
 <script>
-    function confirmCheckin(name) {
-        return confirm(`Tem certeza que deseja fazer check-in para ${name}?`);
+    function confirmCheckin(name, requiresWarning) {
+        const warning = requiresWarning
+            ? '\n\nSeu plano parece vencido. O check-in será registrado, mas fale com a recepção.'
+            : '';
+        return confirm(`Confirmar check-in para ${name}?${warning}`);
     }
 
     document.addEventListener('DOMContentLoaded', function () {

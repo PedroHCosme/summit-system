@@ -4,6 +4,8 @@ from datetime import datetime, timedelta, date
 from src.services.payment_service import PaymentService
 from src.services.member_service import MemberService
 from src.data.models import Pagamento, Plano
+from src.config import TREINO_PRECO
+from src.core.payment_constants import TIPO_PAGAMENTO_TREINO, TIPO_RENOVACAO_PLANO
 
 
 class TestFinancialRules:
@@ -30,6 +32,24 @@ class TestFinancialRules:
         
         assert result.success is True
         assert result.payment_id is not None
+
+    def test_register_plan_payment_uses_database_plan_price(self, payment_service, member_service, db_session):
+        """Pagamento de plano usa a tabela Plano, não o preço legado do config.py."""
+        member = member_service.create({"nome": "DB Price Payer", "plano": "Mensal"})
+        plan = db_session.query(Plano).filter(Plano.nome == "Mensal").first()
+        plan.preco = 333.0
+        db_session.commit()
+
+        result = payment_service.register_plan_payment(
+            member_id=member.member_id,
+            plan_name="Mensal",
+            metodo_pagamento="PIX"
+        )
+
+        assert result.success is True
+        payment = db_session.query(Pagamento).filter(Pagamento.id == result.payment_id).first()
+        assert payment.valor == 333.0
+        assert payment.tipo_transacao == TIPO_RENOVACAO_PLANO
 
     def test_revenue_calculation(self, payment_service):
         # Add a few payments
@@ -204,14 +224,13 @@ class TestFinancialAdvanced:
             Pagamento.member_id == member_id
         ).count()
         
-        # Activate training with payment and set treina_activated flag
+        # Activate training with payment
         future_date = (date.today() + timedelta(days=30)).strftime('%d/%m/%Y')
         update_result = member_service.update_from_dict({
             'id': member_id,
             'treina': 'Sim',
             'vencimento_treino': future_date,
-            'treina_activated': True  # Flag to indicate training activation
-        }, register_payment=False, metodo_pagamento='PIX')
+        }, register_payment=True, metodo_pagamento='PIX')
         
         assert update_result.success is True
         
@@ -219,3 +238,16 @@ class TestFinancialAdvanced:
         from src.data.models import Membro
         member = db_session.query(Membro).filter(Membro.id == member_id).first()
         assert member.treina == "Sim"
+
+        payments_after = db_session.query(Pagamento).filter(
+            Pagamento.member_id == member_id
+        ).count()
+        assert payments_after == payments_before + 1
+
+        payment = db_session.query(Pagamento).filter(
+            Pagamento.member_id == member_id
+        ).one()
+        assert payment.tipo_transacao == TIPO_PAGAMENTO_TREINO
+        assert payment.valor == TREINO_PRECO
+        assert payment.metodo_pagamento == "PIX"
+        assert payment.nova_data_vencimento == date.today() + timedelta(days=30)
