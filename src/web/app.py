@@ -4,8 +4,23 @@ import os
 import sys
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, g
-from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
+try:
+    from flask_limiter import Limiter
+    from flask_limiter.util import get_remote_address
+except ImportError:
+    def get_remote_address():
+        return request.remote_addr or "127.0.0.1"
+
+    class Limiter:
+        """Fallback para ambientes de teste/desenvolvimento sem Flask-Limiter."""
+
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def limit(self, *args, **kwargs):
+            def decorator(func):
+                return func
+            return decorator
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
@@ -13,6 +28,13 @@ from src.data.db import get_session_factory
 from src.data.models import Membro, Plano
 from src.services.checkin_service import CheckinService
 from src.services.member_service import MemberService
+from src.core.plan_status import (
+    PENDENTE,
+    STATUS_PLANO_EM_DIA,
+    STATUS_PLANO_SEM_VENCIMENTO,
+    STATUS_PLANO_VENCIDO,
+    calcular_status_plano,
+)
 from src.core.models import Pessoa
 from src.utils.utils import calculate_new_due_date
 
@@ -43,6 +65,40 @@ def close_db(exception):
     if db is not None:
         db.close()
 
+
+def _member_checkin_card(member: Membro, db) -> dict:
+    """Monta dados seguros para o card de check-in web."""
+    plan = None
+    if member.plano_id:
+        plan = db.query(Plano).filter(Plano.id == member.plano_id).first()
+    if plan is None and member.plano:
+        plan = db.query(Plano).filter(Plano.nome == member.plano).first()
+
+    status = calcular_status_plano(
+        vencimento_plano=member.vencimento_plano,
+        estado_plano_db=member.estado_plano,
+        is_quota=bool(plan.is_quota) if plan else False,
+        valor_por_checkin=float(plan.valor_por_checkin or 0.0) if plan else 0.0,
+    )
+
+    status_labels = {
+        STATUS_PLANO_EM_DIA: "Plano em dia",
+        STATUS_PLANO_VENCIDO: "Plano vencido",
+        STATUS_PLANO_SEM_VENCIMENTO: "Sem vencimento",
+        PENDENTE: "Cadastro pendente",
+    }
+
+    digits = ''.join(ch for ch in str(member.whatsapp or '') if ch.isdigit())
+    return {
+        **member.to_dict(),
+        'whatsapp_hint': f"Final {digits[-4:]}" if len(digits) >= 4 else "",
+        'status_plano': status,
+        'status_label': status_labels.get(status, status),
+        'status_class': str(status).lower().replace(" ", "-"),
+        'can_checkin': status != PENDENTE,
+        'requires_warning': status == STATUS_PLANO_VENCIDO,
+    }
+
 @app.route('/')
 def index():
     """Página inicial com opções de Check-in e Cadastro."""
@@ -68,15 +124,18 @@ def checkin():
             except (ValueError, TypeError):
                 flash('ID de membro inválido.', 'error')
                 return redirect(url_for('checkin'))
+
+            if member and member.estado_plano == PENDENTE:
+                flash('Seu cadastro ainda está aguardando aprovação da academia.', 'warning')
+                return redirect(url_for('checkin'))
         
         elif identifier:
             results = member_service.search_by_name(identifier)
             
             if not results:
-                flash('Membro não encontrado. Tente novamente ou faça seu cadastro.', 'error')
-                return redirect(url_for('checkin'))
+                return render_template('checkin.html', not_found=True, identifier=identifier)
             
-            results_dicts = [m.to_dict() if hasattr(m, 'to_dict') else m for m in results]
+            results_dicts = [_member_checkin_card(m, db) for m in results]
             
             if len(results) == 1:
                 flash('Membro encontrado! Confirme o check-in abaixo.', 'info')
@@ -89,9 +148,9 @@ def checkin():
             result = checkin_service.perform_checkin(member_id, datetime.now())
             
             if result.success:
-                estado_plano = member_data.get('estado_plano', 'ATIVO')
-                if estado_plano != 'ATIVO':
-                    flash(f'Check-in realizado, mas atenção: Seu plano está {estado_plano}!', 'warning')
+                card_data = _member_checkin_card(member, db)
+                if card_data['status_plano'] == STATUS_PLANO_VENCIDO:
+                    flash('Check-in realizado, mas atenção: seu plano parece vencido. Fale com a recepção.', 'warning')
                 else:
                     flash(f'Bem-vindo(a), {member_data["nome"]}! Bom treino!', 'success')
                 return redirect(url_for('index'))

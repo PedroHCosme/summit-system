@@ -515,8 +515,129 @@ textarea::placeholder {
 }
 
 .member-nickname {
+    display: block;
     font-size: 0.875rem;
     color: var(--text-muted);
+}
+
+.checkin-results {
+    margin-top: var(--spacing-lg);
+}
+
+.checkin-results-header {
+    margin-bottom: var(--spacing-md);
+}
+
+.checkin-results-header h3 {
+    margin-bottom: var(--spacing-xs);
+    letter-spacing: 0.5px;
+    text-transform: none;
+}
+
+.checkin-results-header p,
+.checkin-empty-state p {
+    color: var(--text-muted);
+    font-size: 0.95rem;
+}
+
+.member-card-list {
+    display: grid;
+    gap: var(--spacing-md);
+}
+
+.checkin-member-card {
+    background: var(--white);
+    border: 2px solid #e5e7eb;
+    border-radius: var(--radius-md);
+    padding: var(--spacing-md);
+    box-shadow: var(--shadow-sm);
+}
+
+.member-card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-xs);
+}
+
+.member-card-header .member-name {
+    font-size: 1.05rem;
+    line-height: 1.25;
+}
+
+.member-card-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-sm);
+    color: var(--text-muted);
+    font-size: 0.875rem;
+}
+
+.member-card-meta span {
+    background: var(--light-concrete);
+    border-radius: var(--radius-full);
+    padding: 3px 10px;
+}
+
+.status-pill {
+    flex: 0 0 auto;
+    border-radius: var(--radius-full);
+    padding: 4px 9px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+}
+
+.status-em-dia,
+.status-sem-vencimento {
+    background: var(--success-bg);
+    color: var(--success-color);
+}
+
+.status-vencido {
+    background: var(--warning-bg);
+    color: var(--warning-color);
+}
+
+.status-pendente {
+    background: var(--error-bg);
+    color: var(--error-color);
+}
+
+.member-checkin-form {
+    margin-top: var(--spacing-md);
+}
+
+.member-checkin-button {
+    margin-bottom: 0;
+    letter-spacing: 1px;
+}
+
+.member-card-warning {
+    margin-top: var(--spacing-md);
+    padding: var(--spacing-sm);
+    border-radius: var(--radius-sm);
+    background: var(--warning-bg);
+    color: var(--warning-color);
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.checkin-empty-state {
+    margin-top: var(--spacing-lg);
+    padding: var(--spacing-lg);
+    border: 2px dashed #d1d5db;
+    border-radius: var(--radius-md);
+    text-align: center;
+    background: #f9fafb;
+}
+
+.checkin-empty-state .btn {
+    margin-top: var(--spacing-md);
+    margin-bottom: 0;
 }
 
 /* =====================================================
