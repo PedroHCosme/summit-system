@@ -213,7 +213,7 @@ class MembersCoordinator:
 
     def on_member_result_clicked(self, item):
         member_id = item.data(Qt.ItemDataRole.UserRole)
-        member_data = self.window.search_service.get_member_by_id(member_id)
+        member_data = self.window.manager.data_provider.get_member_by_id(member_id)
 
         if member_data:
             self.window.member_search_screen.display_member_data(member_data)
@@ -343,7 +343,7 @@ class MembersCoordinator:
                 QMessageBox.information(self.window, "Sucesso", mensagem)
 
                 member_id = updated_data["id"]
-                updated_member = self.window.search_service.get_member_by_id(member_id)
+                updated_member = self.window.manager.data_provider.get_member_by_id(member_id)
                 if updated_member:
                     self.window.member_search_screen.display_member_data(updated_member)
                     if register_payment:
@@ -384,7 +384,7 @@ class MembersCoordinator:
                 QMessageBox.information(self.window, "Sucesso", mensagem)
 
                 member_id = renewal_data["id"]
-                updated_member = self.window.search_service.get_member_by_id(member_id)
+                updated_member = self.window.manager.data_provider.get_member_by_id(member_id)
                 if updated_member:
                     self.window.member_search_screen.display_member_data(updated_member)
                     from src.data.data_provider import get_provider
@@ -538,7 +538,7 @@ class MembersCoordinator:
         self.window.members_list_screen.update_data(data)
 
     def on_members_list_member_selected(self, member_data: dict):
-        full_member_data = self.window.search_service.get_member_by_id(member_data["id"])
+        full_member_data = self.window.manager.data_provider.get_member_by_id(member_data["id"])
         if full_member_data:
             self.window.members_list_screen.display_member_data(full_member_data)
             self.load_list_member_history(full_member_data["id"], full_member_data["nome"])
@@ -593,14 +593,14 @@ class MembersCoordinator:
 
     def on_list_member_updated(self, updated_data: dict):
         self.on_member_updated(updated_data)
-        full_data = self.window.search_service.get_member_by_id(updated_data["id"])
+        full_data = self.window.manager.data_provider.get_member_by_id(updated_data["id"])
         if full_data:
             self.window.members_list_screen.display_member_data(full_data)
             self.load_members_list()
 
     def on_list_plan_renewed(self, renewal_data: dict):
         self.on_plan_renewed(renewal_data)
-        full_data = self.window.search_service.get_member_by_id(renewal_data["id"])
+        full_data = self.window.manager.data_provider.get_member_by_id(renewal_data["id"])
         if full_data:
             self.window.members_list_screen.display_member_data(full_data)
             self.load_list_member_financial_history(full_data["id"], full_data["nome"])

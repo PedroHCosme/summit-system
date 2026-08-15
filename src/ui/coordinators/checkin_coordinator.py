@@ -30,7 +30,7 @@ class CheckinCoordinator:
 
     def on_checkin_result_clicked(self, item):
         member_id = item.data(Qt.ItemDataRole.UserRole)
-        member_data = self.window.search_service.get_member_by_id(member_id)
+        member_data = self.window.manager.data_provider.get_member_by_id(member_id)
         if member_data:
             self.window.checkin_screen.display_member_for_checkin(member_id, member_data)
         else:
@@ -69,7 +69,7 @@ class CheckinCoordinator:
         if member_id is None:
             return
 
-        member_data = self.window.search_service.get_member_by_id(member_id)
+        member_data = self.window.manager.data_provider.get_member_by_id(member_id)
         if not member_data:
             return
         member_name = member_data.get("nome", "")

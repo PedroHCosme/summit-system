@@ -14,7 +14,6 @@ from PyQt6.QtCore import QTimer
 
 from src.core.aniversariantes_manager import AniversariantesManager
 from src.ui.html_formatter import HTMLFormatter
-from src.core.member_search_service import MemberSearchService
 from src.reports.finance_report import generate_finance_report
 from src.reports.members_report import generate_members_report
 from src.ui.styles import STYLESHEET
@@ -57,7 +56,6 @@ class MainWindow(QMainWindow):
         
         # Serviços
         self.manager = AniversariantesManager()
-        self.search_service = MemberSearchService()
         self.formatter = HTMLFormatter()
         self.worker = None
         self.is_connected = False
