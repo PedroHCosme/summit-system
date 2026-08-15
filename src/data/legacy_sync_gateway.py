@@ -17,7 +17,7 @@ class LegacySyncGateway:
 
     Responsabilidades:
     - Conectar Google Sheets (read-only)
-    - Conectar infraestrutura legada de banco (DatabaseManager)
+    - Conectar infraestrutura legada de banco
     - Expor leitura de abas sem acoplar regras de negócio
     """
 

@@ -5,7 +5,13 @@ from typing import Any, Dict
 
 
 def create_tables(db_path: str) -> bool:
-    """Cria as tabelas do banco de dados se não existirem."""
+    """Cria as tabelas do banco de dados se não existirem.
+
+    # ponytail: schema legado propositalmente desatualizado (falta voucher_credits,
+    # treina, vencimento_treino etc.) — é só uma rede de segurança para um arquivo
+    # de banco vazio do zero; o schema real é gerenciado pelos modelos SQLAlchemy
+    # e migrations Alembic.
+    """
     connection = sqlite3.connect(db_path, check_same_thread=False, timeout=60)
     try:
         cursor = connection.cursor()
