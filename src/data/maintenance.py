@@ -4,6 +4,66 @@ import sqlite3
 from typing import Any, Dict
 
 
+def create_tables(db_path: str) -> bool:
+    """Cria as tabelas do banco de dados se não existirem."""
+    connection = sqlite3.connect(db_path, check_same_thread=False, timeout=60)
+    try:
+        cursor = connection.cursor()
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS membros (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nome TEXT NOT NULL,
+                plano TEXT,
+                vencimento_plano DATE,
+                estado_plano TEXT,
+                data_nascimento DATE,
+                whatsapp TEXT,
+                genero TEXT,
+                frequencia TEXT,
+                calcado TEXT,
+                email TEXT,
+                apelido TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS frequencia (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                member_id INTEGER NOT NULL,
+                checkin_datetime TIMESTAMP NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (member_id) REFERENCES membros (id)
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS pagamentos (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                member_id INTEGER,
+                data_pagamento TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                tipo_transacao TEXT NOT NULL,
+                descricao TEXT,
+                valor REAL NOT NULL,
+                metodo_pagamento TEXT,
+                nova_data_vencimento DATE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (member_id) REFERENCES membros (id)
+            )
+        """)
+
+        connection.commit()
+        cursor.close()
+        return True
+    except sqlite3.Error as exc:
+        print(f"Erro ao criar tabelas: {exc}")
+        return False
+    finally:
+        connection.close()
+
+
 def optimize_and_reindex(db_path: str) -> Dict[str, Any]:
     """Cria índices principais e executa ANALYZE/PRAGMA optimize no banco em db_path."""
     connection = sqlite3.connect(db_path, check_same_thread=False, timeout=60)
