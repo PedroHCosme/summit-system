@@ -6,7 +6,17 @@
 
 **Architecture:** No new abstractions. Each phase either deletes dead code after confirming zero live callers, or swaps a caller from a legacy path to its already-existing service-layer equivalent. Phases are ordered so each one only depends on the previous being merged.
 
-**Tech Stack:** Python, PyQt6, SQLAlchemy, SQLite, Flask, Jinja2. Windows dev machine (PowerShell primary, git-bash available). No automated regression suite beyond `src/test_reports_jinja.py` (report generation only) — verification is grep-based (proving no remaining references) plus manual smoke testing per the spec's test notes.
+**Tech Stack:** Python, PyQt6, SQLAlchemy, SQLite, Flask, Jinja2. Windows dev machine (PowerShell primary, git-bash available).
+
+**Correction (found when setting up the implementation worktree, not present when the spec was written):** the codebase has a real automated test suite — `tests/` (97 tests, collected via `pytest.ini`'s `testpaths = tests`) plus `test_reports_jinja.py` at the repo root (not `src/test_reports_jinja.py` — that path was wrong). None of it imports or couples to any of the five things this plan deletes (`DatabaseManager`, `ManagePlansDialog`, the `db_manager=` params, `MemberSearchService`, or the per-file report helpers) — confirmed by grep. Two files import `DatabaseManager` (`test_duplicate_payment.py` and `tests/validate_improvements.py`) but neither matches pytest's `test_*.py` discovery pattern from the repo root config, aren't collected by `pytest` today, and are already stale/broken scripts unrelated to this plan (`test_duplicate_payment.py` fails at collection today, before any of this plan's changes, on a missing table) — leave both alone, same as `migrate_data.py` in the "out of scope" list.
+
+**Baseline (verified in the worktree before Phase 1 starts):**
+```bash
+python -m pytest test_reports_jinja.py tests/ -q
+```
+Expected: `97 passed` in ~2.5s. Every phase below adds "run this full suite" as a fast automated gate *in addition to* its manual smoke test — this is real TDD safety net, not just the grep-based dead-reference checks the plan already specifies. Run it before starting each task (confirm the baseline still holds) and after each task's changes (confirm nothing broke) — not just at the one Phase 5 checkpoint that originally cited it.
+
+Relevant pre-existing coverage per phase (run the full suite regardless, but these are where a regression would surface first): Phase 1 → `tests/test_member_management.py` (`MemberService` CRUD); Phase 3 → `tests/test_member_management.py`, `tests/test_financial.py` (`PaymentService`), `tests/test_plan_status.py`; Phase 4 → `tests/test_member_search.py`; Phase 5 → `test_reports_jinja.py`, `tests/test_reports_overhaul.py`.
 
 **Spec:** `docs/superpowers/specs/2026-08-15-ponytail-audit-cleanup-design.md`
 
@@ -743,12 +753,12 @@ grep -n "Environment(\|FileSystemLoader(\|Path(" src/reports/finance_report.py s
 ```
 If a file's only remaining match for `Environment(`/`FileSystemLoader(` is inside `_common.py` itself (i.e. zero matches left in the report file), remove that file's now-unused `from jinja2 import Environment, FileSystemLoader` line. Leave `from pathlib import Path` alone unless the same check shows zero remaining uses.
 
-- [ ] **Step 6: Run the existing report test**
+- [ ] **Step 6: Run the existing report test plus the full suite**
 
 ```bash
-/c/Users/Usuario/.conda/envs/alcoa/python.exe -m pytest src/test_reports_jinja.py -v
+/c/Users/Usuario/.conda/envs/alcoa/python.exe -m pytest test_reports_jinja.py tests/ -q
 ```
-Expected: all existing assertions still pass (per `REPORTS_STATUS.md`, this test already validates 3/3 reports with simulated data).
+Expected: `97 passed` (per `REPORTS_STATUS.md`, `test_reports_jinja.py` already validates 3/3 reports with simulated data; `tests/test_reports_overhaul.py` covers related report behavior).
 
 - [ ] **Step 7: Manual smoke test**
 
@@ -767,5 +777,5 @@ git -c include.path=C:/Users/Usuario/pedrocosme/.gitconfig-pessoal commit -m "Ex
 
 - Google Sheets sync feature (`sync_worker.py`, `sync_dialog.py`, `legacy_sync_gateway.py`, `google_sheets_service.py`) — confirmed live via `settings_coordinator.show_sync_dialog()`.
 - `plans_config.json` / `config.py`'s `PLANOS_*` constants — legitimate factory-defaults source for both plan UIs' "Restaurar Padrões" button, not dead.
-- `migrate_data.py` and any other one-off/offline scripts still importing `DatabaseManager` — not part of the running app.
+- `migrate_data.py`, `test_duplicate_payment.py`, and `tests/validate_improvements.py` — one-off/offline scripts still importing `DatabaseManager`, not part of the running app or the collected pytest suite (`test_duplicate_payment.py` already fails at collection today on an unrelated missing-table error; `tests/validate_improvements.py` doesn't match pytest's discovery pattern).
 - `CheckinService`'s own `db_manager` parameter — a different class and a different concern from Phase 3's scope (`MemberService`/`PaymentService` only).
