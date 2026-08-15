@@ -38,7 +38,7 @@ from src.ui.screens import (
     PlansScreen,
     NotesScreen
 )
-from src.ui.dialogs import AddMemberDialog, SyncDialog, ManagePlansDialog, ExpiringPlansDialog
+from src.ui.dialogs import AddMemberDialog, SyncDialog, ExpiringPlansDialog
 from src.ui.components import Sidebar
 from src.ui.coordinators import (
     MembersCoordinator,
