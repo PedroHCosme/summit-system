@@ -8,7 +8,7 @@ Este módulo utiliza SQLAlchemy para type safety e queries tipadas.
 """
 
 from datetime import datetime, date
-from typing import Optional, List, Dict, Any, Tuple, Union, TYPE_CHECKING
+from typing import Optional, List, Dict, Any, Tuple, Union
 from dataclasses import dataclass
 import re
 import unicodedata
@@ -19,9 +19,6 @@ from sqlalchemy.orm import Session
 from src.core.plan_status import ATIVO, INATIVO
 from src.data.models import Membro, Frequencia, Pagamento, Plano
 from src.utils.date_utils import coerce_to_date, format_display_date
-
-if TYPE_CHECKING:
-    from src.data.database_manager import DatabaseManager
 
 
 @dataclass
@@ -52,34 +49,17 @@ class MemberService:
     - Normalização de dados
     - Gestão de planos e vencimentos
     
-    Suporta dois modos de operação:
-    - SQLAlchemy Session (recomendado para novo código)
-    - DatabaseManager legado (para compatibilidade)
     """
-    
-    def __init__(
-        self, 
-        db_session: Optional[Session] = None,
-        db_manager: Optional["DatabaseManager"] = None
-    ):
+
+    def __init__(self, db_session: Session):
         """
         Inicializa o serviço de membros.
-        
+
         Args:
-            db_session: Sessão SQLAlchemy para acesso aos dados (preferencial)
-            db_manager: Instância do DatabaseManager legado (compatibilidade)
-        
-        Raises:
-            ValueError: Se nenhum dos parâmetros for fornecido
+            db_session: Sessão SQLAlchemy para acesso aos dados
         """
         self._session = db_session
-        self._db_manager = db_manager
-        
-        if db_session is None and db_manager is None:
-            raise ValueError(
-                "MemberService requer db_session (SQLAlchemy) ou db_manager (legado)"
-            )
-    
+
     @property
     def session(self) -> Optional[Session]:
         """Retorna a sessão SQLAlchemy se disponível."""
@@ -121,10 +101,7 @@ class MemberService:
         if plano and not self._plan_requires_vencimento(plano):
             member_data['vencimento_plano'] = None
         
-        if self._session is not None:
-            return self._create_sqlalchemy(member_data)
-        else:
-            return self._create_legacy(member_data)
+        return self._create_sqlalchemy(member_data)
     
     def get_by_id(self, member_id: int) -> Optional[Union[Membro, Dict[str, Any]]]:
         """
@@ -136,10 +113,7 @@ class MemberService:
         Returns:
             Membro (SQLAlchemy) ou Dict (legado) ou None se não encontrado
         """
-        if self._session is not None:
-            return self._session.query(Membro).filter(Membro.id == member_id).first()
-        else:
-            return self._db_manager.get_member_by_id(member_id)
+        return self._session.query(Membro).filter(Membro.id == member_id).first()
     
     def get_by_id_as_dict(self, member_id: int) -> Optional[Dict[str, Any]]:
         """
@@ -172,10 +146,7 @@ class MemberService:
         Returns:
             Lista de membros encontrados
         """
-        if self._session is not None:
-            return self._search_by_name_sqlalchemy(name_query)
-        else:
-            return self._db_manager.find_members_by_name(name_query)
+        return self._search_by_name_sqlalchemy(name_query)
     
     def search_by_name_as_dicts(self, name_query: str) -> List[Dict[str, Any]]:
         """Busca membros por nome, sempre retornando como lista de dicts."""
@@ -192,10 +163,7 @@ class MemberService:
         Returns:
             Lista de todos os membros
         """
-        if self._session is not None:
-            return self._session.query(Membro).order_by(Membro.nome).all()
-        else:
-            return self._db_manager.get_all_members()
+        return self._session.query(Membro).order_by(Membro.nome).all()
     
     def get_all_as_dicts(self) -> List[Dict[str, Any]]:
         """Retorna todos os membros como lista de dicts."""
@@ -211,23 +179,13 @@ class MemberService:
 
         Usa ID como critério secundário para ordenar cadastros feitos no mesmo dia.
         """
-        if self._session is not None:
-            members = (
-                self._session.query(Membro)
-                .order_by(Membro.data_cadastro.desc().nulls_last(), Membro.id.desc())
-                .limit(limit)
-                .all()
-            )
-            return [member.to_dict() for member in members]
-
-        all_members = self._db_manager.get_all_members()
-
-        def sort_key(member: Dict[str, Any]):
-            data_cadastro = coerce_to_date(member.get('data_cadastro')) or date.min
-            member_id = member.get('id') or 0
-            return data_cadastro, member_id
-
-        return sorted(all_members, key=sort_key, reverse=True)[:limit]
+        members = (
+            self._session.query(Membro)
+            .order_by(Membro.data_cadastro.desc().nulls_last(), Membro.id.desc())
+            .limit(limit)
+            .all()
+        )
+        return [member.to_dict() for member in members]
     
     def get_paginated(
         self,
@@ -254,23 +212,10 @@ class MemberService:
         Returns:
             PaginatedResult com os membros e metadados de paginação
         """
-        if self._session is not None:
-            return self._get_paginated_sqlalchemy(
-                page, page_size, filter_text, filter_plan, filter_status,
-                sort_by, sort_dir
-            )
-        else:
-            result = self._db_manager.get_members_paginated(
-                page, page_size, filter_text, filter_plan, filter_status,
-                sort_by, sort_dir
-            )
-            return PaginatedResult(
-                members=result['members'],
-                total=result['total'],
-                page=result['page'],
-                total_pages=result['total_pages'],
-                page_size=result['page_size']
-            )
+        return self._get_paginated_sqlalchemy(
+            page, page_size, filter_text, filter_plan, filter_status,
+            sort_by, sort_dir
+        )
 
     
     def update(self, member_id: int, **kwargs) -> MemberResult:
@@ -284,9 +229,7 @@ class MemberService:
         Returns:
             MemberResult com o resultado da operação
         """
-        if self._session is not None:
-            return self._update_sqlalchemy(member_id, **kwargs)
-        raise NotImplementedError("Legacy update path was never implemented; use SQLAlchemy session.")
+        return self._update_sqlalchemy(member_id, **kwargs)
     
     def update_from_dict(
         self, 
@@ -312,19 +255,9 @@ class MemberService:
                 message="O campo 'id' é obrigatório para atualização."
             )
         
-        if self._session is not None:
-            return self._update_from_dict_sqlalchemy(
-                member_data, register_payment, metodo_pagamento
-            )
-        else:
-            success = self._db_manager.update_member_from_dict(
-                member_data, register_payment, metodo_pagamento
-            )
-            return MemberResult(
-                success=success,
-                member_id=member_id,
-                message="Membro atualizado." if success else "Erro ao atualizar."
-            )
+        return self._update_from_dict_sqlalchemy(
+            member_data, register_payment, metodo_pagamento
+        )
     
     def delete(self, member_id: int) -> MemberResult:
         """
@@ -336,15 +269,7 @@ class MemberService:
         Returns:
             MemberResult com o resultado da operação
         """
-        if self._session is not None:
-            return self._delete_sqlalchemy(member_id)
-        else:
-            success = self._db_manager.delete_member(member_id)
-            return MemberResult(
-                success=success,
-                member_id=member_id,
-                message="Membro removido." if success else "Erro ao remover."
-            )
+        return self._delete_sqlalchemy(member_id)
     
     # =========================================================================
     # MÉTODOS DE CONSULTA ESPECIALIZADOS
@@ -360,10 +285,7 @@ class MemberService:
         Returns:
             Lista de membros aniversariantes
         """
-        if self._session is not None:
-            return self._get_birthdays_sqlalchemy(month)
-        else:
-            return self._db_manager.get_members_by_birthday_month(month)
+        return self._get_birthdays_sqlalchemy(month)
     
     def update_expired_plans(self) -> int:
         """
@@ -372,10 +294,7 @@ class MemberService:
         Returns:
             Número de membros atualizados
         """
-        if self._session is not None:
-            return self._update_expired_plans_sqlalchemy()
-        else:
-            return self._db_manager.update_expired_plans()
+        return self._update_expired_plans_sqlalchemy()
     
     def count_by_status(self) -> Dict[str, int]:
         """
@@ -384,16 +303,7 @@ class MemberService:
         Returns:
             Dicionário com contagem por status
         """
-        if self._session is not None:
-            return self._count_by_status_sqlalchemy()
-        else:
-            # Fallback legacy
-            all_members = self._db_manager.get_all_members()
-            counts = {}
-            for m in all_members:
-                status = m.get('estado_plano', 'N/A')
-                counts[status] = counts.get(status, 0) + 1
-            return counts
+        return self._count_by_status_sqlalchemy()
     
     def count_by_plan(self) -> Dict[str, int]:
         """
@@ -402,16 +312,7 @@ class MemberService:
         Returns:
             Dicionário com contagem por plano
         """
-        if self._session is not None:
-            return self._count_by_plan_sqlalchemy()
-        else:
-            # Fallback legacy
-            all_members = self._db_manager.get_all_members()
-            counts = {}
-            for m in all_members:
-                plano = m.get('plano', 'N/A')
-                counts[plano] = counts.get(plano, 0) + 1
-            return counts
+        return self._count_by_plan_sqlalchemy()
     
     # =========================================================================
     # IMPLEMENTAÇÃO SQLALCHEMY
@@ -464,20 +365,6 @@ class MemberService:
                 message=f"Erro ao criar membro: {str(e)}"
             )
     
-    def _create_legacy(self, member_data: Dict[str, Any]) -> MemberResult:
-        """Cria um membro usando DatabaseManager legado."""
-        member_id = self._db_manager.add_member(member_data)
-        if member_id:
-            return MemberResult(
-                success=True,
-                member_id=member_id,
-                message=f"Membro criado com ID {member_id}."
-            )
-        return MemberResult(
-            success=False,
-            message="Erro ao criar membro."
-        )
-
     def _validate_unique_registration(self, member_data: Dict[str, Any]) -> str:
         """
         Valida duplicidade nos dados-chave de cadastro.
@@ -511,7 +398,7 @@ class MemberService:
 
     def _get_plan_by_name(self, plan_name: str) -> Optional[Plano]:
         """Busca plano ativo pelo nome quando há sessão SQLAlchemy disponível."""
-        if not plan_name or self._session is None:
+        if not plan_name:
             return None
         return self._session.query(Plano).filter(
             Plano.nome == plan_name,
@@ -973,7 +860,4 @@ class MemberService:
         Usado por relatórios que não devem incluir cadastros web não aprovados.
         """
         from src.core.plan_status import PENDENTE
-        if self._session is not None:
-            return self._session.query(Membro).filter(Membro.estado_plano != PENDENTE).all()
-        all_members = self._db_manager.get_all_members()
-        return [m for m in all_members if m.get('estado_plano') != 'PENDENTE']
+        return self._session.query(Membro).filter(Membro.estado_plano != PENDENTE).all()
