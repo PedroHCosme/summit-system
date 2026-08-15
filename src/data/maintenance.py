@@ -1,6 +1,5 @@
 """Manutenção do banco de dados SQLite (índices, VACUUM, ANALYZE)."""
 
-import os
 import sqlite3
 from typing import Any, Dict
 
