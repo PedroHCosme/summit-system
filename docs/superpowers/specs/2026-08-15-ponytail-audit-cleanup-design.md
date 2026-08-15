@@ -95,10 +95,15 @@ quota plan) and a plan renewal; confirm payments/vouchers post correctly.
 ### 4. Delete `member_search_service.py` (~53 lines)
 
 - `MemberSearchService.search_by_name()` and `.get_member_by_id()` are pure
-  delegates to `DataProvider`; `MemberService.search_by_name_as_dicts()`
-  already does the same job. Single caller: `main_window.py`.
-- Replace the caller with a direct `MemberService(db_session=...).search_by_name_as_dicts()`
-  call and delete the file.
+  delegates to `DataProvider`. The real callers (found during plan review,
+  not in `main_window.py` itself as first assumed) are 8 sites across
+  `checkin_coordinator.py` and `members_coordinator.py`, all calling
+  `self.window.search_service.get_member_by_id(...)`.
+- `main_window.py` already owns `self.manager.data_provider` — the same
+  `get_provider()` singleton `MemberSearchService` wraps — so repoint all 8
+  call sites to `self.window.manager.data_provider.get_member_by_id(...)`
+  (a byte-for-byte behavioral equivalent) and delete the file. No new
+  attribute needs to be added to `MainWindow`.
 
 **Smoke test:** search for a member by name from the desktop app, confirm
 results and selection still work.
