@@ -9,18 +9,32 @@ phased in dependency order, each independently shippable and manually
 smoke-tested before merge.
 
 Summit System is a live, single-developer app (PyQt6 desktop + Flask web,
-SQLite, ~15-30 checkins/day) with no automated regression suite beyond
-`test_reports_jinja.py` (report generation only). Verification for this work
-is manual: run the app, exercise the affected screen, confirm no behavior
-regression.
+SQLite, ~15-30 checkins/day). Verification for this work is manual (run the
+app, exercise the affected screen) plus automated: the implementation
+worktree revealed a real 97-test pytest suite (`tests/` + root-level
+`test_reports_jinja.py`, not `src/test_reports_jinja.py` as first assumed
+here) that this design doc didn't know about when written. See the
+implementation plan's header for the corrected testing story — the full
+suite was run as a gate before and after every task, not just manual
+smoke tests.
 
 ## Findings dropped or corrected during verification
 
-- **Google Sheets dead code (dropped).** The audit's static grep on
-  `data_provider.py` missed that `settings_coordinator.show_sync_dialog()`
-  wires a live `SyncDialog` → `sync_worker.py` → `legacy_sync_gateway.py` →
-  `google_sheets_service.py` path, reachable from Settings. This is a real,
-  used feature. Not touched by this plan.
+- **Google Sheets dead code (dropped as a deletion target, but see
+  correction).** The audit's static grep on `data_provider.py` missed that
+  `settings_coordinator.show_sync_dialog()` wires a live `SyncDialog` →
+  `sync_worker.py` → `legacy_sync_gateway.py` → `google_sheets_service.py`
+  path, reachable from Settings. This is a real, used feature, and its
+  behavior was never changed by this plan. **Correction found during
+  implementation:** `legacy_sync_gateway.py` itself turned out to depend on
+  `DatabaseManager` (via `connect_database()`/`ensure_database_schema()`/
+  `optimize_database()`, all invoked by `SyncImportService.execute()`) — a
+  third live caller finding 1 missed. It was migrated onto
+  `src/data/maintenance.py` (a new `create_tables()` function alongside
+  `optimize_and_reindex()`) as an unplanned Task 1.3b before
+  `database_manager.py` could be deleted. The Sync *feature* is still
+  untouched behaviorally; only its incidental dependency on the deleted
+  class was removed. See the implementation plan for the full task.
 - **"Triple-redundant plan config" (corrected, no action needed).** Reading
   `manage_plans_dialog.py` and `plans_screen.py` in full showed both already
   write live edits through `PlanService` to the `Plano` DB table — the sole
@@ -50,12 +64,20 @@ regression.
   `src/data/maintenance.py` (currently empty — the evident intended home per
   `ARCHITECTURE.md`) as a plain function taking a session/connection. Update
   the coordinator's import and call site.
-- Once both callers are migrated, delete `src/data/database_manager.py`
+- **Correction found during implementation:** a third live caller,
+  `legacy_sync_gateway.py` (used by the Sync feature), also depended on
+  `DatabaseManager` and needed migrating the same way — see "Findings
+  dropped or corrected during verification" above for the full story.
+- Once all three callers are migrated, delete `src/data/database_manager.py`
   entirely.
-- Out of scope: `migrate_data.py` and other one-off scripts under
-  `src/scripts/` or similar that may still import `DatabaseManager` for
-  offline data migration — these aren't part of the running app and aren't
-  touched.
+- Out of scope: `migrate_data.py` and other one-off scripts (including
+  `scripts/*.py`, `debug_*.py`, `verify_*.py`, `test_duplicate_payment.py`,
+  `tests/validate_improvements.py` at the repo root) that may still import
+  `DatabaseManager` for offline data migration or manual debugging — these
+  aren't part of the running app or the collected pytest suite, and aren't
+  touched. They will fail with `ModuleNotFoundError` if run by hand after
+  this plan — see `.claude/docs/ARCHITECTURE.md`'s tech-debt list for the
+  full enumeration.
 
 **Smoke test:** approve and reject a pending member; run Settings → Otimizar
 Banco de Dados and confirm the success dialog and stats still populate.
@@ -124,9 +146,9 @@ data as before.
   previous one being merged, except 4 and 5 which are independent and can be
   done in either order relative to 1-3, but are sequenced last since they're
   the smallest/lowest-risk).
-- Manual smoke test per phase (see above) before merge — no automated
-  regression suite exists beyond `test_reports_jinja.py`, which only covers
-  phase 5's report generation and should also be run there.
+- Manual smoke test per phase (see above) before merge, plus the full
+  97-test automated suite (`test_reports_jinja.py` + `tests/`) run as a
+  gate before and after every task — see the correction in "Context" above.
 - Each phase's diff should be reviewed with `/ponytail:ponytail` discipline:
   shortest correct diff, no incidental refactoring beyond what the phase
   requires.

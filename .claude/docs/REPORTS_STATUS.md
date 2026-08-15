@@ -116,7 +116,7 @@ Publico-alvo: dono da academia (unico consumidor).
 ### Arquitetura
 8. **Session management inconsistente** — financeiro recebe services, membros/frequencia recebem session
 9. **Nenhum relatorio usa PlanService** — todos fazem queries diretas ou usam config.py
-10. **Helpers duplicados** — `_get_reports_dir()` e `_get_template_env()` repetidos em cada arquivo
+10. ~~**Helpers duplicados** — `_get_reports_dir()` e `_get_template_env()` repetidos em cada arquivo~~ — **RESOLVIDO em 2026-08-15**: extraidos para `src/reports/_common.py` (`get_reports_dir()`/`get_template_env()`, sem underscore), importados pelos 3 geradores.
 
 ---
 

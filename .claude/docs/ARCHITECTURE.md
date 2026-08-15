@@ -12,7 +12,7 @@ run.py (entry point)
   +-- PyQt6 GUI (main thread)
         src/ui/main_window.py (orquestrador central, ~1700 linhas)
         src/ui/screens/ (10 telas)
-        src/ui/dialogs/ (13 dialogos)
+        src/ui/dialogs/ (12 dialogos)
         src/ui/components/ (sidebar, member_info_formatter)
         src/ui/workers/ (7 workers assincronos)
         src/ui/styles.py (tema visual)
@@ -52,7 +52,6 @@ run.py (entry point)
 | `delete_member_dialog.py` | Confirmacao de exclusao |
 | `member_details_dialog.py` | Perfil read-only |
 | `renew_plan_dialog.py` | Renovacao de plano com pagamento |
-| `manage_plans_dialog.py` | Gestao de planos (LEGACY, substituido por plans_screen) |
 | `payment_method_dialog.py` | Selecao de metodo de pagamento |
 | `edit_checkin_dialog.py` | Edicao de data/hora de check-in |
 | `report_period_dialog.py` | Selecao de periodo para relatorios |
@@ -78,13 +77,13 @@ Camada de logica de negocio. Todos retornam dataclasses tipadas.
 
 | Servico | Responsabilidade | Modo |
 |---------|-----------------|------|
-| `MemberService` (~786 linhas) | CRUD membros, busca, paginacao, status | SQLAlchemy + legado |
-| `PaymentService` (~448 linhas) | Pagamentos, resumo, breakdown | SQLAlchemy + legado |
+| `MemberService` (~700 linhas) | CRUD membros, busca, paginacao, status | SQLAlchemy only |
+| `PaymentService` (~360 linhas) | Pagamentos, resumo, breakdown | SQLAlchemy only |
 | `CheckinService` (~586 linhas) | Check-in, validacao, pagamento automatico | SQLAlchemy only |
 | `PlanService` (~187 linhas) | Catalogo de planos, cache | SQLAlchemy only |
 | `EmailService` (~105 linhas) | Envio de notas por SMTP | Standalone |
 
-**Padrao dual-mode**: MemberService e PaymentService aceitam tanto `db_session` (SQLAlchemy) quanto `db_manager` (legado) para backward compatibility. Preferir sempre SQLAlchemy.
+Todos os services agora exigem `db_session` (SQLAlchemy) no construtor. O antigo modo dual (`db_session` OU `db_manager` legado) foi removido em 2026-08-15 — ver "Limpeza ponytail-audit" abaixo.
 
 ---
 
@@ -99,7 +98,6 @@ Logica de dominio pura, sem dependencia de banco.
 | `plan_utils.py` | Normalizacao de nomes de plano para pagamento per-checkin |
 | `payment_constants.py` | Constantes de metodo/tipo de pagamento |
 | `aniversariantes_manager.py` | Gerenciador de aniversarios |
-| `member_search_service.py` | Wrapper de busca (DUPLICADO com MemberService.search_by_name) |
 
 ---
 
@@ -110,9 +108,11 @@ Logica de dominio pura, sem dependencia de banco.
 | `models.py` | Modelos ORM: Membro, Frequencia, Pagamento, Plano, Nota | ATIVO |
 | `db.py` | Engine SQLAlchemy, session factory, funcao unaccent() | ATIVO |
 | `data_provider.py` | Facade que abstrai SQLite vs Google Sheets | ATIVO |
-| `database_manager.py` | CRUD legado via SQL direto | **DEPRECATED** |
-| `google_sheets_service.py` | Integracao Google Sheets | **DEPRECATED** |
-| `maintenance.py` | Manutencao do banco | Minimo |
+| `maintenance.py` | Manutencao do banco (indices, ANALYZE/PRAGMA optimize, create_tables legado usado pelo sync) | ATIVO |
+| `legacy_sync_gateway.py` | Adaptador legado para sincronizacao Google Sheets + infra local | ATIVO |
+| `google_sheets_service.py` | Integracao Google Sheets | **DEPRECATED** (mas ainda usado pelo Sync, ver `sync_dialog.py`) |
+
+`database_manager.py` (CRUD legado via SQL direto) foi removido em 2026-08-15 — ver "Limpeza ponytail-audit" abaixo. Todo acesso a dados agora passa por `data_provider.py` / services (SQLAlchemy) ou `maintenance.py` (operacoes de manutencao pontuais via conexao sqlite3 propria).
 
 ---
 
@@ -190,9 +190,19 @@ Sidebar: Relatorios > Financeiro/Membros/Frequencia
 ## Divida Tecnica Conhecida
 
 1. **MainWindow como God Object** — deveria delegar mais para services
-2. **MemberSearchService duplica MemberService** — consolidar
-3. **config.py vs tabela Plano** — duplicacao de dados de planos
-4. **DatabaseManager deprecated** — ainda referenciado em alguns lugares
-5. **HTML gerado como string** em member_info_formatter.py — deveria usar template
-6. **manage_plans_dialog.py** — substituido por plans_screen.py, pode ser removido
-7. **Logica de status** — atualmente campo unico `estado_plano`, precisa ser separado em status_plano + status_membro (ver BUSINESS_RULES.md)
+2. **config.py vs tabela Plano** — config.py e `plans_config.json` continuam em uso, mas apenas como fonte de "valores padrao" para o botao Restaurar Padroes em `plans_screen.py`; a tabela `Plano` (via `PlanService`) e a unica fonte viva de precos. Nao e duplicacao de escrita, so vale desconfiar se algo voltar a ler `config.PLANOS_PRECOS` fora desse fluxo.
+3. **HTML gerado como string** em member_info_formatter.py — deveria usar template
+4. **Logica de status** — atualmente campo unico `estado_plano`, precisa ser separado em status_plano + status_membro (ver BUSINESS_RULES.md)
+5. **Scripts standalone quebrados por remocao do DatabaseManager** — `debug_config.py`, `debug_sync.py`, `examples/transaction_usage.py`, `reproduce_checkin.py`, `verification_voucher.py`, `verify_approval.py`, `verify_profession.py`, `verify_web_expiration.py`, `test_duplicate_payment.py`, `tests/validate_improvements.py`, `scripts/migrate_data.py` (raiz), `src/migrate_data.py`, `src/data/migration_tasks/backfill_payments.py` e mais alguns arquivos em `scripts/` ainda importam `src.data.database_manager.DatabaseManager`, que foi deletado (ver "Limpeza ponytail-audit" abaixo). Nenhum e coletado pelo pytest (`pytest.ini`: `testpaths = tests`) nem importado pelo app rodando — sao scripts de debug/verificacao pontuais que um dev roda manualmente. Se for rodar algum deles, espere um `ModuleNotFoundError` ate serem atualizados (ou deletados, ja que a maioria descreve verificacoes de bugs ja corrigidos).
+
+### Resolvido em 2026-08-15 — Limpeza ponytail-audit
+
+Um audit de over-engineering (`/ponytail:ponytail-audit`) + plano de implementacao removeu 5 achados confirmados (ver `docs/superpowers/plans/2026-08-15-ponytail-audit-cleanup.md` e o spec correspondente para o historico completo, incluindo duas correcoes descobertas durante a implementacao):
+
+- `database_manager.py` (1884 linhas, CRUD legado) — **deletado**. Os 3 chamadores reais (`settings_coordinator.py`, `pending_members_screen.py`, e `legacy_sync_gateway.py` — este ultimo so descoberto durante a implementacao, nao pelo audit original) foram migrados para `MemberService`/`src/data/maintenance.py` antes da remocao.
+- `manage_plans_dialog.py` (747 linhas) — **deletado**. Nunca era instanciado (o metodo `_show_manage_plans_dialog` em `main_window.py`, apesar do nome, sempre navegava para `plans_screen.py`).
+- `db_manager=` (fallback legado no construtor) — **removido** de `MemberService` e `PaymentService`. Ambos agora exigem `db_session` (SQLAlchemy).
+- `member_search_service.py` — **deletado** (wrapper delegate puro para `DataProvider`). Os 8 chamadores reais (em `checkin_coordinator.py`/`members_coordinator.py`, nao em `main_window.py` como o audit original assumiu) agora usam `self.window.manager.data_provider.get_member_by_id(...)` diretamente.
+- Helpers `_get_reports_dir`/`_get_template_env` duplicados nos 3 geradores de relatorio — **extraidos** para `src/reports/_common.py`.
+
+Achados descartados durante o brainstorming (nao eram over-engineering de verdade): a sync com Google Sheets (`sync_dialog.py`/`sync_worker.py`/`legacy_sync_gateway.py`) e uma feature viva, nao codigo morto; e `config.py`/`plans_config.json` nao sao um terceiro armazenamento concorrente, so a fonte de "valores padrao" (ver item 2 acima).
