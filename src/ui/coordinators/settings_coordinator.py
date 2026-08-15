@@ -99,11 +99,12 @@ class SettingsCoordinator:
             return
 
         try:
-            from src.data.database_manager import DatabaseManager
+            from src.config import DB_FILENAME
+            from src.data.maintenance import optimize_and_reindex
 
-            db = DatabaseManager()
-            stats = db.optimize_and_reindex()
-            db.close()
+            project_root = Path(__file__).parent.parent.parent.parent
+            db_path = os.path.join(project_root, DB_FILENAME)
+            stats = optimize_and_reindex(db_path)
 
             indices_checked = stats.get("indices_processed", 0)
             vacuum_status = "Sim" if stats.get("vacuum_executed") else "Não"
