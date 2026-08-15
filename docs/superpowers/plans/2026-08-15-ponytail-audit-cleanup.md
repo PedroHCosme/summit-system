@@ -20,6 +20,8 @@ Relevant pre-existing coverage per phase (run the full suite regardless, but the
 
 **Spec:** `docs/superpowers/specs/2026-08-15-ponytail-audit-cleanup-design.md`
 
+**Second correction (found during Task 1.4's own verification step, working exactly as designed):** the original usage map for `database_manager.py` missed a third live caller, `src/data/legacy_sync_gateway.py` (used by the live Google Sheets Sync feature — `SyncDialog` → `SyncWorker` → `SyncImportService` → `LegacySyncGateway`), which calls `DatabaseManager.connect()`/`.create_tables()`/`.optimize_and_reindex()`. A new Task 1.3b (inserted below, before Task 1.4) migrates it the same way Tasks 1.2/1.3 migrated the other two callers. This is exactly why Task 1.4's Step 1 grep-and-classify exists as a hard gate rather than trusting the plan's static map — it caught a real gap before any deletion happened.
+
 ---
 
 ## Phase 1: Retire `src/data/database_manager.py`
@@ -266,6 +268,197 @@ git add src/ui/screens/pending_members_screen.py
 git -c include.path=C:/Users/Usuario/pedrocosme/.gitconfig-pessoal commit -m "Migrate pending_members_screen.py from DatabaseManager to MemberService"
 ```
 
+### Task 1.3b: Migrate `legacy_sync_gateway.py` off `DatabaseManager`
+
+**Discovered during implementation** (not in the original plan): `Task 1.4`'s "confirm zero remaining live-app importers" step surfaced a third live caller the original usage map missed. `src/data/legacy_sync_gateway.py`'s `LegacySyncGateway` — used by the live Google Sheets Sync feature (`SyncDialog` → `SyncWorker` → `SyncImportService` → `LegacySyncGateway`, all unconditional module-level imports, no `TYPE_CHECKING` guard) — calls `DatabaseManager.connect()`, `.create_tables()`, and `.optimize_and_reindex()` from `connect_database()`, `ensure_database_schema()`, and `optimize_database()` respectively, all three actually invoked by `SyncImportService.execute()` (`sync_import_service.py:71,75,83`). This must be migrated before `database_manager.py` can be deleted. The Sync feature itself remains untouched/out-of-scope per the spec — only its incidental dependency on the class being deleted is being removed, exactly the same kind of swap as Tasks 1.2/1.3.
+
+**Files:**
+- Modify: `src/data/maintenance.py` (add one function)
+- Modify: `src/data/legacy_sync_gateway.py` (whole file — small, 64 lines)
+
+Step 1: Add `create_tables` to `maintenance.py`, alongside `optimize_and_reindex`, using the same "open its own connection, do the work, close" pattern — a straight port of `DatabaseManager.create_tables()` (`database_manager.py:334-397`):
+
+```python
+def create_tables(db_path: str) -> bool:
+    """Cria as tabelas do banco de dados se não existirem."""
+    connection = sqlite3.connect(db_path, check_same_thread=False, timeout=60)
+    try:
+        cursor = connection.cursor()
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS membros (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nome TEXT NOT NULL,
+                plano TEXT,
+                vencimento_plano DATE,
+                estado_plano TEXT,
+                data_nascimento DATE,
+                whatsapp TEXT,
+                genero TEXT,
+                frequencia TEXT,
+                calcado TEXT,
+                email TEXT,
+                apelido TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS frequencia (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                member_id INTEGER NOT NULL,
+                checkin_datetime TIMESTAMP NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (member_id) REFERENCES membros (id)
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS pagamentos (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                member_id INTEGER,
+                data_pagamento TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                tipo_transacao TEXT NOT NULL,
+                descricao TEXT,
+                valor REAL NOT NULL,
+                metodo_pagamento TEXT,
+                nova_data_vencimento DATE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (member_id) REFERENCES membros (id)
+            )
+        """)
+
+        connection.commit()
+        cursor.close()
+        return True
+    except sqlite3.Error as exc:
+        print(f"Erro ao criar tabelas: {exc}")
+        return False
+    finally:
+        connection.close()
+```
+
+Note: this is a byte-faithful port including its already-stale schema (missing `voucher_credits`, `treina`, `vencimento_treino`, etc. that the real SQLAlchemy `Membro` model has) — **do not "fix" or modernize the schema here**, that's a separate, out-of-scope concern (the real schema is already managed by SQLAlchemy models/Alembic; this `CREATE TABLE IF NOT EXISTS` call is a no-op safety net against a totally empty DB file and has always been this stale — preserving exact existing behavior is the goal, not improving it).
+
+Step 2: Rewrite `legacy_sync_gateway.py` to resolve its own `db_path` and drop the `DatabaseManager` dependency entirely.
+
+Current:
+```python
+from src.data.database_manager import DatabaseManager
+from src.data.google_sheets_service import GoogleSheetsService
+
+
+class LegacySyncGateway:
+    def __init__(self, credentials_path: str, spreadsheet_id: str) -> None:
+        self.credentials_path = credentials_path
+        self.spreadsheet_id = spreadsheet_id
+        self.sheets_service: Optional[GoogleSheetsService] = None
+        self.db_manager: Optional[DatabaseManager] = None
+
+    def connect_google_sheets(self) -> bool:
+        self.sheets_service = GoogleSheetsService(self.credentials_path)
+        return self.sheets_service.authenticate()
+
+    def connect_database(self) -> bool:
+        self.db_manager = DatabaseManager()
+        return self.db_manager.connect()
+
+    def ensure_database_schema(self) -> bool:
+        if not self.db_manager:
+            return False
+        return self.db_manager.create_tables()
+
+    def optimize_database(self) -> Dict[str, Any]:
+        if not self.db_manager:
+            raise RuntimeError("DatabaseManager não inicializado")
+        return self.db_manager.optimize_and_reindex()
+
+    def read_sheet(self, sheet_name: str, range_name: str = "A:CZ") -> List[list]:
+        if not self.sheets_service:
+            raise RuntimeError("GoogleSheetsService não inicializado")
+        return self.sheets_service.read_spreadsheet(
+            self.spreadsheet_id, range_name, sheet_name
+        )
+
+    def close(self) -> None:
+        if self.db_manager:
+            self.db_manager.close()
+            self.db_manager = None
+```
+
+Replace with:
+```python
+import os
+import sqlite3
+from pathlib import Path
+
+from src.data.google_sheets_service import GoogleSheetsService
+from src.data.maintenance import create_tables, optimize_and_reindex
+
+
+class LegacySyncGateway:
+    def __init__(self, credentials_path: str, spreadsheet_id: str) -> None:
+        self.credentials_path = credentials_path
+        self.spreadsheet_id = spreadsheet_id
+        self.sheets_service: Optional[GoogleSheetsService] = None
+        self._db_path: Optional[str] = None
+
+    def connect_google_sheets(self) -> bool:
+        self.sheets_service = GoogleSheetsService(self.credentials_path)
+        return self.sheets_service.authenticate()
+
+    def connect_database(self) -> bool:
+        from src.config import DB_FILENAME
+
+        project_root = Path(__file__).parent.parent.parent
+        db_path = os.path.join(project_root, DB_FILENAME)
+        try:
+            sqlite3.connect(db_path, check_same_thread=False, timeout=60).close()
+        except sqlite3.Error:
+            return False
+        self._db_path = db_path
+        return True
+
+    def ensure_database_schema(self) -> bool:
+        if not self._db_path:
+            return False
+        return create_tables(self._db_path)
+
+    def optimize_database(self) -> Dict[str, Any]:
+        if not self._db_path:
+            raise RuntimeError("Banco de dados não conectado")
+        return optimize_and_reindex(self._db_path)
+
+    def read_sheet(self, sheet_name: str, range_name: str = "A:CZ") -> List[list]:
+        if not self.sheets_service:
+            raise RuntimeError("GoogleSheetsService não inicializado")
+        return self.sheets_service.read_spreadsheet(
+            self.spreadsheet_id, range_name, sheet_name
+        )
+
+    def close(self) -> None:
+        self._db_path = None
+```
+
+Keep the existing `from __future__ import annotations` and `from typing import Any, Dict, List, Optional` lines at the top of the file (only the `DatabaseManager` import line and the body of the four affected methods change — `read_sheet` and the module docstring are untouched). `connect_database()`'s new body preserves the original's success/failure semantics: it actually attempts a real connection and returns `False` on failure, same as `DatabaseManager.connect()` did, just without holding the connection open afterward (each `maintenance.py` call opens and closes its own connection anyway, so there is nothing to keep open between steps — this is a behaviorally-equivalent simplification of an already connection-per-call-op design, not a new design).
+
+Step 3: Verify no `DatabaseManager` references remain.
+```bash
+grep -n "DatabaseManager" src/data/legacy_sync_gateway.py
+```
+Expected: no output.
+
+Step 4: Manual smoke test — a live Google Sheets sync isn't runnable in an automated check (needs real credentials); confirm instead via the automated substitute in the task dispatch (import-collect check + full suite), and note that the actual Sync button should be manually exercised once by the user before this branch is considered fully verified end-to-end, same as any other manual-only smoke test in this plan.
+
+Step 5: Commit.
+```bash
+git add src/data/maintenance.py src/data/legacy_sync_gateway.py
+git commit -m "Migrate legacy_sync_gateway.py off DatabaseManager"
+```
+
+---
+
 ### Task 1.4: Delete `database_manager.py`
 
 **Files:**
@@ -277,7 +470,7 @@ git -c include.path=C:/Users/Usuario/pedrocosme/.gitconfig-pessoal commit -m "Mi
 grep -rn "database_manager\|DatabaseManager" src/ --include=*.py | grep -v "src/data/database_manager.py"
 ```
 
-Expected: only references in one-off/offline scripts outside the running app (e.g. `src/migrate_data.py`, `scripts/fix_database_critical.py` if it imports it) — none in `src/ui/`, `src/services/` (beyond the `TYPE_CHECKING`-only import handled in Phase 3), `src/data/data_provider.py`, or `src/web/`. If anything unexpected shows up in a live-app path, stop and investigate before deleting — it means this plan's usage map missed a caller.
+Expected: only references in one-off/offline scripts outside the running app (`src/migrate_data.py`, `src/data/migration_tasks/backfill_payments.py`, `test_duplicate_payment.py`, `tests/validate_improvements.py` — none of the last two are collected by pytest per `pytest.ini`'s `testpaths = tests` and `test_*.py` pattern), plus a stray `database_manager` *parameter name* in `src/ui/dialogs/expiring_plans_dialog.py` that doesn't actually import the class — none in `src/ui/` importing the real class, `src/services/` (beyond the `TYPE_CHECKING`-only import handled in Phase 3), `src/data/data_provider.py`, `src/data/legacy_sync_gateway.py` (migrated in Task 1.3b — confirm this file no longer appears in the grep output at all, not even as an expected hit), or `src/web/`. If anything unexpected shows up in a live-app path, stop and investigate before deleting — it means this plan's usage map missed a caller (this is exactly how Task 1.3b's need was originally discovered).
 
 - [ ] **Step 2: Delete the file**
 
