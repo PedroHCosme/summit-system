@@ -5,7 +5,8 @@ from PyQt6.QtWidgets import (
     QPushButton, QLabel, QMessageBox, QTextBrowser, QComboBox, QGroupBox, QInputDialog
 )
 from PyQt6.QtCore import Qt, pyqtSignal
-from src.data.database_manager import DatabaseManager
+from src.data.db import create_session
+from src.services.member_service import MemberService
 from src.services.plan_service import PlanService
 
 class PendingMembersScreen(QWidget):
@@ -16,8 +17,8 @@ class PendingMembersScreen(QWidget):
     
     def __init__(self):
         super().__init__()
-        self.db_manager = DatabaseManager()
-        self.db_manager.connect()
+        self._session = create_session()
+        self.member_service = MemberService(db_session=self._session)
         self.plan_service = PlanService()  # Creates its own session
         self.current_member_data = None
         self._setup_ui()
@@ -97,8 +98,8 @@ class PendingMembersScreen(QWidget):
         self.approve_button.setEnabled(False)
         self.reject_button.setEnabled(False)
         
-        result = self.db_manager.get_members_paginated(page=1, page_size=100, filter_status="PENDENTE")
-        members = result.get('members', [])
+        result = self.member_service.get_paginated(page=1, page_size=100, filter_status="PENDENTE")
+        members = result.members
         
         if not members:
             self.members_list.addItem("Nenhum membro pendente. Novos cadastros aparecerão aqui.")
@@ -170,13 +171,13 @@ class PendingMembersScreen(QWidget):
         )
         
         if confirm == QMessageBox.StandardButton.Yes:
-            success = self.db_manager.update_member(
+            result = self.member_service.update(
                 self.current_member_data['id'],
                 plano=selected_plan,
                 estado_plano='ATIVO'
             )
-            
-            if success:
+
+            if result.success:
                 QMessageBox.information(self, "Sucesso", f"Membro aprovado com plano '{selected_plan}'!")
                 self.refresh_list()
                 self.member_approved.emit()
@@ -212,9 +213,9 @@ class PendingMembersScreen(QWidget):
         )
         
         if confirm == QMessageBox.StandardButton.Yes:
-            success = self.db_manager.delete_member(self.current_member_data['id'])
-            
-            if success:
+            result = self.member_service.delete(self.current_member_data['id'])
+
+            if result.success:
                 QMessageBox.information(self, "Sucesso", "Membro rejeitado e removido.")
                 self.refresh_list()
                 self.member_rejected.emit()
