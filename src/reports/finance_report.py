@@ -4,11 +4,9 @@ from __future__ import annotations
 
 import json
 from datetime import datetime
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from jinja2 import Environment, FileSystemLoader
-
+from src.reports._common import get_reports_dir, get_template_env
 from src.reports.analytics import (
     SEGMENTO_MUITO_ATIVO,
     SEGMENTO_REATIVACAO_URGENTE,
@@ -41,19 +39,6 @@ def _categoria_dre(tipo: str) -> str:
     if any(k in t for k in _PALAVRAS_MENSALIDADE):
         return "mensalidades"
     return "avulsos"
-
-
-def _get_reports_dir() -> Path:
-    project_root = Path(__file__).parent.parent.parent
-    reports_dir = project_root / "relatorios"
-    reports_dir.mkdir(exist_ok=True)
-    return reports_dir
-
-
-def _get_template_env() -> Environment:
-    project_root = Path(__file__).parent.parent.parent
-    templates_dir = project_root / "src" / "templates" / "reports"
-    return Environment(loader=FileSystemLoader(str(templates_dir)))
 
 
 def _safe_delta_pct(current: float, previous: float) -> float:
@@ -366,11 +351,11 @@ def generate_finance_report(
             "risk_vs_revenue_json": risk_vs_revenue_json,
         }
 
-        env = _get_template_env()
+        env = get_template_env()
         template = env.get_template("finance_report.html")
         html_output = template.render(**context)
 
-        reports_dir = _get_reports_dir()
+        reports_dir = get_reports_dir()
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         safe_period = period.replace("/", "_").replace(" ", "_")
         filename = f"relatorio_financeiro_{safe_period}_{timestamp}.html"
