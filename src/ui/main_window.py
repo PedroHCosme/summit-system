@@ -6,10 +6,8 @@ from datetime import datetime
 import os
 
 from PyQt6.QtWidgets import (
-    QMainWindow, QStackedWidget, QMessageBox, QDialog, QInputDialog, QApplication,
-    QWidget, QHBoxLayout, QVBoxLayout, QLabel, QPushButton
+    QMainWindow, QMessageBox, QDialog, QInputDialog, QApplication,
 )
-from PyQt6.QtGui import QIcon
 from PyQt6.QtCore import QTimer
 
 from src.core.aniversariantes_manager import AniversariantesManager
@@ -23,21 +21,7 @@ from src.ui.workers import (
     MemberSearchWorker,
     DashboardWorker
 )
-from src.ui.screens import (
-    HomeScreen,
-    DashboardScreen,
-    AniversariantesScreen,
-    MemberSearchScreen,
-    CheckinScreen,
-    FinancialScreen,
-    FinancialScreen,
-    MembersListScreen,
-    PendingMembersScreen,
-    PlansScreen,
-    NotesScreen
-)
 from src.ui.dialogs import AddMemberDialog, SyncDialog, ExpiringPlansDialog
-from src.ui.components import Sidebar
 from src.ui.coordinators import (
     MembersCoordinator,
     CheckinCoordinator,
@@ -90,147 +74,9 @@ class MainWindow(QMainWindow):
     
     def _setup_ui(self):
         """Configura a interface do usuário."""
-        self.setWindowTitle("Summit Escalada")
-        # Iniciar em modo Full Screen (solicitação do usuário para corrigir resolução em produção)
-        self.showFullScreen()
-        self.is_fullscreen = True
-        self.setStyleSheet(STYLESHEET)
-        
-        # Esconde a barra de menu padrão do QMainWindow
-        self.menuBar().hide()
-        
-        # Define o ícone da janela
-        base_path = os.path.dirname(__file__)
-        icon_path = os.path.join(base_path, "assets", "summit.png")
-        if os.path.exists(icon_path):
-            self.setWindowIcon(QIcon(icon_path))
-        
-        # Container principal (Root) com layout VERTICAL para incluir a barra de título
-        root_container = QWidget()
-        root_layout = QVBoxLayout(root_container)
-        root_layout.setContentsMargins(0, 0, 0, 0)
-        root_layout.setSpacing(0)
-        
-        # --- Barra de Título Customizada ---
-        self.title_bar = QWidget()
-        self.title_bar.setFixedHeight(40)
-        self.title_bar.setStyleSheet("""
-            QWidget {
-                background-color: #1a1a1a;
-                border-bottom: 1px solid #333;
-            }
-            QLabel {
-                color: #fff;
-                font-weight: bold;
-                padding-left: 15px;
-            }
-            QPushButton {
-                background-color: transparent;
-                border: none;
-                color: #fff;
-                font-size: 14px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #333;
-            }
-            QPushButton#close_btn:hover {
-                background-color: #e81123;
-            }
-        """)
-        
-        title_layout = QHBoxLayout(self.title_bar)
-        title_layout.setContentsMargins(0, 0, 0, 0)
-        title_layout.setSpacing(0)
-        
-        # Título / Logo
-        title_label = QLabel("Summit Escalada")
-        title_layout.addWidget(title_label)
-        
-        title_layout.addStretch()
-        
-        # Botões de controle
-        # Minimizar
-        btn_min = QPushButton("—")
-        btn_min.setFixedSize(45, 40)
-        btn_min.clicked.connect(self.showMinimized)
-        title_layout.addWidget(btn_min)
-        
-        # Maximizar / Restaurar (Toggle)
-        btn_max = QPushButton("❐")
-        btn_max.setFixedSize(45, 40)
-        btn_max.clicked.connect(self._toggle_maximize_restore)
-        title_layout.addWidget(btn_max)
-        
-        # Fechar
-        btn_close = QPushButton("✕")
-        btn_close.setObjectName("close_btn")
-        btn_close.setFixedSize(45, 40)
-        btn_close.clicked.connect(self.close)
-        title_layout.addWidget(btn_close)
-        
-        # Adiciona barra ao layout principal
-        root_layout.addWidget(self.title_bar)
-        
-        # --- Área de Conteúdo (Sidebar + Telas) ---
-        self.content_container = QWidget() # Tornar atributo para acesso no resizeEvent
-        content_layout = QHBoxLayout(self.content_container)
-        content_layout.setContentsMargins(60, 0, 0, 0) # Margem esquerda de 60px para a sidebar colapsada
-        content_layout.setSpacing(0)
-        
-        # Sidebar (Flutuante - não adicionada ao layout)
-        # Ela será posicionada manualmente no resizeEvent
-        self.sidebar = Sidebar()
-        self.sidebar.setParent(self.content_container)
-        self.sidebar.set_enabled(False)
-        self._connect_sidebar_signals()
-        
-        self.stacked_widget = QStackedWidget()
-        content_layout.addWidget(self.stacked_widget)
-        
-        # Adiciona contéudo ao root
-        root_layout.addWidget(self.content_container)
-        
-        # Define widget central
-        self.setCentralWidget(root_container)
+        from src.ui.main_window_ui import build_ui
+        build_ui(self)
 
-
-        
-        # Cria as telas
-        self.home_screen = HomeScreen()
-        self.dashboard_screen = DashboardScreen()
-        self.aniversariantes_screen = AniversariantesScreen()
-        self.member_search_screen = MemberSearchScreen()
-        self.checkin_screen = CheckinScreen()
-        self.financial_screen = FinancialScreen()
-        self.members_list_screen = MembersListScreen()
-        self.pending_members_screen = PendingMembersScreen()
-        self.plans_screen = PlansScreen()
-        
-        # Adiciona ao stack
-        self.stacked_widget.addWidget(self.home_screen)  # 0
-        self.stacked_widget.addWidget(self.dashboard_screen)  # 1
-        self.stacked_widget.addWidget(self.aniversariantes_screen)  # 2
-        self.stacked_widget.addWidget(self.member_search_screen)  # 3
-        self.stacked_widget.addWidget(self.checkin_screen)  # 4
-        self.stacked_widget.addWidget(self.financial_screen)  # 5
-        self.stacked_widget.addWidget(self.members_list_screen)  # 6
-        self.stacked_widget.addWidget(self.pending_members_screen)  # 7
-        self.stacked_widget.addWidget(self.plans_screen)  # 8
-
-        self.notes_screen = NotesScreen()
-        self.stacked_widget.addWidget(self.notes_screen)  # 9
-        
-        # Conecta botões específicos
-        self.dashboard_screen.refresh_button.clicked.connect(self._update_dashboard)
-        
-        # Conecta sinais das telas
-        self._connect_screen_signals()
-
-        
-        # Mostra a tela de conexão
-        self.stacked_widget.setCurrentIndex(0)
-    
     def _toggle_maximize_restore(self):
         """Alterna entre tela cheia e modo janela (800x600)."""
         if self.isFullScreen():
