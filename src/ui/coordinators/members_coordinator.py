@@ -10,7 +10,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QDialog, QMessageBox, QInputDialog
 
 from src.ui.dialogs import AddMemberDialog
-from src.ui.workers import MemberSearchWorker
+from src.ui.workers import DataFetchWorker, MemberSearchWorker
 
 
 class MembersCoordinator:
@@ -322,6 +322,34 @@ class MembersCoordinator:
                 )
         except Exception as e:
             QMessageBox.critical(self.window, "Erro", f"Erro ao excluir membro: {str(e)}")
+
+    # === Aniversariantes ===
+
+    def on_aniversariantes_search_clicked(self):
+        """Manipula o clique no botão de busca de aniversariantes."""
+        self.window.aniversariantes_screen.set_searching_state()
+
+        # Obtém o mês selecionado
+        mes_selecionado = self.window.aniversariantes_screen.get_selected_month()
+
+        self.window.worker = DataFetchWorker(self.window.manager, mes_selecionado)
+        self.window.worker.status_updated.connect(self.window.aniversariantes_screen.append_status)
+        self.window.worker.fetch_completed.connect(self.on_aniversariantes_fetch_completed)
+        self.window.worker.start()
+
+    def on_aniversariantes_fetch_completed(self, aniversariantes, mes_nome):
+        """Manipula a conclusão da busca de aniversariantes."""
+        if not aniversariantes:
+            html = self.window.formatter.format_no_results(mes_nome)
+        else:
+            html = self.window.formatter.format_header(mes_nome)
+            html += f"<p style='color: #007ACC; text-align: center;'>Total: {len(aniversariantes)} aniversariante(s)</p>"
+
+            for aniversariante in aniversariantes:
+                html += self.window.formatter.format_aniversariante(aniversariante)
+
+        self.window.aniversariantes_screen.set_results(html)
+        self.window.aniversariantes_screen.set_ready_state()
 
     def on_member_updated(self, updated_data: dict):
         try:

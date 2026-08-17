@@ -19,7 +19,6 @@ from src.reports.members_report import generate_members_report
 from src.ui.styles import STYLESHEET
 
 from src.ui.workers import (
-    DataFetchWorker,
     DatabaseConnectionWorker,
     MemberSearchWorker,
     DashboardWorker
@@ -360,10 +359,10 @@ class MainWindow(QMainWindow):
         if not self.is_connected:
             return
         self.stacked_widget.setCurrentIndex(5)
-        self._load_financial_data()
-    
+        self.reports_coordinator.load_financial_data()
 
-    
+
+
     def _connect_screen_signals(self):
         """Conecta sinais das telas."""
         # Dashboard
@@ -376,7 +375,7 @@ class MainWindow(QMainWindow):
         
         # Aniversariantes
         self.aniversariantes_screen.search_button.clicked.connect(
-            self._on_aniversariantes_search_clicked
+            self.members_coordinator.on_aniversariantes_search_clicked
         )
         
         # Busca de Membros
@@ -448,10 +447,10 @@ class MainWindow(QMainWindow):
         
         # Financeiro
         self.financial_screen.update_button.clicked.connect(
-            self._load_financial_data
+            self.reports_coordinator.load_financial_data
         )
         self.financial_screen.plan_chart_button.clicked.connect(
-            self._show_plan_distribution_dialog
+            self.reports_coordinator.show_plan_distribution_dialog
         )
     
     # === Navegação entre telas ===
@@ -498,7 +497,7 @@ class MainWindow(QMainWindow):
         if not self.is_connected:
             return
         self.stacked_widget.setCurrentIndex(5)
-        self._load_financial_data()
+        self.reports_coordinator.load_financial_data()
     
     def _show_settings_menu(self):
         """Mostra menu de configurações como popup."""
@@ -606,108 +605,6 @@ class MainWindow(QMainWindow):
         self.dashboard_worker.dashboard_updated.connect(self.dashboard_screen.update_dashboard)
         self.dashboard_worker.error_occurred.connect(self.dashboard_screen.show_error)
         self.dashboard_worker.start()
-    
-    # === Aniversariantes ===
-    
-    def _on_aniversariantes_search_clicked(self):
-        """Manipula o clique no botão de busca de aniversariantes."""
-        self.aniversariantes_screen.set_searching_state()
-        
-        # Obtém o mês selecionado
-        mes_selecionado = self.aniversariantes_screen.get_selected_month()
-        
-        self.worker = DataFetchWorker(self.manager, mes_selecionado)
-        self.worker.status_updated.connect(self.aniversariantes_screen.append_status)
-        self.worker.fetch_completed.connect(self._on_aniversariantes_fetch_completed)
-        self.worker.start()
-    
-    def _on_aniversariantes_fetch_completed(self, aniversariantes, mes_nome):
-        """Manipula a conclusão da busca de aniversariantes."""
-        if not aniversariantes:
-            html = self.formatter.format_no_results(mes_nome)
-        else:
-            html = self.formatter.format_header(mes_nome)
-            html += f"<p style='color: #007ACC; text-align: center;'>Total: {len(aniversariantes)} aniversariante(s)</p>"
-            
-            for aniversariante in aniversariantes:
-                html += self.formatter.format_aniversariante(aniversariante)
-        
-        self.aniversariantes_screen.set_results(html)
-        self.aniversariantes_screen.set_ready_state()
-    
-    # === Financeiro ===
-    
-    def _load_financial_data(self):
-        """Carrega os dados financeiros com base no período selecionado rodando em background."""
-        try:
-            # Mostra estado de carregamento
-            self.financial_screen.show_loading()
-            
-            # Obter datas
-            start_date = self.financial_screen.start_date_input.date().toPyDate()
-            end_date = self.financial_screen.end_date_input.date().toPyDate()
-            
-            # Converter para datetime com hora mínima/máxima
-            from datetime import datetime, time
-            start_datetime = datetime.combine(start_date, time.min)
-            end_datetime = datetime.combine(end_date, time.max)
-            
-            # Instanciar e iniciar Worker para não travar a UI
-            from src.ui.workers.financial_worker import FinancialDataWorker
-            
-            # Desativar botões ou evitar múltiplas requisições se necessário aqui
-            self._financial_worker = FinancialDataWorker(
-                self.manager.data_provider, 
-                start_datetime, 
-                end_datetime
-            )
-            
-            self._financial_worker.data_loaded.connect(self._on_financial_data_loaded)
-            self._financial_worker.error_occurred.connect(self._on_financial_data_error)
-            
-            # Iniciar thread
-            self._financial_worker.start()
-            
-        except Exception as e:
-            QMessageBox.critical(
-                self,
-                "Erro",
-                f"Erro ao iniciar carregamento financeiro: {str(e)}"
-            )
-            
-    def _on_financial_data_loaded(self, result: dict):
-        """Callback invocado quando o worker financeiro conclui com sucesso."""
-        try:
-            summary = result.get('summary', {})
-            # Atualizar cards de resumo
-            self.financial_screen.update_summary(
-                summary.get('total_receita', 0.0),
-                summary.get('total_transacoes', 0),
-                summary.get('ticket_medio', 0.0)
-            )
-            
-            breakdown = result.get('breakdown', {})
-            self.financial_screen.update_breakdown(breakdown)
-            
-            transactions = result.get('transactions', [])
-            self.financial_screen.update_transactions(transactions)
-            
-        except Exception as e:
-            QMessageBox.warning(self, "Aviso", f"Erro processando os dados financeiros: {str(e)}")
-            
-    def _on_financial_data_error(self, error_msg: str):
-        """Callback invocado quando o worker financeiro encontra erro."""
-        QMessageBox.critical(
-            self,
-            "Erro de Banco de Dados",
-            f"Falha gravíssima ao carregar as métricas financeiras:\n\n{error_msg}"
-        )
-    def _show_plan_distribution_dialog(self):
-        """Abre o diálogo de gráficos financeiros."""
-        from src.ui.dialogs.finance_graphs import FinancialGraphsDialog
-        
-        dialog = FinancialGraphsDialog(self)
-        dialog.exec()
     
     def resizeEvent(self, event):
         """Atualiza geometria da sidebar flutuante ao redimensionar a janela."""

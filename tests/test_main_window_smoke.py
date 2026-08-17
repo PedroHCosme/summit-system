@@ -26,6 +26,12 @@ def window(app, monkeypatch):
     w = MainWindow()
     yield w
     w.deleteLater()
+    # ponytail: MainWindow() abre sessões via DataProvider que o Qt (deleteLater
+    # adiado, sem event loop rodando) nunca fecha de fato — cada instanciação
+    # deixa conexões presas no pool global. reset_engine() descarta o pool
+    # entre testes; já existia em src/data/db.py só para isso.
+    from src.data.db import reset_engine
+    reset_engine()
 
 
 def test_coordinators_instantiated(window):
@@ -42,6 +48,8 @@ def test_coordinators_instantiated(window):
     ("members_coordinator", "on_list_delete_member_clicked"),
     ("checkin_coordinator", "on_confirm_checkin_clicked"),
     ("checkin_coordinator", "on_checkin_search_by_name"),
+    ("reports_coordinator", "load_financial_data"),
+    ("members_coordinator", "on_aniversariantes_search_clicked"),
 ])
 def test_coordinator_handlers_exist(window, coordinator, method):
     assert callable(getattr(getattr(window, coordinator), method))
