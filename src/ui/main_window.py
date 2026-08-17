@@ -68,6 +68,9 @@ class MainWindow(QMainWindow):
         self.dashboard_timer = QTimer()
         self.dashboard_timer.timeout.connect(self._update_dashboard)
         
+        # Ordem importa: os coordinators precisam existir antes de _setup_ui,
+        # que liga os sinais direto aos métodos deles (.connect resolve o
+        # método no momento da conexão — coordinator None quebraria a montagem).
         self._setup_coordinators()
         self._setup_ui()
         self._auto_connect()
