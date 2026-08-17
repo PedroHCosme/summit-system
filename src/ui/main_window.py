@@ -1,13 +1,9 @@
 """Janela principal da aplicação."""
 
 import sys
-import webbrowser
-from datetime import datetime
 import os
 
-from PyQt6.QtWidgets import (
-    QMainWindow, QMessageBox, QDialog, QInputDialog, QApplication,
-)
+from PyQt6.QtWidgets import QMainWindow, QApplication
 from PyQt6.QtCore import QTimer
 
 from src.core.aniversariantes_manager import AniversariantesManager
