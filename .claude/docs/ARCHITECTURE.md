@@ -10,7 +10,8 @@ run.py (entry point)
   |     src/web/templates/ (checkin.html, register.html)
   |
   +-- PyQt6 GUI (main thread)
-        src/ui/main_window.py (orquestrador central, ~1700 linhas)
+        src/ui/main_window.py (orquestrador central, ~500 linhas, shell fino)
+        src/ui/main_window_ui.py (build_ui — construção da UI extraída)
         src/ui/screens/ (10 telas)
         src/ui/dialogs/ (12 dialogos)
         src/ui/components/ (sidebar, member_info_formatter)
@@ -25,9 +26,9 @@ run.py (entry point)
 ### 1. UI Layer (`src/ui/`)
 
 #### Main Window (`main_window.py`)
-- Orquestra TUDO: navegacao, sinais, workers, dialogos
-- ~60 operacoes diferentes
-- **Problema conhecido**: God Object — muita logica de negocio embutida aqui
+- Orquestra navegacao, sinais, workers, dialogos
+- ~500 linhas (refatorado de ~965)
+- **Resolvido (2026-08-17)**: era um God Object; a logica foi movida para os 4 coordinators e a construção de UI para main_window_ui.py. Hoje só orquestra navegação, conexão, migrações e o timer do dashboard.
 - Sidebar com contextos: HOME, MEMBERS, CHECKIN, FINANCIAL, SETTINGS, REPORTS, NOTES
 
 #### Telas (`src/ui/screens/`)
@@ -189,7 +190,7 @@ Sidebar: Relatorios > Financeiro/Membros/Frequencia
 
 ## Divida Tecnica Conhecida
 
-1. **MainWindow como God Object** — deveria delegar mais para services
+1. ~~**MainWindow como God Object**~~ — **RESOLVIDO em 2026-08-17** (ver bloco abaixo).
 2. **config.py vs tabela Plano** — config.py e `plans_config.json` continuam em uso, mas apenas como fonte de "valores padrao" para o botao Restaurar Padroes em `plans_screen.py`; a tabela `Plano` (via `PlanService`) e a unica fonte viva de precos. Nao e duplicacao de escrita, so vale desconfiar se algo voltar a ler `config.PLANOS_PRECOS` fora desse fluxo.
 3. **HTML gerado como string** em member_info_formatter.py — deveria usar template
 4. **Logica de status** — atualmente campo unico `estado_plano`, precisa ser separado em status_plano + status_membro (ver BUSINESS_RULES.md)
@@ -206,3 +207,13 @@ Um audit de over-engineering (`/ponytail:ponytail-audit`) + plano de implementac
 - 17 scripts standalone e 2 docs orfaos que so importavam o `DatabaseManager` deletado — **deletados** em 2026-08-17 (ver `docs/superpowers/plans/2026-08-17-post-audit-dead-file-cleanup.md`), incluindo `docs/MANAGE_PLANS_DIALOG.md` e `docs/MIGRATION_GUIDE.md`.
 
 Achados descartados durante o brainstorming (nao eram over-engineering de verdade): a sync com Google Sheets (`sync_dialog.py`/`sync_worker.py`/`legacy_sync_gateway.py`) e uma feature viva, nao codigo morto; e `config.py`/`plans_config.json` nao sao um terceiro armazenamento concorrente, so a fonte de "valores padrao" (ver item 2 acima).
+
+### Resolvido em 2026-08-17 — Decomposicao do God Object (MainWindow)
+
+`main_window.py` foi de ~965 para ~499 linhas seguindo o plano em `docs/superpowers/plans/2026-08-17-mainwindow-god-object-decomposition.md` (spec correspondente em `docs/superpowers/specs/`):
+
+- **~47 shims de delegacao deletados** — os sinais das telas/sidebar agora conectam direto aos 4 coordinators (nada de metodos de repasse de 1 linha na janela).
+- **Fluxo financeiro** movido para `ReportsCoordinator`; **fluxo de aniversariantes** movido para `MembersCoordinator`.
+- **Construcao da UI** (`_setup_ui`) extraida para `src/ui/main_window_ui.py` como `build_ui(window)`; `_setup_ui` virou um delegate de 3 linhas.
+- **Rede de seguranca**: `tests/test_main_window_smoke.py` (constroi a MainWindow headless, verifica coordinators + handlers). Suite: 106 passed.
+- Nao foi criada nenhuma abstracao nova — tudo caiu nos 4 coordinators que ja existiam. O acoplamento coordinator<->window (coordinators acessam `window.screen.widget`) foi deixado como esta, deliberadamente (fora de escopo).
