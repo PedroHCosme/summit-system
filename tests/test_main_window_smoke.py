@@ -18,7 +18,11 @@ def app():
 
 
 @pytest.fixture
-def window(app):
+def window(app, monkeypatch):
+    # ponytail: o smoke test não precisa conectar ao banco — só verifica
+    # montagem + coordenadores. Neutralizamos _auto_connect para não iniciar
+    # a QThread de migração (que vazaria e derrubaria a suíte inteira).
+    monkeypatch.setattr(MainWindow, "_auto_connect", lambda self: None)
     w = MainWindow()
     yield w
     w.deleteLater()
