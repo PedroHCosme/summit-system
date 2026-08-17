@@ -193,7 +193,6 @@ Sidebar: Relatorios > Financeiro/Membros/Frequencia
 2. **config.py vs tabela Plano** — config.py e `plans_config.json` continuam em uso, mas apenas como fonte de "valores padrao" para o botao Restaurar Padroes em `plans_screen.py`; a tabela `Plano` (via `PlanService`) e a unica fonte viva de precos. Nao e duplicacao de escrita, so vale desconfiar se algo voltar a ler `config.PLANOS_PRECOS` fora desse fluxo.
 3. **HTML gerado como string** em member_info_formatter.py — deveria usar template
 4. **Logica de status** — atualmente campo unico `estado_plano`, precisa ser separado em status_plano + status_membro (ver BUSINESS_RULES.md)
-5. **Scripts standalone quebrados por remocao do DatabaseManager** — `debug_config.py`, `debug_sync.py`, `examples/transaction_usage.py`, `reproduce_checkin.py`, `verification_voucher.py`, `verify_approval.py`, `verify_profession.py`, `verify_web_expiration.py`, `test_duplicate_payment.py`, `tests/validate_improvements.py`, `scripts/migrate_data.py` (raiz), `src/migrate_data.py`, `src/data/migration_tasks/backfill_payments.py` e mais alguns arquivos em `scripts/` ainda importam `src.data.database_manager.DatabaseManager`, que foi deletado (ver "Limpeza ponytail-audit" abaixo). Nenhum e coletado pelo pytest (`pytest.ini`: `testpaths = tests`) nem importado pelo app rodando — sao scripts de debug/verificacao pontuais que um dev roda manualmente. Se for rodar algum deles, espere um `ModuleNotFoundError` ate serem atualizados (ou deletados, ja que a maioria descreve verificacoes de bugs ja corrigidos).
 
 ### Resolvido em 2026-08-15 — Limpeza ponytail-audit
 
@@ -204,5 +203,6 @@ Um audit de over-engineering (`/ponytail:ponytail-audit`) + plano de implementac
 - `db_manager=` (fallback legado no construtor) — **removido** de `MemberService` e `PaymentService`. Ambos agora exigem `db_session` (SQLAlchemy).
 - `member_search_service.py` — **deletado** (wrapper delegate puro para `DataProvider`). Os 8 chamadores reais (em `checkin_coordinator.py`/`members_coordinator.py`, nao em `main_window.py` como o audit original assumiu) agora usam `self.window.manager.data_provider.get_member_by_id(...)` diretamente.
 - Helpers `_get_reports_dir`/`_get_template_env` duplicados nos 3 geradores de relatorio — **extraidos** para `src/reports/_common.py`.
+- 17 scripts standalone e 2 docs orfaos que so importavam o `DatabaseManager` deletado — **deletados** em 2026-08-17 (ver `docs/superpowers/plans/2026-08-17-post-audit-dead-file-cleanup.md`), incluindo `docs/MANAGE_PLANS_DIALOG.md` e `docs/MIGRATION_GUIDE.md`.
 
 Achados descartados durante o brainstorming (nao eram over-engineering de verdade): a sync com Google Sheets (`sync_dialog.py`/`sync_worker.py`/`legacy_sync_gateway.py`) e uma feature viva, nao codigo morto; e `config.py`/`plans_config.json` nao sao um terceiro armazenamento concorrente, so a fonte de "valores padrao" (ver item 2 acima).
