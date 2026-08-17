@@ -376,6 +376,6 @@ class PaymentService:
         """Obtém histórico de pagamentos de um membro usando SQLAlchemy."""
         payments = self._session.query(Pagamento).filter(
             Pagamento.member_id == member_id
-        ).order_by(desc(Pagamento.data_pagamento)).all()
+        ).order_by(desc(Pagamento.data_pagamento), desc(Pagamento.id)).all()
         
         return [p.to_dict() for p in payments]
