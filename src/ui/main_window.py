@@ -8,16 +8,12 @@ from PyQt6.QtCore import QTimer
 
 from src.core.aniversariantes_manager import AniversariantesManager
 from src.ui.html_formatter import HTMLFormatter
-from src.reports.finance_report import generate_finance_report
-from src.reports.members_report import generate_members_report
 from src.ui.styles import STYLESHEET
 
 from src.ui.workers import (
     DatabaseConnectionWorker,
-    MemberSearchWorker,
     DashboardWorker
 )
-from src.ui.dialogs import AddMemberDialog, SyncDialog, ExpiringPlansDialog
 from src.ui.coordinators import (
     MembersCoordinator,
     CheckinCoordinator,
