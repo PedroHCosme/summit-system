@@ -521,6 +521,8 @@ class MembersCoordinator:
                 QMessageBox.information(
                     self.window, "Sucesso", f"Membro '{member_data['nome']}' adicionado com sucesso!"
                 )
+                # Mantém a lista de membros em dia sem o usuário trocar de tela.
+                self.load_members_list()
             else:
                 QMessageBox.warning(
                     self.window,
