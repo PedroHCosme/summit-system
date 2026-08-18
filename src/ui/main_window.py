@@ -411,7 +411,10 @@ class MainWindow(QMainWindow):
             # Inicia o timer de atualização (a cada 5 segundos)
             self.dashboard_timer.start(5000)
         else:
-            self.home_screen.set_error("Falha na conexão. Verifique o console para mais detalhes.")
+            self.home_screen.set_error(
+                "Não foi possível conectar ao banco de dados.\n"
+                "Feche e abra o sistema. Se o problema continuar, avise o suporte técnico."
+            )
     
     def _run_migrations(self):
         """Executa as migrações do banco de dados via Alembic."""

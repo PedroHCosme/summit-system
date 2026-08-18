@@ -10,6 +10,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QDate, pyqtSignal
 
 from src.core.plan_status import is_active as plan_is_active
+from src.ui.messages import show_error
 
 
 class DashboardScreen(QWidget):
@@ -525,4 +526,4 @@ class DashboardScreen(QWidget):
             dialog.exec()
 
         except Exception as e:
-            QMessageBox.critical(self, "Erro", f"Erro ao buscar detalhes dos check-ins: {e}")
+            show_error(self, "Não foi possível carregar os detalhes dos check-ins. Tente novamente.", detail=e)

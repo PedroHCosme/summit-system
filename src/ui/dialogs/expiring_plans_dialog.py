@@ -9,6 +9,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont, QColor
 from datetime import datetime, timedelta
 from src.utils.utils import format_whatsapp_link, parse_date_to_date
+from src.ui.messages import show_error
 
 
 class ExpiringPlansDialog(QDialog):
@@ -325,8 +326,9 @@ class ExpiringPlansDialog(QDialog):
                 )
         
         except Exception as e:
-            QMessageBox.critical(
+            show_error(
                 self,
-                "Erro ao Carregar Dados",
-                f"Ocorreu um erro ao buscar planos a vencer:\n\n{str(e)}"
+                "Não foi possível carregar os planos a vencer. Tente novamente.",
+                detail=e,
+                title="Erro ao carregar",
             )

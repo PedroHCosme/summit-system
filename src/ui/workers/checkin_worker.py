@@ -54,4 +54,9 @@ class CheckinWorker(QThread):
                 )
                 
         except Exception as e:
-            self.checkin_completed.emit(False, f"Erro sistêmico ao realizar check-in: {str(e)}", {})
+            print(f"[CheckinWorker] Erro ao realizar check-in: {e}")
+            self.checkin_completed.emit(
+                False,
+                "Não foi possível registrar o check-in. Tente novamente; se continuar, feche e abra o sistema.",
+                {},
+            )

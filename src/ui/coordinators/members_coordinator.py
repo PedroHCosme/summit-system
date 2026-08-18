@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import QDialog, QMessageBox, QInputDialog
 
 from src.ui.dialogs import AddMemberDialog
 from src.ui.workers import DataFetchWorker, MemberSearchWorker
+from src.ui.messages import show_error
 
 
 class MembersCoordinator:
@@ -35,7 +36,7 @@ class MembersCoordinator:
             else:
                 QMessageBox.warning(self.window, "Aviso", "Membro não encontrado.")
         except Exception as e:
-            QMessageBox.critical(self.window, "Erro", f"Erro ao buscar membro: {e}")
+            show_error(self.window, "Não foi possível abrir o cadastro deste membro. Tente novamente.", detail=e)
 
     def on_member_search_by_name(self):
         search_term = self.window.member_search_screen.name_input.text().strip()
@@ -202,7 +203,7 @@ class MembersCoordinator:
             else:
                 QMessageBox.warning(self.window, "Erro", result.message or "Não foi possível registrar o pagamento.")
         except Exception as e:
-            QMessageBox.critical(self.window, "Erro", f"Falha ao registrar pagamento: {e}")
+            show_error(self.window, "Não foi possível registrar o pagamento. Tente novamente; se continuar, feche e abra o sistema.", detail=e)
 
     def on_member_search_completed(self, results):
         if not results:
@@ -233,10 +234,10 @@ class MembersCoordinator:
         except Exception as e:
             print(f"Erro ao carregar histórico: {e}")
             self.window.member_search_screen.member_history_browser.setHtml(
-                f"""
+                """
                 <div style="text-align: center; padding: 20px;">
-                    <h3 style="color: #FF6B6B;">Erro ao carregar histórico</h3>
-                    <p style="color: #888;">{str(e)}</p>
+                    <h3 style="color: #FF6B6B;">Não foi possível carregar o histórico</h3>
+                    <p style="color: #888;">Selecione o membro novamente. Se continuar, feche e abra o sistema.</p>
                 </div>
                 """
             )
@@ -258,8 +259,8 @@ class MembersCoordinator:
             self.window.member_search_screen.member_financial_browser.setHtml(
                 f"""
                 <div style="text-align: center; padding: 20px;">
-                    <h3 style="color: #FF6B6B;">Erro ao carregar histórico financeiro</h3>
-                    <p style="color: #888;">{str(e)}</p>
+                    <h3 style="color: #FF6B6B;">Não foi possível carregar o histórico financeiro</h3>
+                    <p style="color: #888;">Selecione o membro novamente. Se continuar, feche e abra o sistema.</p>
                 </div>
                 """
             )
@@ -321,7 +322,7 @@ class MembersCoordinator:
                     self.window, "Erro", f"Não foi possível excluir o membro '{member_name}'."
                 )
         except Exception as e:
-            QMessageBox.critical(self.window, "Erro", f"Erro ao excluir membro: {str(e)}")
+            show_error(self.window, "Não foi possível excluir o membro. Tente novamente.", detail=e)
 
     # === Aniversariantes ===
 
@@ -383,11 +384,9 @@ class MembersCoordinator:
                             member_id, updated_data["nome"], payments
                         )
             else:
-                QMessageBox.warning(
-                    self.window, "Erro", "Não foi possível atualizar o membro. Verifique o console."
-                )
+                show_error(self.window, "Não foi possível salvar as alterações do membro. Tente novamente.")
         except Exception as e:
-            QMessageBox.critical(self.window, "Erro Crítico", f"Ocorreu um erro inesperado: {e}")
+            show_error(self.window, "Não foi possível salvar as alterações do membro. Tente novamente; se continuar, feche e abra o sistema.", detail=e)
 
     def on_plan_renewed(self, renewal_data: dict):
         try:
@@ -423,11 +422,9 @@ class MembersCoordinator:
                         member_id, member_name, payments
                     )
             else:
-                QMessageBox.warning(
-                    self.window, "Erro", "Não foi possível renovar o plano. Verifique o console."
-                )
+                show_error(self.window, "Não foi possível renovar o plano. Tente novamente.")
         except Exception as e:
-            QMessageBox.critical(self.window, "Erro Crítico", f"Ocorreu um erro inesperado: {e}")
+            show_error(self.window, "Não foi possível renovar o plano. Tente novamente; se continuar, feche e abra o sistema.", detail=e)
 
     def on_delete_checkin_requested(self, checkin_id: int):
         reply = QMessageBox.question(
@@ -452,11 +449,9 @@ class MembersCoordinator:
                     member_name = self.window.member_search_screen.current_member_data["nome"]
                     self.load_member_history(member_id, member_name)
             else:
-                QMessageBox.warning(
-                    self.window, "Erro", "Não foi possível deletar o check-in. Verifique o console."
-                )
+                show_error(self.window, "Não foi possível excluir o check-in. Tente novamente.")
         except Exception as e:
-            QMessageBox.critical(self.window, "Erro", f"Erro ao deletar check-in: {str(e)}")
+            show_error(self.window, "Não foi possível excluir o check-in. Tente novamente.", detail=e)
 
     def on_edit_checkin_requested(self, checkin_id: int):
         try:
@@ -488,16 +483,12 @@ class MembersCoordinator:
                     )
                     self.load_member_history(member_id, member_name)
                 else:
-                    QMessageBox.warning(
-                        self.window,
-                        "Erro",
-                        "Não foi possível atualizar o check-in. Verifique o console.",
-                    )
+                    show_error(self.window, "Não foi possível atualizar o horário do check-in. Tente novamente.")
 
             dialog.checkin_updated.connect(on_checkin_updated)
             dialog.exec()
         except Exception as e:
-            QMessageBox.critical(self.window, "Erro", f"Erro ao editar check-in: {str(e)}")
+            show_error(self.window, "Não foi possível editar o check-in. Tente novamente.", detail=e)
 
     def show_add_member_dialog(self):
         if not self.window.is_connected:
@@ -537,11 +528,7 @@ class MembersCoordinator:
                     result.message or "Não foi possível adicionar o membro.",
                 )
         except Exception as e:
-            QMessageBox.critical(
-                self.window,
-                "Erro Crítico",
-                f"Ocorreu um erro inesperado ao salvar o membro: {e}",
-            )
+            show_error(self.window, "Não foi possível salvar o membro. Tente novamente; se continuar, feche e abra o sistema.", detail=e)
 
     def load_members_list(self):
         from src.services.plan_service import get_plan_service
@@ -661,4 +648,4 @@ class MembersCoordinator:
                     self.window, "Erro", f"Não foi possível excluir o membro '{member_name}'."
                 )
         except Exception as e:
-            QMessageBox.critical(self.window, "Erro", f"Erro ao excluir membro: {str(e)}")
+            show_error(self.window, "Não foi possível excluir o membro. Tente novamente.", detail=e)

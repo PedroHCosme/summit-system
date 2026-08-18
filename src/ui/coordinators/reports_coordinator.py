@@ -8,6 +8,7 @@ from PyQt6.QtWidgets import QDialog, QMessageBox
 
 from src.reports.finance_report import generate_finance_report
 from src.reports.members_report import generate_members_report
+from src.ui.messages import show_error
 
 
 class ReportsCoordinator:
@@ -35,9 +36,7 @@ class ReportsCoordinator:
             )
             webbrowser.open(f"file://{report_path}")
         except Exception as e:
-            QMessageBox.critical(
-                self.window, "Erro", f"Erro ao gerar relatório de membros: {e}"
-            )
+            show_error(self.window, "Não foi possível gerar o relatório de membros. Tente novamente.", detail=e)
 
     def generate_financial_report(self):
         if not self.window.is_connected:
@@ -58,9 +57,7 @@ class ReportsCoordinator:
             )
             webbrowser.open(f"file://{report_path}")
         except Exception as e:
-            QMessageBox.critical(
-                self.window, "Erro", f"Erro ao gerar relatório financeiro: {e}"
-            )
+            show_error(self.window, "Não foi possível gerar o relatório financeiro. Tente novamente.", detail=e)
 
     def generate_frequency_report(self):
         if not self.window.is_connected:
@@ -84,7 +81,7 @@ class ReportsCoordinator:
             filepath = generate_frequency_report(start_date=start_date, end_date=end_date)
             webbrowser.open(f"file://{filepath}")
         except Exception as e:
-            QMessageBox.critical(self.window, "Erro", f"Erro ao gerar relatório de frequência: {e}")
+            show_error(self.window, "Não foi possível gerar o relatório de frequência. Tente novamente.", detail=e)
 
     # === Financeiro ===
 
@@ -120,11 +117,7 @@ class ReportsCoordinator:
             self.window._financial_worker.start()
 
         except Exception as e:
-            QMessageBox.critical(
-                self.window,
-                "Erro",
-                f"Erro ao iniciar carregamento financeiro: {str(e)}"
-            )
+            show_error(self.window, "Não foi possível carregar os dados financeiros. Tente novamente.", detail=e)
 
     def on_financial_data_loaded(self, result: dict):
         """Callback invocado quando o worker financeiro conclui com sucesso."""
@@ -144,15 +137,11 @@ class ReportsCoordinator:
             self.window.financial_screen.update_transactions(transactions)
 
         except Exception as e:
-            QMessageBox.warning(self.window, "Aviso", f"Erro processando os dados financeiros: {str(e)}")
+            show_error(self.window, "Não foi possível exibir os dados financeiros. Tente novamente.", detail=e)
 
     def on_financial_data_error(self, error_msg: str):
         """Callback invocado quando o worker financeiro encontra erro."""
-        QMessageBox.critical(
-            self.window,
-            "Erro de Banco de Dados",
-            f"Falha gravíssima ao carregar as métricas financeiras:\n\n{error_msg}"
-        )
+        show_error(self.window, "Não foi possível carregar os dados financeiros. Tente novamente.", detail=error_msg)
 
     def show_plan_distribution_dialog(self):
         """Abre o diálogo de gráficos financeiros."""

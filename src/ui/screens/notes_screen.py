@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 
 from src.data.db import create_session
 from src.data.models import Nota
+from src.ui.messages import show_error
 
 
 # ── Constantes ─────────────────────────────────────────────────────────
@@ -429,10 +430,11 @@ class NotesScreen(QWidget):
             self._refresh_current_item_text()
 
         except Exception as e:
-            QMessageBox.critical(
+            show_error(
                 self,
-                "Erro ao Enviar",
-                f"Não foi possível enviar a nota:\n\n{str(e)}",
+                "Não foi possível enviar a nota por e-mail. Verifique a conexão com a internet e tente novamente.",
+                detail=e,
+                title="Erro ao enviar",
             )
         finally:
             session.close()
