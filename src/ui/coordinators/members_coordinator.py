@@ -522,18 +522,19 @@ class MembersCoordinator:
                 return
 
         try:
-            from src.data.data_provider import add_member
-
-            new_id = add_member(member_data)
-            if new_id:
+            # Chama o service direto (via provider) para poder mostrar o motivo
+            # real da falha — duplicidade de nome/email/WhatsApp etc. O antigo
+            # add_member() colapsava o MemberResult num id e escondia a mensagem.
+            result = self.window.manager.data_provider.member_service.create(member_data)
+            if result.success:
                 QMessageBox.information(
                     self.window, "Sucesso", f"Membro '{member_data['nome']}' adicionado com sucesso!"
                 )
             else:
-                QMessageBox.critical(
+                QMessageBox.warning(
                     self.window,
-                    "Erro",
-                    "Não foi possível adicionar o membro. Verifique o console.",
+                    "Não foi possível cadastrar",
+                    result.message or "Não foi possível adicionar o membro.",
                 )
         except Exception as e:
             QMessageBox.critical(
