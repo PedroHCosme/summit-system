@@ -22,7 +22,6 @@
     <div class="container">
         <header>
             <img src="{{ url_for('static', filename='images/summit_bg.png') }}" alt="Summit Gym" class="header-logo">
-            <div id="clock" aria-label="Hora atual" style="text-align:center;font-family:'Roboto',monospace;font-size:2rem;font-weight:700;letter-spacing:2px;">--:--:--</div>
         </header>
 
         <main>
@@ -43,17 +42,6 @@
             <p>&copy; 2025 Summit Escalada</p>
         </footer>
     </div>
-
-    <script>
-        (function () {
-            var el = document.getElementById('clock');
-            function tick() {
-                el.textContent = new Date().toLocaleTimeString('pt-BR', { hour12: false });
-            }
-            tick();
-            setInterval(tick, 1000);
-        })();
-    </script>
 </body>
 
 </html>
