@@ -74,10 +74,14 @@ def _member_checkin_card(member: Membro, db) -> dict:
     if plan is None and member.plano:
         plan = db.query(Plano).filter(Plano.nome == member.plano).first()
 
+    is_quota = bool(plan.is_quota) if plan else False
+    voucher_credits = int(member.voucher_credits or 0)
+    no_vouchers = is_quota and voucher_credits <= 0
+
     status = calcular_status_plano(
         vencimento_plano=member.vencimento_plano,
         estado_plano_db=member.estado_plano,
-        is_quota=bool(plan.is_quota) if plan else False,
+        is_quota=is_quota,
         valor_por_checkin=float(plan.valor_por_checkin or 0.0) if plan else 0.0,
     )
 
@@ -95,7 +99,10 @@ def _member_checkin_card(member: Membro, db) -> dict:
         'status_plano': status,
         'status_label': status_labels.get(status, status),
         'status_class': str(status).lower().replace(" ", "-"),
-        'can_checkin': status != PENDENTE,
+        'is_quota': is_quota,
+        'voucher_credits': voucher_credits,
+        'no_vouchers': no_vouchers,
+        'can_checkin': status != PENDENTE and not no_vouchers,
         'requires_warning': status == STATUS_PLANO_VENCIDO,
     }
 

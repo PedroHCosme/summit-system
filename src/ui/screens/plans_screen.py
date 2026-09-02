@@ -11,6 +11,7 @@ from PyQt6.QtGui import QFont
 
 from src.data.data_provider import get_provider
 from src.data.models import Plano
+from src.ui.messages import show_error
 
 
 # ---------------------------------------------------------------------------
@@ -337,7 +338,7 @@ class PlansScreen(QWidget):
         try:
             planos = sorted(plan_service.get_all_plans(), key=lambda p: p.nome)
         except Exception as e:
-            QMessageBox.warning(self, "Erro", f"Erro ao carregar planos: {e}")
+            show_error(self, "Não foi possível carregar os planos. Tente novamente.", detail=e)
             return
 
         self._cards.clear()
@@ -493,7 +494,7 @@ class PlansScreen(QWidget):
 
         except Exception as e:
             plan_service.rollback()
-            QMessageBox.critical(self, "Erro ao Salvar", f"Erro: {e}")
+            show_error(self, "Não foi possível salvar o plano. Tente novamente.", detail=e, title="Erro ao salvar")
 
     def _on_deactivate(self):
         """Desativa o plano selecionado sem removê-lo fisicamente."""
@@ -528,7 +529,7 @@ class PlansScreen(QWidget):
 
         except Exception as e:
             plan_service.rollback()
-            QMessageBox.critical(self, "Erro", f"Erro ao desativar: {e}")
+            show_error(self, "Não foi possível desativar o plano. Tente novamente.", detail=e)
 
     def _on_restore_defaults(self):
         """Restaura o catálogo para os valores padrão definidos em configuração."""
@@ -569,7 +570,7 @@ class PlansScreen(QWidget):
             self.refresh()
 
         except Exception as e:
-            QMessageBox.critical(self, "Erro", f"Erro ao restaurar: {e}")
+            show_error(self, "Não foi possível restaurar os planos padrão. Tente novamente.", detail=e)
 
     @staticmethod
     def _make_label(text: str) -> QLabel:

@@ -4,13 +4,12 @@ from __future__ import annotations
 
 import json
 from datetime import date, datetime
-from pathlib import Path
 from typing import Optional
 
-from jinja2 import Environment, FileSystemLoader
 from sqlalchemy.orm import Session
 
 from src.data.db import create_session
+from src.reports._common import get_reports_dir, get_template_env
 from src.reports.analytics import (
     SEGMENTO_MUITO_ATIVO,
     SEGMENTO_REATIVACAO_URGENTE,
@@ -19,19 +18,6 @@ from src.reports.analytics import (
     ReportAnalyticsService,
     period_bounds,
 )
-
-
-def _get_reports_dir() -> Path:
-    project_root = Path(__file__).parent.parent.parent
-    reports_dir = project_root / "relatorios"
-    reports_dir.mkdir(exist_ok=True)
-    return reports_dir
-
-
-def _get_template_env() -> Environment:
-    project_root = Path(__file__).parent.parent.parent
-    templates_dir = project_root / "src" / "templates" / "reports"
-    return Environment(loader=FileSystemLoader(str(templates_dir)))
 
 
 def _to_date(value: Optional[datetime | date], fallback: date) -> date:
@@ -131,11 +117,11 @@ def generate_members_report(
             "risk_funnel_json": risk_funnel_json,
         }
 
-        env = _get_template_env()
+        env = get_template_env()
         template = env.get_template("members_report.html")
         html_output = template.render(**context)
 
-        reports_dir = _get_reports_dir()
+        reports_dir = get_reports_dir()
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"relatorio_membros_{timestamp}.html"
         filepath = reports_dir / filename

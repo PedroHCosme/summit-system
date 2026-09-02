@@ -291,19 +291,20 @@ class CheckinService:
             
             # Check if this is a quota-based plan
             is_quota = self._is_quota_plan(member.plano)
-            voucher_warning = False
             remaining_balance = 0
-            
+
             # Handle voucher credit deduction for quota plans
             if is_quota:
                 current_credits = member.voucher_credits or 0
                 if consume_voucher:
-                    if current_credits > 0:
-                        member.voucher_credits = current_credits - 1
-                        remaining_balance = member.voucher_credits
-                    else:
-                        voucher_warning = True
-                        remaining_balance = 0
+                    if current_credits <= 0:
+                        # Sem voucher, sem check-in: bloqueia e avisa.
+                        return CheckinResult(
+                            success=False,
+                            message="Você está sem vouchers disponíveis. Procure a recepção para comprar mais antes de fazer o check-in."
+                        )
+                    member.voucher_credits = current_credits - 1
+                    remaining_balance = member.voucher_credits
                 else:
                     # Not consuming, just reporting current balance
                     remaining_balance = current_credits
@@ -346,10 +347,7 @@ class CheckinService:
             
             # Build appropriate success message
             if is_quota:
-                if voucher_warning:
-                    message = "⚠️ ALERTA: Membro sem saldo de vouchers! Check-in registrado, mas saldo é 0."
-                else:
-                    message = f"✅ Bom treino! Restam {remaining_balance} vouchers."
+                message = f"✅ Bom treino! Restam {remaining_balance} vouchers."
             else:
                 message = "Check-in registrado com sucesso!"
             

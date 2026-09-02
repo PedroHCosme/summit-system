@@ -12,6 +12,7 @@ from pathlib import Path
 from PyQt6.QtWidgets import QDialog, QMessageBox
 
 from src.ui.dialogs import ExpiringPlansDialog, SyncDialog
+from src.ui.messages import show_error
 
 
 class SettingsCoordinator:
@@ -77,10 +78,11 @@ class SettingsCoordinator:
                 "Localização: backups/",
             )
         except Exception as e:
-            QMessageBox.critical(
+            show_error(
                 self.window,
-                "Erro no Backup",
-                f"Erro ao criar backup do banco de dados:\n\n{str(e)}",
+                "Não foi possível criar o backup. Verifique se há espaço livre no computador e tente novamente.",
+                detail=e,
+                title="Erro no backup",
             )
 
     def optimize_database(self):
@@ -99,11 +101,12 @@ class SettingsCoordinator:
             return
 
         try:
-            from src.data.database_manager import DatabaseManager
+            from src.config import DB_FILENAME
+            from src.data.maintenance import optimize_and_reindex
 
-            db = DatabaseManager()
-            stats = db.optimize_and_reindex()
-            db.close()
+            project_root = Path(__file__).parent.parent.parent.parent
+            db_path = os.path.join(project_root, DB_FILENAME)
+            stats = optimize_and_reindex(db_path)
 
             indices_checked = stats.get("indices_processed", 0)
             vacuum_status = "Sim" if stats.get("vacuum_executed") else "Não"
@@ -121,8 +124,11 @@ class SettingsCoordinator:
                 "As buscas devem estar significativamente mais rápidas agora.",
             )
         except Exception as e:
-            QMessageBox.critical(
-                self.window, "Erro na Otimização", f"Erro ao otimizar banco de dados:\n\n{str(e)}"
+            show_error(
+                self.window,
+                "Não foi possível otimizar o banco de dados. Tente novamente mais tarde.",
+                detail=e,
+                title="Erro na otimização",
             )
 
     def run_database_migration(self):
@@ -163,19 +169,14 @@ class SettingsCoordinator:
                     self.window,
                     "Migração Concluída",
                     "✅ Migração executada com sucesso!\n\n"
-                    "O banco de dados foi atualizado com:\n"
-                    "• Foreign keys CASCADE\n"
-                    "• Tipos de dados corretos\n"
-                    "• Índices de performance\n\n"
-                    "Verifique o console para detalhes.",
+                    "O banco de dados foi atualizado.",
                 )
             else:
-                QMessageBox.warning(
+                show_error(
                     self.window,
-                    "Migração com Avisos",
-                    "A migração foi executada mas reportou avisos.\n\n"
-                    f"Código de saída: {result.returncode}\n\n"
-                    "Verifique o console para detalhes.",
+                    "A migração foi concluída, mas com alguns avisos. Se notar algo estranho no sistema, avise o suporte técnico.",
+                    detail=f"Código de saída: {result.returncode}",
+                    title="Migração com avisos",
                 )
 
             if result.stdout:
@@ -185,10 +186,9 @@ class SettingsCoordinator:
                 print("\n=== ERROS DA MIGRAÇÃO ===")
                 print(result.stderr)
         except Exception as e:
-            QMessageBox.critical(
+            show_error(
                 self.window,
-                "Erro na Migração",
-                f"Erro ao executar migração:\n\n{str(e)}\n\n"
-                "Você pode executar manualmente:\n"
-                "python scripts/fix_database_critical.py",
+                "Não foi possível executar a migração do banco de dados. Avise o suporte técnico.",
+                detail=e,
+                title="Erro na migração",
             )

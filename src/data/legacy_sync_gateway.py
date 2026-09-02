@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import os
+import sqlite3
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from src.data.database_manager import DatabaseManager
 from src.data.google_sheets_service import GoogleSheetsService
+from src.data.maintenance import create_tables, optimize_and_reindex
 
 
 class LegacySyncGateway:
@@ -14,7 +17,7 @@ class LegacySyncGateway:
 
     Responsabilidades:
     - Conectar Google Sheets (read-only)
-    - Conectar infraestrutura legada de banco (DatabaseManager)
+    - Conectar infraestrutura legada de banco
     - Expor leitura de abas sem acoplar regras de negócio
     """
 
@@ -22,7 +25,7 @@ class LegacySyncGateway:
         self.credentials_path = credentials_path
         self.spreadsheet_id = spreadsheet_id
         self.sheets_service: Optional[GoogleSheetsService] = None
-        self.db_manager: Optional[DatabaseManager] = None
+        self._db_path: Optional[str] = None
 
     # ------------------------------------------------------------------
     # Infra setup
@@ -33,18 +36,26 @@ class LegacySyncGateway:
         return self.sheets_service.authenticate()
 
     def connect_database(self) -> bool:
-        self.db_manager = DatabaseManager()
-        return self.db_manager.connect()
+        from src.config import DB_FILENAME
+
+        project_root = Path(__file__).parent.parent.parent
+        db_path = os.path.join(project_root, DB_FILENAME)
+        try:
+            sqlite3.connect(db_path, check_same_thread=False, timeout=60).close()
+        except sqlite3.Error:
+            return False
+        self._db_path = db_path
+        return True
 
     def ensure_database_schema(self) -> bool:
-        if not self.db_manager:
+        if not self._db_path:
             return False
-        return self.db_manager.create_tables()
+        return create_tables(self._db_path)
 
     def optimize_database(self) -> Dict[str, Any]:
-        if not self.db_manager:
-            raise RuntimeError("DatabaseManager não inicializado")
-        return self.db_manager.optimize_and_reindex()
+        if not self._db_path:
+            raise RuntimeError("Banco de dados não conectado")
+        return optimize_and_reindex(self._db_path)
 
     # ------------------------------------------------------------------
     # Data access
@@ -58,6 +69,4 @@ class LegacySyncGateway:
         )
 
     def close(self) -> None:
-        if self.db_manager:
-            self.db_manager.close()
-            self.db_manager = None
+        self._db_path = None

@@ -5,27 +5,15 @@ from __future__ import annotations
 import os
 import json
 from datetime import datetime, timedelta
-from pathlib import Path
 from typing import Optional
 
 from sqlalchemy import func, desc, case, extract, cast, Integer
 from sqlalchemy.orm import Session
-from jinja2 import Environment, FileSystemLoader
 
 from src.data.db import create_session
 from src.data.models import Frequencia, Membro
 from src.core.plan_status import PENDENTE
-
-def _get_reports_dir() -> Path:
-    project_root = Path(__file__).parent.parent.parent
-    reports_dir = project_root / "relatorios"
-    reports_dir.mkdir(exist_ok=True)
-    return reports_dir
-
-def _get_template_env() -> Environment:
-    project_root = Path(__file__).parent.parent.parent
-    templates_dir = project_root / "src" / "templates" / "reports"
-    return Environment(loader=FileSystemLoader(str(templates_dir)))
+from src.reports._common import get_reports_dir, get_template_env
 
 def generate_frequency_report(
     db_session: Optional[Session] = None,
@@ -238,12 +226,12 @@ def generate_frequency_report(
         }
 
         # Renderizar com Jinja2
-        env = _get_template_env()
+        env = get_template_env()
         template = env.get_template("frequency_report.html")
         html_output = template.render(**context)
-        
+
         # Salvar arquivo HTML
-        reports_dir = _get_reports_dir()
+        reports_dir = get_reports_dir()
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         filename = f"relatorio_frequencia_{timestamp}.html"
         filepath = reports_dir / filename

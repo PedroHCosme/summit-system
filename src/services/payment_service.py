@@ -8,7 +8,7 @@ Este módulo utiliza SQLAlchemy para type safety e queries tipadas.
 """
 
 from datetime import datetime, date, timedelta
-from typing import Optional, List, Dict, Any, Tuple, Union, TYPE_CHECKING
+from typing import Optional, List, Dict, Any, Tuple, Union
 from dataclasses import dataclass
 
 from sqlalchemy import func, and_, desc
@@ -17,9 +17,6 @@ from sqlalchemy.orm import Session
 from src.data.models import Membro, Pagamento
 from src.core.payment_constants import TIPO_RENOVACAO_PLANO
 from src.utils.date_utils import coerce_to_date
-
-if TYPE_CHECKING:
-    from src.data.database_manager import DatabaseManager
 
 
 @dataclass
@@ -55,34 +52,17 @@ class PaymentService:
     - Relatórios financeiros
     - Histórico de transações
     
-    Suporta dois modos de operação:
-    - SQLAlchemy Session (recomendado para novo código)
-    - DatabaseManager legado (para compatibilidade)
     """
-    
-    def __init__(
-        self, 
-        db_session: Optional[Session] = None,
-        db_manager: Optional["DatabaseManager"] = None
-    ):
+
+    def __init__(self, db_session: Session):
         """
         Inicializa o serviço de pagamentos.
-        
+
         Args:
-            db_session: Sessão SQLAlchemy para acesso aos dados (preferencial)
-            db_manager: Instância do DatabaseManager legado (compatibilidade)
-        
-        Raises:
-            ValueError: Se nenhum dos parâmetros for fornecido
+            db_session: Sessão SQLAlchemy para acesso aos dados
         """
         self._session = db_session
-        self._db_manager = db_manager
-        
-        if db_session is None and db_manager is None:
-            raise ValueError(
-                "PaymentService requer db_session (SQLAlchemy) ou db_manager (legado)"
-            )
-    
+
     @property
     def session(self) -> Optional[Session]:
         """Retorna a sessão SQLAlchemy se disponível."""
@@ -120,31 +100,10 @@ class PaymentService:
         if data_pagamento is None:
             data_pagamento = datetime.now()
         
-        if self._session is not None:
-            return self._create_payment_sqlalchemy(
-                member_id, valor, tipo_transacao, descricao,
-                metodo_pagamento, nova_data_vencimento, data_pagamento
-            )
-        else:
-            payment_id = self._db_manager.add_payment(
-                member_id=member_id,
-                valor=valor,
-                tipo_transacao=tipo_transacao,
-                descricao=descricao,
-                metodo_pagamento=metodo_pagamento,
-                nova_data_vencimento=nova_data_vencimento,
-                data_pagamento=data_pagamento
-            )
-            if payment_id:
-                return PaymentResult(
-                    success=True,
-                    payment_id=payment_id,
-                    message="Pagamento registrado com sucesso."
-                )
-            return PaymentResult(
-                success=False,
-                message="Erro ao registrar pagamento."
-            )
+        return self._create_payment_sqlalchemy(
+            member_id, valor, tipo_transacao, descricao,
+            metodo_pagamento, nova_data_vencimento, data_pagamento
+        )
     
     def register_plan_payment(
         self,
@@ -171,12 +130,8 @@ class PaymentService:
         Returns:
             PaymentResult com o resultado da operação
         """
-        if self._session is not None:
-            from src.services.plan_service import PlanService
-            valor = PlanService(db_session=self._session).get_plan_price(plan_name)
-        else:
-            from src.config import PLANOS_PRECOS
-            valor = PLANOS_PRECOS.get(plan_name, 0.0)
+        from src.services.plan_service import PlanService
+        valor = PlanService(db_session=self._session).get_plan_price(plan_name)
         if valor <= 0:
             return PaymentResult(
                 success=False,
@@ -215,15 +170,7 @@ class PaymentService:
         Returns:
             FinancialSummary com totais e médias
         """
-        if self._session is not None:
-            return self._get_summary_sqlalchemy(start_date, end_date)
-        else:
-            result = self._db_manager.get_financial_summary(start_date, end_date)
-            return FinancialSummary(
-                total_receita=result.get('total_receita', 0.0),
-                total_transacoes=result.get('total_transacoes', 0),
-                ticket_medio=result.get('ticket_medio', 0.0)
-            )
+        return self._get_summary_sqlalchemy(start_date, end_date)
     
     def get_breakdown(
         self,
@@ -240,18 +187,7 @@ class PaymentService:
         Returns:
             Lista de RevenueBreakdown por tipo de transação
         """
-        if self._session is not None:
-            return self._get_breakdown_sqlalchemy(start_date, end_date)
-        else:
-            results = self._db_manager.get_revenue_breakdown(start_date, end_date)
-            return [
-                RevenueBreakdown(
-                    tipo_transacao=r['tipo_transacao'],
-                    total_valor=r['total_valor'],
-                    quantidade=r['quantidade']
-                )
-                for r in results
-            ]
+        return self._get_breakdown_sqlalchemy(start_date, end_date)
     
     def get_transactions(
         self,
@@ -270,10 +206,7 @@ class PaymentService:
         Returns:
             Lista de dicionários com dados das transações
         """
-        if self._session is not None:
-            return self._get_transactions_sqlalchemy(start_date, end_date, limit)
-        else:
-            return self._db_manager.get_transactions_in_range(start_date, end_date, limit)
+        return self._get_transactions_sqlalchemy(start_date, end_date, limit)
     
     def get_member_history(self, member_id: int) -> List[Dict[str, Any]]:
         """
@@ -285,10 +218,7 @@ class PaymentService:
         Returns:
             Lista de pagamentos do membro
         """
-        if self._session is not None:
-            return self._get_member_history_sqlalchemy(member_id)
-        else:
-            return self._db_manager.get_member_payment_history(member_id)
+        return self._get_member_history_sqlalchemy(member_id)
     
     def get_today_total(self) -> float:
         """Retorna o total de receita de hoje."""
@@ -446,6 +376,6 @@ class PaymentService:
         """Obtém histórico de pagamentos de um membro usando SQLAlchemy."""
         payments = self._session.query(Pagamento).filter(
             Pagamento.member_id == member_id
-        ).order_by(desc(Pagamento.data_pagamento)).all()
+        ).order_by(desc(Pagamento.data_pagamento), desc(Pagamento.id)).all()
         
         return [p.to_dict() for p in payments]

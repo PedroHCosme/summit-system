@@ -1,45 +1,19 @@
 """Janela principal da aplicação."""
 
 import sys
-import webbrowser
-from datetime import datetime
 import os
 
-from PyQt6.QtWidgets import (
-    QMainWindow, QStackedWidget, QMessageBox, QDialog, QInputDialog, QApplication,
-    QWidget, QHBoxLayout, QVBoxLayout, QLabel, QPushButton
-)
-from PyQt6.QtGui import QIcon
+from PyQt6.QtWidgets import QMainWindow, QApplication
 from PyQt6.QtCore import QTimer
 
 from src.core.aniversariantes_manager import AniversariantesManager
 from src.ui.html_formatter import HTMLFormatter
-from src.core.member_search_service import MemberSearchService
-from src.reports.finance_report import generate_finance_report
-from src.reports.members_report import generate_members_report
 from src.ui.styles import STYLESHEET
 
 from src.ui.workers import (
-    DataFetchWorker,
     DatabaseConnectionWorker,
-    MemberSearchWorker,
     DashboardWorker
 )
-from src.ui.screens import (
-    HomeScreen,
-    DashboardScreen,
-    AniversariantesScreen,
-    MemberSearchScreen,
-    CheckinScreen,
-    FinancialScreen,
-    FinancialScreen,
-    MembersListScreen,
-    PendingMembersScreen,
-    PlansScreen,
-    NotesScreen
-)
-from src.ui.dialogs import AddMemberDialog, SyncDialog, ManagePlansDialog, ExpiringPlansDialog
-from src.ui.components import Sidebar
 from src.ui.coordinators import (
     MembersCoordinator,
     CheckinCoordinator,
@@ -57,7 +31,6 @@ class MainWindow(QMainWindow):
         
         # Serviços
         self.manager = AniversariantesManager()
-        self.search_service = MemberSearchService()
         self.formatter = HTMLFormatter()
         self.worker = None
         self.is_connected = False
@@ -70,8 +43,11 @@ class MainWindow(QMainWindow):
         self.dashboard_timer = QTimer()
         self.dashboard_timer.timeout.connect(self._update_dashboard)
         
-        self._setup_ui()
+        # Ordem importa: os coordinators precisam existir antes de _setup_ui,
+        # que liga os sinais direto aos métodos deles (.connect resolve o
+        # método no momento da conexão — coordinator None quebraria a montagem).
         self._setup_coordinators()
+        self._setup_ui()
         self._auto_connect()
 
     def _setup_coordinators(self):
@@ -90,147 +66,9 @@ class MainWindow(QMainWindow):
     
     def _setup_ui(self):
         """Configura a interface do usuário."""
-        self.setWindowTitle("Summit Escalada")
-        # Iniciar em modo Full Screen (solicitação do usuário para corrigir resolução em produção)
-        self.showFullScreen()
-        self.is_fullscreen = True
-        self.setStyleSheet(STYLESHEET)
-        
-        # Esconde a barra de menu padrão do QMainWindow
-        self.menuBar().hide()
-        
-        # Define o ícone da janela
-        base_path = os.path.dirname(__file__)
-        icon_path = os.path.join(base_path, "assets", "summit.png")
-        if os.path.exists(icon_path):
-            self.setWindowIcon(QIcon(icon_path))
-        
-        # Container principal (Root) com layout VERTICAL para incluir a barra de título
-        root_container = QWidget()
-        root_layout = QVBoxLayout(root_container)
-        root_layout.setContentsMargins(0, 0, 0, 0)
-        root_layout.setSpacing(0)
-        
-        # --- Barra de Título Customizada ---
-        self.title_bar = QWidget()
-        self.title_bar.setFixedHeight(40)
-        self.title_bar.setStyleSheet("""
-            QWidget {
-                background-color: #1a1a1a;
-                border-bottom: 1px solid #333;
-            }
-            QLabel {
-                color: #fff;
-                font-weight: bold;
-                padding-left: 15px;
-            }
-            QPushButton {
-                background-color: transparent;
-                border: none;
-                color: #fff;
-                font-size: 14px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #333;
-            }
-            QPushButton#close_btn:hover {
-                background-color: #e81123;
-            }
-        """)
-        
-        title_layout = QHBoxLayout(self.title_bar)
-        title_layout.setContentsMargins(0, 0, 0, 0)
-        title_layout.setSpacing(0)
-        
-        # Título / Logo
-        title_label = QLabel("Summit Escalada")
-        title_layout.addWidget(title_label)
-        
-        title_layout.addStretch()
-        
-        # Botões de controle
-        # Minimizar
-        btn_min = QPushButton("—")
-        btn_min.setFixedSize(45, 40)
-        btn_min.clicked.connect(self.showMinimized)
-        title_layout.addWidget(btn_min)
-        
-        # Maximizar / Restaurar (Toggle)
-        btn_max = QPushButton("❐")
-        btn_max.setFixedSize(45, 40)
-        btn_max.clicked.connect(self._toggle_maximize_restore)
-        title_layout.addWidget(btn_max)
-        
-        # Fechar
-        btn_close = QPushButton("✕")
-        btn_close.setObjectName("close_btn")
-        btn_close.setFixedSize(45, 40)
-        btn_close.clicked.connect(self.close)
-        title_layout.addWidget(btn_close)
-        
-        # Adiciona barra ao layout principal
-        root_layout.addWidget(self.title_bar)
-        
-        # --- Área de Conteúdo (Sidebar + Telas) ---
-        self.content_container = QWidget() # Tornar atributo para acesso no resizeEvent
-        content_layout = QHBoxLayout(self.content_container)
-        content_layout.setContentsMargins(60, 0, 0, 0) # Margem esquerda de 60px para a sidebar colapsada
-        content_layout.setSpacing(0)
-        
-        # Sidebar (Flutuante - não adicionada ao layout)
-        # Ela será posicionada manualmente no resizeEvent
-        self.sidebar = Sidebar()
-        self.sidebar.setParent(self.content_container)
-        self.sidebar.set_enabled(False)
-        self._connect_sidebar_signals()
-        
-        self.stacked_widget = QStackedWidget()
-        content_layout.addWidget(self.stacked_widget)
-        
-        # Adiciona contéudo ao root
-        root_layout.addWidget(self.content_container)
-        
-        # Define widget central
-        self.setCentralWidget(root_container)
+        from src.ui.main_window_ui import build_ui
+        build_ui(self)
 
-
-        
-        # Cria as telas
-        self.home_screen = HomeScreen()
-        self.dashboard_screen = DashboardScreen()
-        self.aniversariantes_screen = AniversariantesScreen()
-        self.member_search_screen = MemberSearchScreen()
-        self.checkin_screen = CheckinScreen()
-        self.financial_screen = FinancialScreen()
-        self.members_list_screen = MembersListScreen()
-        self.pending_members_screen = PendingMembersScreen()
-        self.plans_screen = PlansScreen()
-        
-        # Adiciona ao stack
-        self.stacked_widget.addWidget(self.home_screen)  # 0
-        self.stacked_widget.addWidget(self.dashboard_screen)  # 1
-        self.stacked_widget.addWidget(self.aniversariantes_screen)  # 2
-        self.stacked_widget.addWidget(self.member_search_screen)  # 3
-        self.stacked_widget.addWidget(self.checkin_screen)  # 4
-        self.stacked_widget.addWidget(self.financial_screen)  # 5
-        self.stacked_widget.addWidget(self.members_list_screen)  # 6
-        self.stacked_widget.addWidget(self.pending_members_screen)  # 7
-        self.stacked_widget.addWidget(self.plans_screen)  # 8
-
-        self.notes_screen = NotesScreen()
-        self.stacked_widget.addWidget(self.notes_screen)  # 9
-        
-        # Conecta botões específicos
-        self.dashboard_screen.refresh_button.clicked.connect(self._update_dashboard)
-        
-        # Conecta sinais das telas
-        self._connect_screen_signals()
-
-        
-        # Mostra a tela de conexão
-        self.stacked_widget.setCurrentIndex(0)
-    
     def _toggle_maximize_restore(self):
         """Alterna entre tela cheia e modo janela (800x600)."""
         if self.isFullScreen():
@@ -263,7 +101,7 @@ class MainWindow(QMainWindow):
         # === Submenu Membros ===
         self.sidebar.members_list_clicked.connect(self._show_members_list_only)
         self.sidebar.members_search_clicked.connect(self._show_member_search)
-        self.sidebar.members_add_clicked.connect(self._show_add_member_dialog)
+        self.sidebar.members_add_clicked.connect(self.members_coordinator.show_add_member_dialog)
         self.sidebar.members_pending_clicked.connect(self._show_pending_members_only)
         self.sidebar.members_birthday_clicked.connect(self._show_aniversariantes)
         
@@ -272,18 +110,18 @@ class MainWindow(QMainWindow):
         
         # === Submenu Financeiro ===
         self.sidebar.financial_overview_clicked.connect(self._show_financial_screen_only)
-        self.sidebar.financial_plans_clicked.connect(self._show_manage_plans_dialog)
-        self.sidebar.financial_expiring_clicked.connect(self._show_expiring_plans_dialog)
-        
+        self.sidebar.financial_plans_clicked.connect(self.settings_coordinator.show_manage_plans)
+        self.sidebar.financial_expiring_clicked.connect(self.settings_coordinator.show_expiring_plans_dialog)
+
         # === Submenu Configurações ===
-        self.sidebar.settings_plans_clicked.connect(self._show_manage_plans_dialog)
-        self.sidebar.settings_backup_clicked.connect(self._create_database_backup)
-        self.sidebar.settings_sync_clicked.connect(self._show_sync_dialog)
+        self.sidebar.settings_plans_clicked.connect(self.settings_coordinator.show_manage_plans)
+        self.sidebar.settings_backup_clicked.connect(self.settings_coordinator.create_database_backup)
+        self.sidebar.settings_sync_clicked.connect(self.settings_coordinator.show_sync_dialog)
 
         # === Submenu Relatórios ===
         self.sidebar.reports_clicked.connect(self._on_reports_section_clicked)
-        self.sidebar.reports_members_clicked.connect(self._generate_members_report)
-        self.sidebar.reports_financial_clicked.connect(self._generate_financial_report)
+        self.sidebar.reports_members_clicked.connect(self.reports_coordinator.generate_members_report)
+        self.sidebar.reports_financial_clicked.connect(self.reports_coordinator.generate_financial_report)
 
         # === Bloco de Notas ===
         self.sidebar.notes_clicked.connect(self._show_notes_screen)
@@ -333,21 +171,13 @@ class MainWindow(QMainWindow):
         self.stacked_widget.setCurrentIndex(9)
         self.notes_screen.refresh()
 
-    def _generate_members_report(self):
-        """Gera e abre o relatório de membros."""
-        self.reports_coordinator.generate_members_report()
-
-    def _generate_financial_report(self):
-        """Gera e abre o relatório financeiro."""
-        self.reports_coordinator.generate_financial_report()
-    
     # === Métodos de navegação sem troca de contexto ===
     def _show_members_list_only(self):
         """Mostra lista de membros sem trocar contexto."""
         if not self.is_connected:
             return
         self.stacked_widget.setCurrentIndex(6)
-        self._load_members_list()
+        self.members_coordinator.load_members_list()
     
     def _show_pending_members_only(self):
         """Mostra pendentes sem trocar contexto."""
@@ -367,10 +197,10 @@ class MainWindow(QMainWindow):
         if not self.is_connected:
             return
         self.stacked_widget.setCurrentIndex(5)
-        self._load_financial_data()
-    
+        self.reports_coordinator.load_financial_data()
 
-    
+
+
     def _connect_screen_signals(self):
         """Conecta sinais das telas."""
         # Dashboard
@@ -378,87 +208,87 @@ class MainWindow(QMainWindow):
             self.dashboard_screen.show_checkins_details
         )
         self.dashboard_screen.member_clicked.connect(
-            self._on_dashboard_member_clicked
+            self.members_coordinator.on_dashboard_member_clicked
         )
         
         # Aniversariantes
         self.aniversariantes_screen.search_button.clicked.connect(
-            self._on_aniversariantes_search_clicked
+            self.members_coordinator.on_aniversariantes_search_clicked
         )
         
         # Busca de Membros
         self.member_search_screen.name_input.returnPressed.connect(
-            self._on_member_search_by_name
+            self.members_coordinator.on_member_search_by_name
         )
         self.member_search_screen.search_button.clicked.connect(
-            self._on_member_search_by_name
+            self.members_coordinator.on_member_search_by_name
         )
         self.member_search_screen.results_list.itemClicked.connect(
-            self._on_member_result_clicked
+            self.members_coordinator.on_member_result_clicked
         )
         self.member_search_screen.edit_button.clicked.connect(
-            self._on_edit_member_clicked
+            self.members_coordinator.on_edit_member_clicked
         )
         self.member_search_screen.renew_button.clicked.connect(
-            self._on_renew_plan_clicked
+            self.members_coordinator.on_renew_plan_clicked
         )
         self.member_search_screen.delete_button.clicked.connect(
-            self._on_delete_member_clicked
+            self.members_coordinator.on_delete_member_clicked
         )
         self.member_search_screen.whatsapp_requested.connect(
-            self._on_member_whatsapp_clicked
+            self.members_coordinator.on_whatsapp_clicked
         )
         self.member_search_screen.quick_payment_requested.connect(
-            self._on_member_quick_payment_clicked
+            self.members_coordinator.on_quick_payment_clicked
         )
         self.member_search_screen.history_requested.connect(
-            self._on_member_history_shortcut_clicked
+            self.members_coordinator.on_history_shortcut_clicked
         )
         # Substituir o método request_delete_checkin por nossa implementação
-        self.member_search_screen.request_delete_checkin = self._on_delete_checkin_requested
+        self.member_search_screen.request_delete_checkin = self.members_coordinator.on_delete_checkin_requested
         # Substituir o método request_edit_checkin por nossa implementação
-        self.member_search_screen.request_edit_checkin = self._on_edit_checkin_requested
-        
+        self.member_search_screen.request_edit_checkin = self.members_coordinator.on_edit_checkin_requested
+
         # Lista de Membros
-        self.members_list_screen.refresh_requested.connect(self._on_members_list_refresh)
-        self.members_list_screen.member_selected.connect(self._on_members_list_member_selected)
+        self.members_list_screen.refresh_requested.connect(self.members_coordinator.on_members_list_refresh)
+        self.members_list_screen.member_selected.connect(self.members_coordinator.on_members_list_member_selected)
         # Conectar sinais da lista de membros
-        self.members_list_screen.edit_requested.connect(self._on_list_edit_member_clicked)
-        self.members_list_screen.renew_requested.connect(self._on_list_renew_plan_clicked)
-        self.members_list_screen.delete_requested.connect(self._on_list_delete_member_clicked)
+        self.members_list_screen.edit_requested.connect(self.members_coordinator.on_list_edit_member_clicked)
+        self.members_list_screen.renew_requested.connect(self.members_coordinator.on_list_renew_plan_clicked)
+        self.members_list_screen.delete_requested.connect(self.members_coordinator.on_list_delete_member_clicked)
         self.members_list_screen.whatsapp_requested.connect(
-            self._on_list_member_whatsapp_clicked
+            self.members_coordinator.on_list_whatsapp_clicked
         )
         self.members_list_screen.quick_payment_requested.connect(
-            self._on_list_member_quick_payment_clicked
+            self.members_coordinator.on_list_quick_payment_clicked
         )
         self.members_list_screen.history_requested.connect(
-            self._on_list_member_history_shortcut_clicked
+            self.members_coordinator.on_list_history_shortcut_clicked
         )
-        
+
         # Check-in
         self.checkin_screen.name_input.returnPressed.connect(
-            self._on_checkin_search_by_name
+            self.checkin_coordinator.on_checkin_search_by_name
         )
         self.checkin_screen.search_button.clicked.connect(
-            self._on_checkin_search_by_name
+            self.checkin_coordinator.on_checkin_search_by_name
         )
         self.checkin_screen.results_list.itemClicked.connect(
-            self._on_checkin_result_clicked
+            self.checkin_coordinator.on_checkin_result_clicked
         )
         self.checkin_screen.confirm_button.clicked.connect(
-            self._on_confirm_checkin_clicked
+            self.checkin_coordinator.on_confirm_checkin_clicked
         )
         self.checkin_screen.profile_button.clicked.connect(
-            self._on_checkin_profile_clicked
+            self.checkin_coordinator.on_checkin_profile_clicked
         )
         
         # Financeiro
         self.financial_screen.update_button.clicked.connect(
-            self._load_financial_data
+            self.reports_coordinator.load_financial_data
         )
         self.financial_screen.plan_chart_button.clicked.connect(
-            self._show_plan_distribution_dialog
+            self.reports_coordinator.show_plan_distribution_dialog
         )
     
     # === Navegação entre telas ===
@@ -468,10 +298,6 @@ class MainWindow(QMainWindow):
         self.stacked_widget.setCurrentIndex(1)
         self._update_dashboard()
     
-    def _on_dashboard_member_clicked(self, member_id: int):
-        """Navega para o perfil do membro a partir do dashboard."""
-        self.members_coordinator.on_dashboard_member_clicked(member_id)
-
     def _show_aniversariantes(self):
         """Mostra a tela de aniversariantes."""
         if not self.is_connected:
@@ -489,7 +315,7 @@ class MainWindow(QMainWindow):
         if not self.is_connected:
             return
         self.stacked_widget.setCurrentIndex(6)
-        self._load_members_list()
+        self.members_coordinator.load_members_list()
 
     def _show_pending_members(self):
         """Mostra a tela de aprovação de membros."""
@@ -509,7 +335,7 @@ class MainWindow(QMainWindow):
         if not self.is_connected:
             return
         self.stacked_widget.setCurrentIndex(5)
-        self._load_financial_data()
+        self.reports_coordinator.load_financial_data()
     
     def _show_settings_menu(self):
         """Mostra menu de configurações como popup."""
@@ -537,20 +363,20 @@ class MainWindow(QMainWindow):
         
         # Opções de configurações
         plans_action = menu.addAction("💳 Gerenciar Planos")
-        plans_action.triggered.connect(self._show_manage_plans_dialog)
-        
+        plans_action.triggered.connect(self.settings_coordinator.show_manage_plans)
+
         menu.addSeparator()
-        
+
         backup_action = menu.addAction("💾 Backup do Banco")
-        backup_action.triggered.connect(self._create_database_backup)
-        
+        backup_action.triggered.connect(self.settings_coordinator.create_database_backup)
+
         sync_action = menu.addAction("🔄 Sincronizar Sheets")
-        sync_action.triggered.connect(self._show_sync_dialog)
-        
+        sync_action.triggered.connect(self.settings_coordinator.show_sync_dialog)
+
         menu.addSeparator()
-        
+
         add_member_action = menu.addAction("➕ Novo Membro")
-        add_member_action.triggered.connect(self._show_add_member_dialog)
+        add_member_action.triggered.connect(self.members_coordinator.show_add_member_dialog)
         
         # Mostra o menu na posição do cursor
         menu.exec(QCursor.pos())
@@ -585,7 +411,10 @@ class MainWindow(QMainWindow):
             # Inicia o timer de atualização (a cada 5 segundos)
             self.dashboard_timer.start(5000)
         else:
-            self.home_screen.set_error("Falha na conexão. Verifique o console para mais detalhes.")
+            self.home_screen.set_error(
+                "Não foi possível conectar ao banco de dados.\n"
+                "Feche e abra o sistema. Se o problema continuar, avise o suporte técnico."
+            )
     
     def _run_migrations(self):
         """Executa as migrações do banco de dados via Alembic."""
@@ -618,304 +447,6 @@ class MainWindow(QMainWindow):
         self.dashboard_worker.error_occurred.connect(self.dashboard_screen.show_error)
         self.dashboard_worker.start()
     
-    # === Aniversariantes ===
-    
-    def _on_aniversariantes_search_clicked(self):
-        """Manipula o clique no botão de busca de aniversariantes."""
-        self.aniversariantes_screen.set_searching_state()
-        
-        # Obtém o mês selecionado
-        mes_selecionado = self.aniversariantes_screen.get_selected_month()
-        
-        self.worker = DataFetchWorker(self.manager, mes_selecionado)
-        self.worker.status_updated.connect(self.aniversariantes_screen.append_status)
-        self.worker.fetch_completed.connect(self._on_aniversariantes_fetch_completed)
-        self.worker.start()
-    
-    def _on_aniversariantes_fetch_completed(self, aniversariantes, mes_nome):
-        """Manipula a conclusão da busca de aniversariantes."""
-        if not aniversariantes:
-            html = self.formatter.format_no_results(mes_nome)
-        else:
-            html = self.formatter.format_header(mes_nome)
-            html += f"<p style='color: #007ACC; text-align: center;'>Total: {len(aniversariantes)} aniversariante(s)</p>"
-            
-            for aniversariante in aniversariantes:
-                html += self.formatter.format_aniversariante(aniversariante)
-        
-        self.aniversariantes_screen.set_results(html)
-        self.aniversariantes_screen.set_ready_state()
-    
-    # === Busca de Membros ===
-    
-    def _on_member_search_by_name(self):
-        """Manipula a busca por nome."""
-        self.members_coordinator.on_member_search_by_name()
-    
-    def _on_member_search_completed(self, results):
-        """Manipula a conclusão da busca por nome."""
-        self.members_coordinator.on_member_search_completed(results)
-    
-    def _on_member_result_clicked(self, item):
-        """Manipula o clique em um resultado da lista."""
-        self.members_coordinator.on_member_result_clicked(item)
-    
-    def _load_member_history(self, member_id: int, member_name: str):
-        """Carrega e exibe o histórico de check-ins do membro."""
-        self.members_coordinator.load_member_history(member_id, member_name)
-    
-    def _load_member_financial_history(self, member_id: int, member_name: str):
-        """Carrega e exibe o histórico financeiro do membro."""
-        self.members_coordinator.load_member_financial_history(member_id, member_name)
-    
-    def _on_edit_member_clicked(self):
-        """Abre o diálogo de edição do membro atual."""
-        self.members_coordinator.on_edit_member_clicked()
-    
-    def _on_renew_plan_clicked(self):
-        """Abre o diálogo de renovação de plano do membro atual."""
-        self.members_coordinator.on_renew_plan_clicked()
-    
-    def _on_delete_member_clicked(self):
-        """Abre o diálogo de confirmação de exclusão do membro atual."""
-        self.members_coordinator.on_delete_member_clicked()
-
-    def _on_member_whatsapp_clicked(self):
-        """Atalho de WhatsApp na tela de busca de membro."""
-        if self.members_coordinator:
-            self.members_coordinator.on_whatsapp_clicked()
-
-    def _on_member_quick_payment_clicked(self):
-        """Atalho de pagamento rápido na tela de busca de membro."""
-        if self.members_coordinator:
-            self.members_coordinator.on_quick_payment_clicked()
-
-    def _on_member_history_shortcut_clicked(self):
-        """Atalho para abrir histórico na tela de busca de membro."""
-        if self.members_coordinator:
-            self.members_coordinator.on_history_shortcut_clicked()
-    
-    def _delete_member(self, member_data: dict):
-        """Executa a exclusão do membro."""
-        self.members_coordinator.delete_member(member_data)
-    
-    def _on_member_updated(self, updated_data: dict):
-        """Manipula a atualização de um membro."""
-        self.members_coordinator.on_member_updated(updated_data)
-    
-    def _on_plan_renewed(self, renewal_data: dict):
-        """Manipula a renovação do plano de um membro."""
-        self.members_coordinator.on_plan_renewed(renewal_data)
-    
-    def _on_delete_checkin_requested(self, checkin_id: int):
-        """Manipula a solicitação de exclusão de um check-in."""
-        self.members_coordinator.on_delete_checkin_requested(checkin_id)
-    
-    def _on_edit_checkin_requested(self, checkin_id: int):
-        """Manipula a solicitação de edição de um check-in."""
-        self.members_coordinator.on_edit_checkin_requested(checkin_id)
-    
-    # === Check-in ===
-    
-    def _on_checkin_search_by_name(self):
-        """Manipula a busca por nome na tela de check-in."""
-        self.checkin_coordinator.on_checkin_search_by_name()
-
-    def _on_checkin_search_completed(self, results):
-        """Manipula a conclusão da busca na tela de check-in."""
-        self.checkin_coordinator.on_checkin_search_completed(results)
-
-    def _on_checkin_result_clicked(self, item):
-        """Manipula o clique em um resultado na lista de check-in."""
-        self.checkin_coordinator.on_checkin_result_clicked(item)
-
-    def _on_confirm_checkin_clicked(self):
-        """Confirma e registra o check-in do membro."""
-        self.checkin_coordinator.on_confirm_checkin_clicked()
-    
-    def _on_checkin_worker_completed(self, success, message, details):
-        """Manipula o resultado do worker de check-in."""
-        self.checkin_coordinator.on_checkin_worker_completed(success, message, details)
-
-    def _on_checkin_profile_clicked(self):
-        """Manipula o clique no botão de perfil do membro na tela de check-in."""
-        self.checkin_coordinator.on_checkin_profile_clicked()
-    
-    # === Adicionar Membro ===
-    
-    def _show_add_member_dialog(self):
-        """Mostra a janela de diálogo para adicionar um novo membro."""
-        self.members_coordinator.show_add_member_dialog()
-    
-    # === Financeiro ===
-    
-    def _load_financial_data(self):
-        """Carrega os dados financeiros com base no período selecionado rodando em background."""
-        try:
-            # Mostra estado de carregamento
-            self.financial_screen.show_loading()
-            
-            # Obter datas
-            start_date = self.financial_screen.start_date_input.date().toPyDate()
-            end_date = self.financial_screen.end_date_input.date().toPyDate()
-            
-            # Converter para datetime com hora mínima/máxima
-            from datetime import datetime, time
-            start_datetime = datetime.combine(start_date, time.min)
-            end_datetime = datetime.combine(end_date, time.max)
-            
-            # Instanciar e iniciar Worker para não travar a UI
-            from src.ui.workers.financial_worker import FinancialDataWorker
-            
-            # Desativar botões ou evitar múltiplas requisições se necessário aqui
-            self._financial_worker = FinancialDataWorker(
-                self.manager.data_provider, 
-                start_datetime, 
-                end_datetime
-            )
-            
-            self._financial_worker.data_loaded.connect(self._on_financial_data_loaded)
-            self._financial_worker.error_occurred.connect(self._on_financial_data_error)
-            
-            # Iniciar thread
-            self._financial_worker.start()
-            
-        except Exception as e:
-            QMessageBox.critical(
-                self,
-                "Erro",
-                f"Erro ao iniciar carregamento financeiro: {str(e)}"
-            )
-            
-    def _on_financial_data_loaded(self, result: dict):
-        """Callback invocado quando o worker financeiro conclui com sucesso."""
-        try:
-            summary = result.get('summary', {})
-            # Atualizar cards de resumo
-            self.financial_screen.update_summary(
-                summary.get('total_receita', 0.0),
-                summary.get('total_transacoes', 0),
-                summary.get('ticket_medio', 0.0)
-            )
-            
-            breakdown = result.get('breakdown', {})
-            self.financial_screen.update_breakdown(breakdown)
-            
-            transactions = result.get('transactions', [])
-            self.financial_screen.update_transactions(transactions)
-            
-        except Exception as e:
-            QMessageBox.warning(self, "Aviso", f"Erro processando os dados financeiros: {str(e)}")
-            
-    def _on_financial_data_error(self, error_msg: str):
-        """Callback invocado quando o worker financeiro encontra erro."""
-        QMessageBox.critical(
-            self,
-            "Erro de Banco de Dados",
-            f"Falha gravíssima ao carregar as métricas financeiras:\n\n{error_msg}"
-        )
-    def _show_plan_distribution_dialog(self):
-        """Abre o diálogo de gráficos financeiros."""
-        from src.ui.dialogs.finance_graphs import FinancialGraphsDialog
-        
-        dialog = FinancialGraphsDialog(self)
-        dialog.exec()
-    
-    def _show_manage_plans_dialog(self):
-        """Exibe a tela de gerenciamento de planos."""
-        self.settings_coordinator.show_manage_plans()
-    
-    def _show_expiring_plans_dialog(self):
-        """Exibe o diálogo de planos a vencer."""
-        self.settings_coordinator.show_expiring_plans_dialog()
-    
-    # === Sincronização ===
-    
-    def _show_sync_dialog(self):
-        """Abre o diálogo de sincronização com Google Sheets."""
-        self.settings_coordinator.show_sync_dialog()
-    
-    # === Gerenciamento de Banco de Dados ===
-    
-    def _create_database_backup(self):
-        """Cria um backup do banco de dados."""
-        self.settings_coordinator.create_database_backup()
-    
-    def _generate_frequency_report(self):
-        """Gera relatório de frequência em HTML."""
-        self.reports_coordinator.generate_frequency_report()
-    
-    
-    def _optimize_database(self):
-        """Otimiza o banco de dados criando índices e executando VACUUM."""
-        self.settings_coordinator.optimize_database()
-    
-    def _run_database_migration(self):
-        """Executa o script de migração crítica do banco de dados."""
-        self.settings_coordinator.run_database_migration()
-    
-    # === Lista de Membros ===
-    
-    def _load_members_list(self):
-        """Carrega a lista de membros com paginação."""
-        self.members_coordinator.load_members_list()
-    
-    def _on_members_list_refresh(self):
-        """Atualiza a lista de membros."""
-        self.members_coordinator.on_members_list_refresh()
-    
-    def _on_members_list_member_selected(self, member_data: dict):
-        """Quando um membro é selecionado na lista."""
-        self.members_coordinator.on_members_list_member_selected(member_data)
-            
-    def _load_list_member_history(self, member_id: int, member_name: str):
-        """Carrega e exibe o histórico de check-ins do membro na lista."""
-        self.members_coordinator.load_list_member_history(member_id, member_name)
-
-    def _load_list_member_financial_history(self, member_id: int, member_name: str):
-        """Carrega e exibe o histórico financeiro do membro na lista."""
-        self.members_coordinator.load_list_member_financial_history(member_id, member_name)
-
-    def _on_list_edit_member_clicked(self):
-        """Abre o diálogo de edição do membro atual da lista."""
-        self.members_coordinator.on_list_edit_member_clicked()
-
-    def _on_list_renew_plan_clicked(self):
-        """Abre o diálogo de renovação de plano do membro atual da lista."""
-        self.members_coordinator.on_list_renew_plan_clicked()
-
-    def _on_list_delete_member_clicked(self):
-        """Abre o diálogo de confirmação de exclusão do membro atual da lista."""
-        self.members_coordinator.on_list_delete_member_clicked()
-
-    def _on_list_member_whatsapp_clicked(self):
-        """Atalho de WhatsApp na lista de membros."""
-        if self.members_coordinator:
-            self.members_coordinator.on_list_whatsapp_clicked()
-
-    def _on_list_member_quick_payment_clicked(self):
-        """Atalho de pagamento rápido na lista de membros."""
-        if self.members_coordinator:
-            self.members_coordinator.on_list_quick_payment_clicked()
-
-    def _on_list_member_history_shortcut_clicked(self):
-        """Atalho para abrir histórico na lista de membros."""
-        if self.members_coordinator:
-            self.members_coordinator.on_list_history_shortcut_clicked()
-
-    def _on_list_member_updated(self, updated_data: dict):
-        """Manipula a atualização de um membro na lista."""
-        self.members_coordinator.on_list_member_updated(updated_data)
-
-    def _on_list_plan_renewed(self, renewal_data: dict):
-        """Manipula a renovação de plano na lista."""
-        self.members_coordinator.on_list_plan_renewed(renewal_data)
-
-    def _delete_list_member(self, member_data: dict):
-        """Executa a exclusão do membro a partir da lista."""
-        self.members_coordinator.delete_list_member(member_data)
-
-
     def resizeEvent(self, event):
         """Atualiza geometria da sidebar flutuante ao redimensionar a janela."""
         super().resizeEvent(event)

@@ -3,7 +3,7 @@ import pytest
 from datetime import datetime, timedelta
 from src.services.checkin_service import CheckinService
 from src.services.member_service import MemberService
-from src.data.models import Plano, Membro, Pagamento
+from src.data.models import Plano, Membro, Pagamento, Frequencia
 
 class TestCheckinFunctionality:
     
@@ -121,8 +121,8 @@ class TestVoucherPlanFunctionality:
         member = db_session.query(Membro).filter(Membro.id == member_id).first()
         assert member.voucher_credits == 9
     
-    def test_voucher_zero_balance_allows_checkin(self, checkin_service, member_service, db_session, quota_plan):
-        """Check-in with 0 balance succeeds but returns warning message."""
+    def test_voucher_zero_balance_blocks_checkin(self, checkin_service, member_service, db_session, quota_plan):
+        """Check-in with 0 vouchers is blocked (no Frequencia recorded) and warns."""
         # Create member with quota plan but zero credits
         member_result = member_service.create({
             "nome": "Zero Balance User",
@@ -131,13 +131,19 @@ class TestVoucherPlanFunctionality:
         })
         assert member_result.success
         member_id = member_result.member_id
-        
-        # Perform check-in - should succeed with warning
+
+        # Perform check-in - should be blocked
         result = checkin_service.perform_checkin(member_id)
-        
-        assert result.success is True
-        assert "ALERTA" in result.message
-        assert "sem saldo" in result.message.lower()
+
+        assert result.success is False
+        assert "voucher" in result.message.lower()
+
+        # No check-in should have been recorded
+        checkins = db_session.query(Frequencia).filter(Frequencia.member_id == member_id).count()
+        assert checkins == 0
+        # Balance stays at 0 (nothing decremented below zero)
+        member = db_session.query(Membro).filter(Membro.id == member_id).first()
+        assert member.voucher_credits == 0
     
     def test_voucher_no_payment_generated(self, checkin_service, member_service, db_session, quota_plan):
         """Quota plan check-in does not create payment record."""

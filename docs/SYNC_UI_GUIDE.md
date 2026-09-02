@@ -164,32 +164,17 @@ Ao final, um resumo completo será exibido:
 - **Duplicados alto**: Normal se você sincroniza frequentemente
 - **Novos alto**: Muitos check-ins foram registrados desde a última sync
 
-## 🔄 Sincronização vs. Migração Completa
+## 🔄 Sincronização via UI
 
-### Sincronização (via UI)
 - ✅ Preserva todos os dados existentes
 - ✅ Adiciona apenas novos registros
 - ✅ Interface visual com progresso
-- ✅ Ideal para uso frequente
-- ⚠️ Modo apenas incremental
+- ✅ Ideal para uso frequente e para automação futura
 
-### Migração Completa (via script)
-```bash
-python scripts/migrate_data.py
-```
-- ⚠️ **APAGA** todos os dados existentes
-- ✅ Recria o banco do zero
-- ✅ Ideal para reset completo
-- ❌ Perde dados locais não sincronizados
-
-### Migração Incremental (via script)
-```bash
-python scripts/migrate_data.py --append
-```
-- ✅ Mesma funcionalidade da sincronização UI
-- ✅ Pode ser agendada (cron/task scheduler)
-- ❌ Sem interface visual
-- ✅ Ideal para automação
+> O script de linha de comando (`scripts/migrate_data.py`) que antes
+> oferecia um modo alternativo de migração foi removido em 2026-08-17 por
+> não ter mais uso — a sincronização via UI é hoje o único caminho
+> suportado.
 
 ## 💡 Dicas e Boas Práticas
 
@@ -217,11 +202,7 @@ Em caso de problemas não cobertos neste guia:
 
 1. **Verifique o log de atividades** no próprio diálogo
 2. **Consulte os logs do console** da aplicação
-3. **Tente executar o script direto**:
-   ```bash
-   python scripts/migrate_data.py --append
-   ```
-4. **Reporte o erro** com o log completo para análise
+3. **Reporte o erro** com o log completo para análise
 
 ## 📝 Histórico de Versões
 
