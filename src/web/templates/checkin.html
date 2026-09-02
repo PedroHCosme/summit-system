@@ -51,6 +51,9 @@
                         {% if member.plano %}
                         <span>{{ member.plano }}</span>
                         {% endif %}
+                        {% if member.is_quota %}
+                        <span>Vouchers: {{ member.voucher_credits }}</span>
+                        {% endif %}
                         {% if member.whatsapp_hint %}
                         <span>{{ member.whatsapp_hint }}</span>
                         {% endif %}
@@ -68,6 +71,8 @@
                             {% if results|length == 1 %}Sou eu, fazer check-in{% else %}Sou eu{% endif %}
                         </button>
                     </form>
+                {% elif member.no_vouchers %}
+                    <p class="member-card-warning">Você está sem vouchers disponíveis. Procure a recepção para comprar mais antes de fazer o check-in.</p>
                 {% else %}
                     <p class="member-card-warning">Seu cadastro ainda está aguardando aprovação da academia.</p>
                 {% endif %}
