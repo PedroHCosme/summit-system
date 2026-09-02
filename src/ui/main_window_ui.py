@@ -6,6 +6,7 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QStackedWidget
 )
 from PyQt6.QtGui import QIcon
+from PyQt6.QtCore import QTimer, QTime
 
 from src.ui.styles import STYLESHEET
 from src.ui.components import Sidebar
@@ -85,6 +86,21 @@ def build_ui(window):
     # Título / Logo
     title_label = QLabel("Summit Escalada")
     title_layout.addWidget(title_label)
+
+    title_layout.addStretch()
+
+    # Relógio digital 24h, atualizado a cada segundo
+    window.clock_label = QLabel()
+    window.clock_label.setStyleSheet("color:#fff;font-weight:bold;font-size:16px;letter-spacing:2px;")
+
+    def _tick():
+        window.clock_label.setText(QTime.currentTime().toString("HH:mm:ss"))
+
+    _tick()
+    window.clock_timer = QTimer(window)
+    window.clock_timer.timeout.connect(_tick)
+    window.clock_timer.start(1000)
+    title_layout.addWidget(window.clock_label)
 
     title_layout.addStretch()
 
