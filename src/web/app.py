@@ -39,7 +39,7 @@ from src.core.models import Pessoa
 from src.utils.utils import calculate_new_due_date
 
 app = Flask(__name__)
-app.secret_key = 'summit_mobile_pass_secret_key'
+app.secret_key = os.environ.get('SECRET_KEY') or os.urandom(32)
 
 limiter = Limiter(
     get_remote_address,
@@ -257,5 +257,6 @@ if __name__ == '__main__':
     from src.data.db import init_db
     init_db()
 
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    debug_mode = os.environ.get('FLASK_DEBUG', '').lower() in ('1', 'true')
+    app.run(host='0.0.0.0', port=5000, debug=debug_mode)
 
