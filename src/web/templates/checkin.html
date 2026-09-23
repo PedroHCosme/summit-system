@@ -5,6 +5,7 @@
     <h2 style="text-align: center;">Check-in</h2>
 
     <form method="POST" action="{{ url_for('checkin') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <div class="form-group">
             <label for="identifier">Nome ou Apelido</label>
             <input type="text" id="identifier" name="identifier" class="hero-input" required
@@ -66,6 +67,7 @@
                     {% endif %}
                     <form method="POST" action="{{ url_for('checkin') }}" class="member-checkin-form"
                         onsubmit="return confirmCheckin('{{ member.nome }}', {{ 'true' if member.requires_warning else 'false' }})">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                         <input type="hidden" name="member_id" value="{{ member.id }}">
                         <button type="submit" class="btn btn-success member-checkin-button">
                             {% if results|length == 1 %}Sou eu, fazer check-in{% else %}Sou eu{% endif %}

@@ -5,6 +5,7 @@
     <h2 style="text-align: center;">Novo Cadastro</h2>
 
     <form method="POST" action="{{ url_for('register') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
         <!-- Card: Dados Pessoais -->
         <div class="card">
