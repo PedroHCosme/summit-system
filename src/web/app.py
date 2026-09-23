@@ -171,7 +171,7 @@ def checkin():
     return render_template('checkin.html')
 
 @app.route('/register', methods=['GET', 'POST'])
-@limiter.limit("5 per hour")  # Limite estrito para cadastro
+@limiter.limit("30 per hour")  # Limite por IP; academia usa Wi-Fi compartilhado, então várias pessoas dividem o mesmo IP
 def register():
     """Página e processamento de Cadastro."""
     if request.method == 'POST':
