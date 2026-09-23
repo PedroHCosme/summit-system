@@ -1,9 +1,11 @@
 """Aplicação web Flask para cadastro e check-in de membros."""
 
+import logging
 import os
+import secrets
 import sys
 from datetime import datetime
-from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, g
+from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, g, session, abort
 try:
     from flask_limiter import Limiter
     from flask_limiter.util import get_remote_address
@@ -39,7 +41,12 @@ from src.core.models import Pessoa
 from src.utils.utils import calculate_new_due_date
 
 app = Flask(__name__)
-app.secret_key = 'summit_mobile_pass_secret_key'
+app.secret_key = os.environ.get('SECRET_KEY') or os.urandom(32)
+app.config['SESSION_COOKIE_SECURE'] = os.environ.get('FLASK_DEBUG', '').lower() not in ('1', 'true')
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+
+logger = logging.getLogger(__name__)
 
 limiter = Limiter(
     get_remote_address,
@@ -49,6 +56,27 @@ limiter = Limiter(
 )
 
 SessionLocal = get_session_factory()
+
+
+def get_csrf_token():
+    """Gera (ou reaproveita) o token CSRF da sessão atual."""
+    if 'csrf_token' not in session:
+        session['csrf_token'] = secrets.token_hex(32)
+    return session['csrf_token']
+
+
+@app.context_processor
+def inject_csrf_token():
+    return dict(csrf_token=get_csrf_token())
+
+
+@app.before_request
+def check_csrf_token():
+    """Valida o token CSRF em todo POST — app só tem essas rotas de formulário."""
+    if request.method == 'POST':
+        token = request.form.get('csrf_token')
+        if not token or token != session.get('csrf_token'):
+            abort(400, description='Token CSRF inválido ou ausente.')
 
 
 def get_db():
@@ -244,8 +272,9 @@ def register():
                 return redirect(url_for('index'))
             else:
                 flash(f'Erro ao cadastrar: {result.message}', 'error')
-        except Exception as e:
-            flash(f'Erro interno: {str(e)}', 'error')
+        except Exception:
+            logger.exception('Erro ao cadastrar membro via web')
+            flash('Erro interno ao cadastrar. Tente novamente ou fale com a recepção.', 'error')
             
     db = get_db()
     plans = db.query(Plano).filter(Plano.ativo == True).all()
@@ -257,5 +286,6 @@ if __name__ == '__main__':
     from src.data.db import init_db
     init_db()
 
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    debug_mode = os.environ.get('FLASK_DEBUG', '').lower() in ('1', 'true')
+    app.run(host='0.0.0.0', port=5000, debug=debug_mode)
 
