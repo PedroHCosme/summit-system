@@ -2,15 +2,19 @@
 
 from __future__ import annotations
 
+import json
 from collections import Counter
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
+from typing import Optional
 
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from src.core.plan_status import PENDENTE
 from src.core.plan_utils import ASSINANTE, CATEGORIAS, GYM_TOTALPASS, PACOTE, categoria_do_plano
+from src.data.db import create_session
 from src.data.models import Frequencia, Membro, Pagamento
+from src.reports._common import get_reports_dir, get_template_env
 from src.utils.utils import create_whatsapp_link
 
 N_SEMANAS = 12
@@ -185,3 +189,28 @@ def montar_semanas(session: Session, hoje: date) -> list:
         s["anterior"] = {k: semanas[i + 1][k] for k in KPIS}
         s["media4"] = {k: round(sum(semanas[i + j][k] for j in range(1, 5)) / 4, 1) for k in KPIS}
     return semanas[:N_SEMANAS]
+
+
+def generate_weekly_summary(db_session: Optional[Session] = None, hoje: Optional[date] = None) -> str:
+    """Gera o HTML do Resumo Semanal e devolve o caminho do arquivo."""
+    hoje = hoje or date.today()
+    session = db_session or create_session()
+    try:
+        semanas = montar_semanas(session, hoje)
+    finally:
+        if db_session is None:
+            session.close()
+    dados = {"semanas": semanas, "dias": DIAS, "horas": HORAS,
+             "faixas": [f[0] for f in FAIXAS] + ["Sem data"]}
+    agora = datetime.now()
+    html = get_template_env().get_template("weekly_summary.html").render(
+        title="Resumo Semanal",
+        subtitle="Gym/Totalpass, lotação e ações da semana",
+        generate_date=agora.strftime("%d/%m/%Y às %H:%M"),
+        current_year=agora.year,
+        # "</" escapado: nomes vem do cadastro web e nao podem fechar o <script>
+        dados_json=json.dumps(dados, ensure_ascii=False).replace("</", "<\\/"),
+    )
+    caminho = get_reports_dir() / f"resumo_semanal_{agora:%Y%m%d_%H%M%S}.html"
+    caminho.write_text(html, encoding="utf-8")
+    return str(caminho)

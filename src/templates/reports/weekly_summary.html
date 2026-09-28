@@ -1,0 +1,200 @@
+{% extends "base_report.html" %}
+
+{% block extra_css %}
+        .nav-semana { display: flex; align-items: center; justify-content: center; gap: 16px; margin-bottom: 24px; }
+        .nav-semana button { font-size: 1.4em; padding: 4px 18px; border: none; border-radius: 8px;
+                             background: var(--primary); color: white; cursor: pointer; }
+        .nav-semana button:disabled { background: #ccc; cursor: default; }
+        .nav-semana h2 { margin: 0; min-width: 280px; text-align: center; }
+        .duas-colunas { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; }
+        .calor { border-collapse: collapse; font-size: 0.8em; }
+        .calor th, .calor td { padding: 4px 6px; text-align: center; border: 1px solid #eee; min-width: 32px; }
+        .lista { list-style: none; padding: 0; }
+        .lista li { padding: 6px 0; border-bottom: 1px solid #eee; }
+        .lista a { margin-left: 8px; }
+        .vazio { color: var(--text-muted); font-style: italic; }
+        .legenda { color: var(--text-muted); font-size: 0.85em; margin: 8px 0; }
+{% endblock %}
+
+{% block content %}
+<div class="nav-semana">
+    <button id="btn-antiga" title="Semana anterior">←</button>
+    <h2 id="rotulo"></h2>
+    <button id="btn-nova" title="Semana seguinte">→</button>
+</div>
+
+<div class="stats-grid">
+    <div class="stat-card blue">
+        <div class="label">Check-ins</div>
+        <div class="value" id="k-checkins"></div>
+        <div class="label" id="d-checkins"></div>
+    </div>
+    <div class="stat-card orange">
+        <div class="label">% Gym/Totalpass</div>
+        <div class="value" id="k-pct"></div>
+        <div class="label" id="d-pct"></div>
+    </div>
+    <div class="stat-card green">
+        <div class="label">Receita da Semana</div>
+        <div class="value" id="k-receita"></div>
+        <div class="label" id="d-receita"></div>
+    </div>
+    <div class="stat-card purple">
+        <div class="label">Valor por Visita</div>
+        <div class="value" id="k-visita"></div>
+        <div class="label">Assinante vs Gym/Totalpass</div>
+    </div>
+</div>
+
+<div class="section">
+    <h2>Check-ins por dia</h2>
+    <div class="chart-container"><canvas id="grafico-dias"></canvas></div>
+</div>
+
+<div class="section">
+    <h2>Lotação (últimas 4 semanas)</h2>
+    <ul class="lista" id="destaques"></ul>
+    <p class="legenda">Número = check-ins no horário. Quanto mais vermelho, maior a fatia Gym/Totalpass.</p>
+    <div style="overflow-x: auto;"><table class="calor" id="calor"></table></div>
+</div>
+
+<div class="duas-colunas">
+    <div class="section"><h2>Conversões</h2><ul class="lista" id="conversoes"></ul></div>
+    <div class="section"><h2>Perdas para Gym/Totalpass</h2><ul class="lista" id="perdas"></ul></div>
+</div>
+
+<div class="duas-colunas">
+    <div class="section"><h2>Candidatos a Conversão</h2><ul class="lista" id="candidatos"></ul></div>
+    <div class="section"><h2>Vieram e estão com plano vencido</h2><ul class="lista" id="vencidos"></ul></div>
+</div>
+
+<div class="duas-colunas">
+    <div class="section"><h2>Perfil por idade (%)</h2><div class="chart-container"><canvas id="grafico-idade"></canvas></div></div>
+    <div class="section"><h2>Perfil por gênero (%)</h2><div class="chart-container"><canvas id="grafico-genero"></canvas></div></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const DADOS = {{ dados_json }};
+const S = DADOS.semanas;  // S[0] = Semana mais recente
+const CORES = {"Assinante": "#6c5ce7", "Pacote": "#00b894", "Avulso": "#fdcb6e",
+               "Gym/Totalpass": "#d63031", "Sem Receita": "#b2bec3", "Outros": "#636e72"};
+const reais = v => v.toLocaleString("pt-BR", {style: "currency", currency: "BRL"});
+const graficos = {};
+let atual = 0;
+
+function texto(id, valor) { document.getElementById(id).textContent = valor; }
+
+function variacao(valor, referencia, sufixo) {
+    if (!referencia) return "sem comparação";
+    const pct = Math.round(100 * (valor - referencia) / referencia);
+    return (pct >= 0 ? "▲ " : "▼ ") + Math.abs(pct) + "% " + sufixo;
+}
+
+// Dados vem do cadastro: só textContent, nunca innerHTML
+function lista(id, itens, montar) {
+    const ul = document.getElementById(id);
+    ul.replaceChildren();
+    if (!itens.length) {
+        const li = document.createElement("li");
+        li.className = "vazio";
+        li.textContent = "Ninguém nesta semana";
+        ul.append(li);
+        return;
+    }
+    for (const item of itens) {
+        const li = document.createElement("li");
+        montar(li, item);
+        ul.append(li);
+    }
+}
+
+function comWhatsApp(li, frase, link) {
+    li.append(frase);
+    if (!link) return;
+    const a = document.createElement("a");
+    a.href = link;
+    a.target = "_blank";
+    a.textContent = "WhatsApp";
+    li.append(a);
+}
+
+function grafico(id, config) {
+    if (graficos[id]) graficos[id].destroy();
+    graficos[id] = new Chart(document.getElementById(id), config);
+}
+
+function perfil(s, chave, rotulos, id) {
+    const datasets = ["Gym/Totalpass", "Assinante"].map(cat => {
+        const contagem = s.perfil[cat][chave];
+        const total = Object.values(contagem).reduce((a, b) => a + b, 0) || 1;
+        return {label: cat, backgroundColor: CORES[cat],
+                data: rotulos.map(r => Math.round(100 * (contagem[r] || 0) / total))};
+    });
+    grafico(id, {type: "bar", data: {labels: rotulos, datasets},
+                 options: {responsive: true, maintainAspectRatio: false}});
+}
+
+function mostrar(i) {
+    atual = i;
+    const s = S[i];
+    texto("rotulo", "Semana " + s.rotulo);
+    document.getElementById("btn-antiga").disabled = i === S.length - 1;
+    document.getElementById("btn-nova").disabled = i === 0;
+
+    texto("k-checkins", s.checkins);
+    texto("d-checkins", variacao(s.checkins, s.anterior.checkins, "vs anterior") + " · média 4 sem.: " + s.media4.checkins);
+    texto("k-pct", s.pct_gt + "%");
+    texto("d-pct", "anterior: " + s.anterior.pct_gt + "% · média 4 sem.: " + s.media4.pct_gt + "%");
+    texto("k-receita", reais(s.receita));
+    texto("d-receita", variacao(s.receita, s.anterior.receita, "vs anterior"));
+    texto("k-visita", reais(s.valor_visita_assinante) + " vs " + reais(s.valor_visita_gt));
+
+    grafico("grafico-dias", {type: "bar",
+        data: {labels: DADOS.dias, datasets: Object.entries(s.por_dia).map(([cat, valores]) =>
+            ({label: cat, data: valores, backgroundColor: CORES[cat]}))},
+        options: {responsive: true, maintainAspectRatio: false,
+                  scales: {x: {stacked: true}, y: {stacked: true, beginAtZero: true}}}});
+
+    lista("destaques", s.destaques, (li, frase) => { li.textContent = "⚠️ " + frase; });
+    const tabela = document.getElementById("calor");
+    tabela.replaceChildren();
+    const cabecalho = tabela.insertRow();
+    cabecalho.append(document.createElement("th"));
+    for (const h of DADOS.horas) {
+        const th = document.createElement("th");
+        th.textContent = h + "h";
+        cabecalho.append(th);
+    }
+    s.calor.forEach((linha, d) => {
+        const tr = tabela.insertRow();
+        const th = document.createElement("th");
+        th.textContent = DADOS.dias[d];
+        tr.append(th);
+        for (const [total, gt] of linha) {
+            const td = tr.insertCell();
+            if (!total) continue;
+            td.textContent = total;
+            td.title = gt + " de " + total + " Gym/Totalpass";
+            td.style.background = "rgba(214, 48, 49, " + (0.1 + 0.8 * gt / total).toFixed(2) + ")";
+        }
+    });
+
+    lista("conversoes", s.conversoes, (li, nome) => { li.textContent = "✅ " + nome; });
+    lista("perdas", s.perdas, (li, nome) => { li.textContent = "❌ " + nome; });
+    lista("candidatos", s.candidatos, (li, c) =>
+        comWhatsApp(li, c.nome + " — " + c.checkins + " check-ins em 4 semanas", c.whatsapp));
+    lista("vencidos", s.vencidos, (li, v) =>
+        comWhatsApp(li, v.nome + " — " + v.plano + ", venceu em " + v.vencimento, v.whatsapp));
+
+    perfil(s, "idade", DADOS.faixas, "grafico-idade");
+    const generos = [...new Set(["Gym/Totalpass", "Assinante"].flatMap(c => Object.keys(s.perfil[c].genero)))].sort();
+    perfil(s, "genero", generos, "grafico-genero");
+}
+
+document.getElementById("btn-antiga").onclick = () => mostrar(atual + 1);
+document.getElementById("btn-nova").onclick = () => mostrar(atual - 1);
+mostrar(0);
+</script>
+{% endblock %}

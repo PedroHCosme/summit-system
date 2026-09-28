@@ -110,3 +110,27 @@ def test_mapa_de_calor_e_perfil(semanas):
     assert len(s["calor"]) == 6 and all(len(linha) == 16 for linha in s["calor"])
     assert 1 <= len(s["destaques"]) <= 2
     assert sum(s["perfil"]["Gym/Totalpass"]["idade"].values()) > 0
+
+
+from src.data.models import Membro
+from src.reports.weekly_summary import generate_weekly_summary
+
+
+def test_gera_html_com_as_semanas_embutidas(demo_session, tmp_path, monkeypatch):
+    monkeypatch.setattr("src.reports.weekly_summary.get_reports_dir", lambda: tmp_path)
+    html = Path(generate_weekly_summary(db_session=demo_session, hoje=HOJE)).read_text(encoding="utf-8")
+    assert "<title>Resumo Semanal" in html
+    assert '"rotulo": "21/09 – 26/09"' in html
+
+
+def test_nome_malicioso_nao_fecha_o_script(demo_session, tmp_path, monkeypatch):
+    monkeypatch.setattr("src.reports.weekly_summary.get_reports_dir", lambda: tmp_path)
+    membro = demo_session.query(Membro).filter_by(nome="Davi Prado").one()
+    membro.nome = "</script><b>x"
+    demo_session.flush()
+    try:
+        html = Path(generate_weekly_summary(db_session=demo_session, hoje=HOJE)).read_text(encoding="utf-8")
+    finally:
+        demo_session.rollback()
+    assert "</script><b>x" not in html
+    assert "<\/script><b>x" in html
