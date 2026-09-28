@@ -2,12 +2,22 @@
 
 ## Visao Geral
 
-Tres relatorios HTML gerados via Jinja2 + Chart.js, abertos no navegador.
+Quatro relatorios HTML gerados via Jinja2 + Chart.js, abertos no navegador.
 Publico-alvo: dono da academia (unico consumidor).
 
 ---
 
 ## Estado Atual vs Desejado
+
+### Resumo Semanal (`src/reports/weekly_summary.py`) — relatorio principal
+
+**Template**: `src/templates/reports/weekly_summary.html`. Spec: `docs/superpowers/specs/2026-09-28-resumo-semanal-design.md`.
+
+- Tela unica, 12 Semanas (seg–sab) navegaveis, dados embutidos como JSON
+- Check-ins, % Gym/Totalpass, Receita da Semana (caixa), Valor por Visita (competencia)
+- Mapa de calor 4 semanas, Conversoes / Perdas, Candidatos a Conversao, vencidos que vieram, perfil
+- Testado contra banco simulado: `python scripts/seed_demo_db.py` → `demo_database.db` (fora do git)
+- Limite: Perdas para Gym/Totalpass anteriores a migracao do Tipo do Check-in ficam invisiveis (ADR 0001)
 
 ### Relatorio Financeiro (`src/reports/finance_report.py`)
 
