@@ -51,8 +51,10 @@ class Sidebar(QWidget):
 
     # Sinais específicos do contexto Relatórios
     reports_clicked = pyqtSignal()      # Botão no menu principal
+    reports_weekly_clicked = pyqtSignal()    # Submenu: Resumo Semanal
     reports_members_clicked = pyqtSignal()  # Submenu: Membros
     reports_financial_clicked = pyqtSignal() # Submenu: Financeiro
+    reports_frequency_clicked = pyqtSignal() # Submenu: Frequência
 
     # Sinais específicos do contexto Bloco de Notas
     notes_clicked = pyqtSignal()
@@ -363,8 +365,10 @@ class Sidebar(QWidget):
         self._add_section_header("RELATÓRIOS")
         
         nav_items = [
+            ("⭐  Resumo Semanal", self.reports_weekly_clicked),
             ("👥  Membros", self.reports_members_clicked),
             ("💰  Financeiro", self.reports_financial_clicked),
+            ("📅  Frequência", self.reports_frequency_clicked),
         ]
         
         for text, signal in nav_items:
