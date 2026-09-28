@@ -122,6 +122,8 @@ class MainWindow(QMainWindow):
         self.sidebar.reports_clicked.connect(self._on_reports_section_clicked)
         self.sidebar.reports_members_clicked.connect(self.reports_coordinator.generate_members_report)
         self.sidebar.reports_financial_clicked.connect(self.reports_coordinator.generate_financial_report)
+        self.sidebar.reports_weekly_clicked.connect(self.reports_coordinator.generate_weekly_summary)
+        self.sidebar.reports_frequency_clicked.connect(self.reports_coordinator.generate_frequency_report)
 
         # === Bloco de Notas ===
         self.sidebar.notes_clicked.connect(self._show_notes_screen)
@@ -410,6 +412,8 @@ class MainWindow(QMainWindow):
             
             # Inicia o timer de atualização (a cada 5 segundos)
             self.dashboard_timer.start(5000)
+            # Segunda-feira: oferece o Resumo Semanal uma vez por dia
+            self.reports_coordinator.offer_weekly_summary_on_monday()
         else:
             self.home_screen.set_error(
                 "Não foi possível conectar ao banco de dados.\n"

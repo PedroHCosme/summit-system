@@ -112,14 +112,15 @@ def generate_frequency_report(
                 "percentage": pct
             })
 
-        # Frequência por Plano
+        # Frequência por Plano: pelo Tipo do Check-in (plano no momento), não pelo plano atual
+        tipo_do_checkin = func.coalesce(Frequencia.plano, Membro.plano)
         plan_rows = db_session.query(
-            Membro.plano,
+            tipo_do_checkin.label("plano"),
             func.count(Frequencia.id).label("total")
         ).join(Membro, Frequencia.member_id == Membro.id).filter(
             Frequencia.checkin_datetime >= start_date,
             Frequencia.checkin_datetime <= end_date
-        ).group_by(Membro.plano).order_by(desc("total")).all()
+        ).group_by(tipo_do_checkin).order_by(desc("total")).all()
 
         plan_stats = []
         for row in plan_rows:

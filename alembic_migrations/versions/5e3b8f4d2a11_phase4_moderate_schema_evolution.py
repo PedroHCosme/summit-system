@@ -20,16 +20,19 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     # 1) Referência canônica opcional de plano por FK (camada compatível com `plano` string).
-    with op.batch_alter_table("membros") as batch_op:
-        batch_op.add_column(sa.Column("plano_id", sa.Integer(), nullable=True))
-        batch_op.create_foreign_key(
-            "fk_membros_plano_id_planos",
-            "planos",
-            ["plano_id"],
-            ["id"],
-            ondelete="SET NULL",
-        )
-        batch_op.create_index("ix_membros_plano_id", ["plano_id"], unique=False)
+    # Banco novo (init_db/create_all) já nasce com plano_id + FK + índice: pula.
+    membros_cols = {c["name"] for c in sa.inspect(op.get_bind()).get_columns("membros")}
+    if "plano_id" not in membros_cols:
+        with op.batch_alter_table("membros") as batch_op:
+            batch_op.add_column(sa.Column("plano_id", sa.Integer(), nullable=True))
+            batch_op.create_foreign_key(
+                "fk_membros_plano_id_planos",
+                "planos",
+                ["plano_id"],
+                ["id"],
+                ondelete="SET NULL",
+            )
+            batch_op.create_index("ix_membros_plano_id", ["plano_id"], unique=False)
 
     # 2) Backfill plano_id a partir do nome legado `plano`.
     op.execute(

@@ -128,6 +128,8 @@ class Frequencia(Base):
         Integer, ForeignKey("membros.id", ondelete="CASCADE"), nullable=False
     )
     checkin_datetime: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    # Tipo do Check-in: plano do membro no momento do check-in (ADR 0001)
+    plano: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     created_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime, default=func.current_timestamp()
     )
@@ -144,6 +146,7 @@ class Frequencia(Base):
             "id": self.id,
             "member_id": self.member_id,
             "checkin_datetime": self.checkin_datetime.isoformat() if self.checkin_datetime else None,
+            "plano": self.plano,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 

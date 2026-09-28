@@ -31,6 +31,13 @@ class TestCheckinFunctionality:
         assert result.checkin_id is not None
         assert "sucesso" in result.message.lower()
 
+    def test_checkin_grava_tipo_do_checkin(self, checkin_service, member_service, db_session):
+        member_id = member_service.create({"nome": "Tipo User", "plano": "Mensal"}).member_id
+
+        result = checkin_service.perform_checkin(member_id)
+
+        assert db_session.get(Frequencia, result.checkin_id).plano == "Mensal"
+
     def test_duplicate_checkin_same_day(self, checkin_service, member_service):
         member_result = member_service.create({
             "nome": "Duplicate User",

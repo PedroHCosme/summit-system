@@ -38,7 +38,8 @@ def get_database_url(db_path: str = None) -> str:
         URL de conexão no formato sqlite:///path/to/db
     """
     if db_path is None:
-        db_path = str(_DEFAULT_DB_PATH)
+        # SUMMIT_DB_PATH aponta o app para outro banco (ex.: demo_database.db)
+        db_path = os.environ.get("SUMMIT_DB_PATH") or str(_DEFAULT_DB_PATH)
     return f"sqlite:///{db_path}"
 
 

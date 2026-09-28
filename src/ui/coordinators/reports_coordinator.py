@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import webbrowser
+from datetime import date
 
+from PyQt6.QtCore import QSettings
 from PyQt6.QtWidgets import QDialog, QMessageBox
 
 from src.reports.finance_report import generate_finance_report
@@ -82,6 +84,33 @@ class ReportsCoordinator:
             webbrowser.open(f"file://{filepath}")
         except Exception as e:
             show_error(self.window, "Não foi possível gerar o relatório de frequência. Tente novamente.", detail=e)
+
+    def generate_weekly_summary(self):
+        if not self.window.is_connected:
+            return
+        try:
+            from src.reports.weekly_summary import generate_weekly_summary
+
+            webbrowser.open(f"file://{generate_weekly_summary()}")
+        except Exception as e:
+            show_error(self.window, "Não foi possível gerar o resumo semanal. Tente novamente.", detail=e)
+
+    def offer_weekly_summary_on_monday(self):
+        """Na primeira conexão de cada segunda-feira, oferece abrir o Resumo Semanal."""
+        hoje = date.today()
+        if hoje.weekday() != 0:
+            return
+        settings = QSettings("Summit", "SummitSystem")
+        if settings.value("resumo_semanal/ultimo_aviso") == hoje.isoformat():
+            return
+        settings.setValue("resumo_semanal/ultimo_aviso", hoje.isoformat())
+        resposta = QMessageBox.question(
+            self.window,
+            "Resumo da semana",
+            "O resumo da semana passada está pronto. Quer abrir agora?",
+        )
+        if resposta == QMessageBox.StandardButton.Yes:
+            self.generate_weekly_summary()
 
     # === Financeiro ===
 

@@ -46,6 +46,7 @@ ORM: SQLAlchemy (modelos em `src/data/models.py`)
 | id | INTEGER PK | Nao | ID autoincrement |
 | member_id | INTEGER FK | Nao | FK para membros.id (ON DELETE CASCADE) |
 | checkin_datetime | DATETIME | Nao | Data e hora do check-in |
+| plano | VARCHAR(100) | Sim | Tipo do Check-in: plano do membro no momento do check-in (ADR 0001). Backfill: pagamento per-checkin do dia, senao plano atual |
 | created_at | DATETIME | Sim | Timestamp de criacao do registro |
 
 **Regra de negocio**: Maximo 1 registro por member_id por dia (validado no CheckinService, nao no banco).
