@@ -312,7 +312,8 @@ class CheckinService:
             # Inserir check-in
             new_checkin = Frequencia(
                 member_id=member_id,
-                checkin_datetime=checkin_datetime
+                checkin_datetime=checkin_datetime,
+                plano=effective_plan,  # Tipo do Check-in (ADR 0001)
             )
             self._session.add(new_checkin)
             self._session.flush()  # Para obter o ID gerado
