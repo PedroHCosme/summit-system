@@ -102,7 +102,7 @@ def test_valor_por_visita_e_fatia_gym_totalpass(semanas):
 def test_comparativos(semanas):
     s = semanas[0]
     assert s["anterior"]["checkins"] == semanas[1]["checkins"]
-    assert set(s["media4"]) == {"checkins", "pct_gt", "receita"}
+    assert set(s["media"]) == {"checkins", "pct_gt", "receita"}
 
 
 def test_mapa_de_calor_e_perfil(semanas):
@@ -110,6 +110,12 @@ def test_mapa_de_calor_e_perfil(semanas):
     assert len(s["calor"]) == 6 and all(len(linha) == 16 for linha in s["calor"])
     assert 1 <= len(s["destaques"]) <= 2
     assert sum(s["perfil"]["Gym/Totalpass"]["idade"].values()) > 0
+
+
+def test_mapa_de_calor_e_so_da_semana(semanas):
+    s = semanas[0]
+    celulas = sum(total for linha in s["calor"] for total, _ in linha)
+    assert 0 < celulas <= s["checkins"]  # com 4 Semanas no mapa, passaria de 3x o total
 
 
 from src.data.models import Membro
@@ -121,6 +127,7 @@ def test_gera_html_com_as_semanas_embutidas(demo_session, tmp_path, monkeypatch)
     html = Path(generate_weekly_summary(db_session=demo_session, hoje=HOJE)).read_text(encoding="utf-8")
     assert "<title>Resumo Semanal" in html
     assert '"rotulo": "21/09 – 26/09"' in html
+    assert '"mensal": false' in html
 
 
 def test_nome_malicioso_nao_fecha_o_script(demo_session, tmp_path, monkeypatch):
