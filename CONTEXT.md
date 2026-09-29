@@ -46,6 +46,10 @@ _Avoid_: Plano do membro (quando se fala de historico)
 **Semana**:
 Segunda a sabado; a academia nao abre domingo. Check-ins excepcionais de domingo contam nos totais da Semana que ele encerra.
 
+**Mes**:
+Mes calendario fechado (dia 1 ao ultimo dia), usado no Resumo Mensal. A Semana que cruza a virada de mes fica inteira no Resumo Semanal e so e recortada na Evolucao do Resumo Mensal.
+_Avoid_: Periodo de 30 dias
+
 ### Movimentacao
 
 **Conversao**:
@@ -74,6 +78,10 @@ _Avoid_: Ticket medio (esse e por pagamento, nao por visita)
 **Resumo Semanal**:
 Relatorio de uma tela so com os numeros-chave de uma Semana, comparados com a anterior, e uma lista de acoes.
 _Avoid_: Dashboard, painel
+
+**Resumo Mensal**:
+Mesmo relatorio do Resumo Semanal com janela de Mes, mais membros novos, renovacoes, evolucao semana a semana e inativos.
+_Avoid_: Fechamento do mes
 
 **Relatorio de Detalhe**:
 Um dos tres relatorios completos (Financeiro, Membros, Frequencia), usados para aprofundar o que o Resumo Semanal mostra.

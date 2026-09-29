@@ -19,6 +19,14 @@ Publico-alvo: dono da academia (unico consumidor).
 - Testado contra banco simulado: `python scripts/seed_demo_db.py` → `demo_database.db` (fora do git)
 - Limite: Perdas para Gym/Totalpass anteriores a migracao do Tipo do Check-in ficam invisiveis (ADR 0001)
 
+### Resumo Mensal (`src/reports/monthly_summary.py`)
+
+Mesmo motor e mesmo template do Resumo Semanal (`weekly_summary.html`, parametrizado por `termos`). Spec: `docs/superpowers/specs/2026-09-29-resumo-mensal-e-ajustes-design.md`.
+
+- 12 Meses fechados navegaveis; comparativo com o Mes anterior e a media dos 3 anteriores
+- Mapa de calor do Mes inteiro (limite de destaque 5); o semanal usa so a Semana (limite 3)
+- Blocos so do Mes: evolucao semana a semana, membros novos, renovacoes, inativos
+
 ### Relatorio Financeiro (`src/reports/finance_report.py`)
 
 **Template**: `src/templates/reports/finance_report.html`

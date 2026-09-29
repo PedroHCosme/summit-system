@@ -32,6 +32,13 @@ def test_banco_simulado_tem_tipo_do_checkin_em_tudo(demo_db):
     assert sem_tipo == 0
 
 
+def test_banco_simulado_tem_membros_cadastrados_em_meses_diferentes(demo_db):
+    con = sqlite3.connect(demo_db)
+    meses = {linha[0] for linha in con.execute("SELECT DISTINCT substr(data_cadastro, 1, 7) FROM membros")}
+    con.close()
+    assert {"2026-06", "2026-08"} <= meses  # o demo precisa de Membros novos para o Resumo Mensal
+
+
 from datetime import date
 
 from sqlalchemy import create_engine

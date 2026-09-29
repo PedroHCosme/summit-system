@@ -48,7 +48,7 @@ Mesmo relatorio, janela de **Mes** (calendario fechado, dia 1 ao ultimo dia), co
 
 Igual ao semanal, com "Semana" trocado por "Mes" (cabecalho "Setembro/2026", setas entre os ultimos 12 meses fechados; comparativos com o mes anterior e a media dos 3 anteriores), mais:
 
-1. **Evolucao semana a semana**: blocos Segunda-Domingo recortados ao mes, com check-ins, % Gym/Totalpass e Receita de cada bloco (grafico de linhas).
+1. **Evolucao semana a semana**: blocos Segunda-Domingo recortados ao mes, com check-ins, % Gym/Totalpass e Receita de cada bloco (tabela).
 2. **Membros novos**: `data_cadastro` dentro do mes, por Categoria de Cliente. Mostra "X de Y voltaram" (voltou = 2 ou mais check-ins ate o fim do mes).
 3. **Renovacoes vs. nao renovacoes**: Assinantes com pagamento cuja `nova_data_vencimento` cai no mes. Renovou = existe pagamento posterior com `nova_data_vencimento` maior. Nao renovou vem com link `wa.me`. Renovacao tardia depois do mes conta como renovou.
 4. **Inativos**: membros com check-in no mes anterior e nenhum neste mes, com `wa.me`, ordenados por check-ins do mes anterior.
@@ -61,13 +61,13 @@ Um so template (`weekly_summary.html`), parametrizado por `DADOS.termos` (Semana
 
 ### Acesso
 
-- Botao "📅 Resumo Mensal" na sidebar, ao lado do semanal (`reports_monthly_clicked` -> `ReportsCoordinator.generate_monthly_summary`).
+- Botao "📆 Resumo Mensal" na sidebar, ao lado do semanal (`reports_monthly_clicked` -> `ReportsCoordinator.generate_monthly_summary`).
 - Sem aviso automatico de inicio de mes (nao pedido).
 - Arquivo gerado: `resumo_mensal_<timestamp>.html`.
 
 ### Documentacao a atualizar
 
-`CONTEXT.md` (termo **Mes**), `.claude/docs/REPORTS_STATUS.md` e `scripts/seed_demo_db.py` (se o demo nao cobrir 2+ meses de dados).
+`CONTEXT.md` (termo **Mes**), `.claude/docs/REPORTS_STATUS.md` e `scripts/seed_demo_db.py` (data_cadastro = dia do 1o check-in, para o demo ter Membros novos).
 
 ### Testes (`tests/test_monthly_summary.py`)
 
