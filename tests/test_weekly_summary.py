@@ -128,6 +128,7 @@ def test_gera_html_com_as_semanas_embutidas(demo_session, tmp_path, monkeypatch)
     assert "<title>Resumo Semanal" in html
     assert '"rotulo": "21/09 – 26/09"' in html
     assert '"mensal": false' in html
+    assert 'id="evolucao"' not in html  # blocos do Mes so aparecem no Resumo Mensal
 
 
 def test_nome_malicioso_nao_fecha_o_script(demo_session, tmp_path, monkeypatch):

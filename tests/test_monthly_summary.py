@@ -119,3 +119,5 @@ def test_gera_html_mensal(db_session, tmp_path, monkeypatch):
     assert "<title>Resumo Mensal" in html
     assert '"rotulo": "Setembro/2026"' in html
     assert '"mensal": true' in html
+    for bloco in ('id="evolucao"', 'id="novos"', 'id="nao-renovaram"', 'id="inativos"'):
+        assert bloco in html
