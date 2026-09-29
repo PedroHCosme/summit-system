@@ -33,6 +33,8 @@ class MembersCoordinator:
                 self.window.sidebar.set_context(SidebarContext.MEMBERS)
                 self.window.stacked_widget.setCurrentIndex(3)
                 self.window.member_search_screen.display_member_data(member)
+                self.load_member_history(member_id, member.get("nome", "Membro"))
+                self.load_member_financial_history(member_id, member.get("nome", "Membro"))
             else:
                 QMessageBox.warning(self.window, "Aviso", "Membro não encontrado.")
         except Exception as e:
