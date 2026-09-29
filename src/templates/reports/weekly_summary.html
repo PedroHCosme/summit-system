@@ -194,7 +194,7 @@ function extras(s) {
         comWhatsApp(li, r.nome + " — " + r.plano + ", venceu em " + r.vencimento, r.whatsapp));
 
     lista("inativos", s.inativos, (li, i) =>
-        comWhatsApp(li, i.nome + " — " + i.checkins + " check-ins no mês anterior", i.whatsapp));
+        comWhatsApp(li, i.nome + " — " + i.checkins + (i.checkins === 1 ? " check-in" : " check-ins") + " no mês anterior", i.whatsapp));
 }
 
 function mostrar(i) {
