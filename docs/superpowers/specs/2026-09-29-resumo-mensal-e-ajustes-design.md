@@ -80,3 +80,5 @@ Um so template (`weekly_summary.html`), parametrizado por `DADOS.termos` (Semana
 
 - Renovacoes so enxerga renovacoes com pagamento registrado (`nova_data_vencimento`). Renovacao lancada so por edicao manual do vencimento nao aparece.
 - Como no semanal, Perdas para Gym/Totalpass anteriores a migracao do Tipo do Check-in ficam invisiveis.
+- **Membros novos depende de `data_cadastro`.** Membros importados de planilha (`sync_import_service`) recebem a data da importacao, entao o mes de uma importacao em massa mostra a base inteira como nova. Cadastro web conta no mes do cadastro, nao da aprovacao. O bloco avisa isso na legenda. Conferir no banco real: `SELECT substr(data_cadastro,1,7), count(*) FROM membros GROUP BY 1`.
+- Renovacoes e Membros novos classificam pela categoria do plano atual do membro, nao pela do momento.

@@ -81,6 +81,7 @@
     <div class="section">
         <h2>Membros novos</h2>
         <p class="legenda" id="novos-resumo"></p>
+        <p class="legenda">Conta pela data de cadastro: quem foi importado de planilha entra no mês da importação.</p>
         <ul class="lista" id="novos"></ul>
     </div>
     <div class="section">
@@ -115,6 +116,8 @@ const graficos = {};
 let atual = 0;
 
 function texto(id, valor) { document.getElementById(id).textContent = valor; }
+
+function plural(n, um, varios) { return n + " " + (n === 1 ? um : varios); }
 
 function variacao(valor, referencia, sufixo) {
     if (!referencia) return "sem comparação";
@@ -184,17 +187,19 @@ function extras(s) {
         tr.insertCell().textContent = reais(b.receita);
     }
 
-    texto("novos-resumo", s.novos.total + " cadastros · " + s.novos.voltaram + " voltaram (2 ou mais check-ins)");
+    texto("novos-resumo", plural(s.novos.total, "cadastro", "cadastros") + " · " +
+        plural(s.novos.voltaram, "voltou", "voltaram") + " (2 ou mais check-ins)");
     lista("novos", s.novos.por_categoria, (li, n) => {
-        li.textContent = n.categoria + ": " + n.total + " (" + n.voltaram + " voltaram)";
+        li.textContent = n.categoria + ": " + n.total + " (" + plural(n.voltaram, "voltou", "voltaram") + ")";
     });
 
-    texto("renovacoes-resumo", s.renovacoes.renovaram + " de " + s.renovacoes.venciam + " assinantes renovaram");
+    texto("renovacoes-resumo", "Renovaram: " + s.renovacoes.renovaram + " de " + s.renovacoes.venciam +
+        " que venciam no mês");
     lista("nao-renovaram", s.renovacoes.nao_renovaram, (li, r) =>
         comWhatsApp(li, r.nome + " — " + r.plano + ", venceu em " + r.vencimento, r.whatsapp));
 
     lista("inativos", s.inativos, (li, i) =>
-        comWhatsApp(li, i.nome + " — " + i.checkins + (i.checkins === 1 ? " check-in" : " check-ins") + " no mês anterior", i.whatsapp));
+        comWhatsApp(li, i.nome + " — " + plural(i.checkins, "check-in", "check-ins") + " no mês anterior", i.whatsapp));
 }
 
 function mostrar(i) {

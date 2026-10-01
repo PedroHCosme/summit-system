@@ -26,6 +26,7 @@ Mesmo motor e mesmo template do Resumo Semanal (`weekly_summary.html`, parametri
 - 12 Meses fechados navegaveis; comparativo com o Mes anterior e a media dos 3 anteriores
 - Mapa de calor do Mes inteiro (limite de destaque 5); o semanal usa so a Semana (limite 3)
 - Blocos so do Mes: evolucao semana a semana, membros novos, renovacoes, inativos
+- Limite conhecido: "Membros novos" usa `data_cadastro`; membros importados de planilha entram no mes da importacao (a legenda do bloco avisa)
 
 ### Relatorio Financeiro (`src/reports/finance_report.py`)
 
