@@ -33,6 +33,10 @@ _Avoid_: Agregador, parceiro, app
 Membro que treina sem gerar receita no sistema (Cortesia, Livre, Evento, Airbnb).
 _Avoid_: Cortesia (como nome do grupo; Cortesia e so um dos planos), gratuito
 
+**Arquivado**:
+Membro com mais de 90 dias sem check-in (quem nunca veio conta desde o cadastro), sem plano nem treino vigente e sem pagamento nesse prazo. Calculado na hora, nada e gravado: um check-in ou pagamento novo desarquiva. Sai dos relatorios de Membros, Financeiro e Frequencia e das listas de contato dos Resumos; a receita nao muda.
+_Avoid_: Inativo (e o status por frequencia, de 14 a 45 dias), excluido
+
 ### Frequencia
 
 **Check-in**:

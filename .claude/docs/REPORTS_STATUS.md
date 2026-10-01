@@ -119,6 +119,18 @@ Mesmo motor e mesmo template do Resumo Semanal (`weekly_summary.html`, parametri
 
 ---
 
+## Membros arquivados e legenda de classificacao
+
+Spec: `docs/superpowers/specs/2026-10-01-arquivar-membros-inativos-design.md`. Regra em `esta_arquivado` (`src/core/plan_status.py`); `ids_arquivados` (`src/reports/_common.py`) devolve os ids.
+
+- Arquivado = mais de 90 dias sem check-in, sem plano/treino vigente e sem pagamento nesse prazo. Calculado na hora, nada gravado.
+- Membros e Financeiro: fora de contagens, segmentos e filas, com rodape "Membros arquivados (fora destas contagens): N". No Financeiro a receita (incluindo o ranking por plano) continua completa.
+- Frequencia: fora de "membros em risco". Semanal: fora de Candidatos. Mensal: fora de Candidatos, Vencidos que vieram e Inativos. Numeros e Renovacoes nao mudam.
+- Membros e Financeiro ganharam a secao "Como classificamos os membros" (`legenda_segmentos()` em `analytics.py`, template `_legenda_membros.html`), montada das constantes de `plan_status.py`.
+- Limites: listas de contato de Periodos antigos perdem quem foi arquivado depois; `data_cadastro` de importados de planilha da 90 dias de folga a quem nunca fez check-in.
+
+---
+
 ## Problemas Transversais (afetam todos os relatorios)
 
 ### Dados

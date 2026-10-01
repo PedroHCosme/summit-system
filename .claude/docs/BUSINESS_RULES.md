@@ -90,6 +90,16 @@ Depende do tipo de plano:
 - E usado em **relatorios** e **metricas de negocio**
 - NAO e o que aparece na dashboard (la e status do plano)
 
+#### Arquivado (quarto estado, computado)
+
+Alem de ATIVO/INATIVO por frequencia, um membro esta **arquivado** quando todas as condicoes valem (`esta_arquivado` em `plan_status.py`, `DIAS_ARQUIVAR = 90`):
+
+- mais de 90 dias desde o ultimo check-in (sem check-in algum, conta desde `data_cadastro`);
+- nenhum plano ou treino vigente (`vencimento_plano` e `vencimento_treino` anteriores a hoje ou vazios);
+- nenhum pagamento nos ultimos 90 dias.
+
+Nada e gravado no banco: um check-in ou pagamento novo desarquiva. Membro arquivado nao aparece nos relatorios (ver 7.2).
+
 ### 2.3 Onde cada status aparece
 
 | Local | Mostra qual status |
@@ -168,6 +178,7 @@ Depende do tipo de plano:
 
 ### 7.2 Regra de filtragem
 - Membros com `estado_plano = 'PENDENTE'` NAO aparecem em nenhum relatorio
+- Membros **arquivados** (ver 2.2) saem dos relatorios de Membros, Financeiro e Frequencia e das listas de contato dos Resumos Semanal e Mensal. A receita (caixa, DRE, extrato, ranking por plano) nao muda: o arquivado so sai das contagens de membros.
 - Relatorios devem usar os dois conceitos de status (plano e membro)
 
 ### 7.3 Tipos de relatorio
