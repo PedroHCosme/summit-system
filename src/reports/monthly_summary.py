@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from src.core.plan_utils import ASSINANTE, CATEGORIAS, categoria_do_plano
 from src.data.db import create_session
+from src.reports._common import ids_arquivados
 from src.reports.weekly_summary import _carregar, _comparar, _kpis, _periodo, gerar_html
 from src.utils.utils import create_whatsapp_link
 
@@ -94,13 +95,13 @@ def _renovacoes(membros, pagamentos, ini: date, fim: date) -> dict:
     }
 
 
-def _inativos(membros, checkins, ini: date, fim: date, ini_anterior: date) -> list:
+def _inativos(membros, checkins, ini: date, fim: date, ini_anterior: date, arquivados=frozenset()) -> list:
     """Treinaram no Mes anterior e nao vieram neste."""
     vieram = {c[0] for c in checkins if ini <= c[1].date() < fim}
     anterior = Counter(c[0] for c in checkins if ini_anterior <= c[1].date() < ini)
     lista = [
         {"nome": membros[mid].nome, "checkins": n, "whatsapp": create_whatsapp_link(membros[mid].whatsapp or "")}
-        for mid, n in anterior.items() if mid not in vieram
+        for mid, n in anterior.items() if mid not in vieram and mid not in arquivados
     ]
     return sorted(lista, key=lambda i: (-i["checkins"], i["nome"]))
 
@@ -108,13 +109,16 @@ def _inativos(membros, checkins, ini: date, fim: date, ini_anterior: date) -> li
 def montar_meses(session: Session, hoje: date) -> list:
     """Os 12 ultimos Meses fechados, do mais recente [0] para o mais antigo."""
     membros, checkins, pagamentos = _carregar(session)
+    # arquivado (CONTEXT.md) so sai das listas de contato; numeros e Renovacoes nao mudam
+    arquivados = ids_arquivados(session, hoje)
     limites, ini = [], mes_fechado(hoje)
     # +3 Meses so para os comparativos do Mes mais antigo
     for _ in range(N_MESES + N_MEDIA_MESES):
         limites.append((ini, _proximo_mes(ini)))
         ini = _mes_anterior(ini)
     periodos = [
-        _periodo(i, f, f"{MESES[i.month - 1]}/{i.year}", hoje, membros, checkins, pagamentos, MIN_CELULA_MES)
+        _periodo(i, f, f"{MESES[i.month - 1]}/{i.year}", hoje, membros, checkins, pagamentos, MIN_CELULA_MES,
+                 arquivados)
         for i, f in limites
     ]
     meses = _comparar(periodos, N_MESES, N_MEDIA_MESES)
@@ -123,7 +127,7 @@ def montar_meses(session: Session, hoje: date) -> list:
             "evolucao": _evolucao(ini, fim, checkins, pagamentos),
             "novos": _novos(membros, checkins, ini, fim),
             "renovacoes": _renovacoes(membros, pagamentos, ini, fim),
-            "inativos": _inativos(membros, checkins, ini, fim, _mes_anterior(ini)),
+            "inativos": _inativos(membros, checkins, ini, fim, _mes_anterior(ini), arquivados),
         })
     return meses
 

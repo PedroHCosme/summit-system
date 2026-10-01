@@ -17,7 +17,7 @@ from src.core.plan_status import PENDENTE
 from src.core.plan_utils import ASSINANTE, CATEGORIAS, GYM_TOTALPASS, PACOTE, categoria_do_plano
 from src.data.db import create_session
 from src.data.models import Frequencia, Membro, Pagamento
-from src.reports._common import get_reports_dir, get_template_env
+from src.reports._common import get_reports_dir, get_template_env, ids_arquivados
 from src.utils.utils import create_whatsapp_link
 
 N_SEMANAS = 12
@@ -103,20 +103,20 @@ def _mapa_de_calor(no_periodo, min_celula: int):
     return {"calor": celulas, "destaques": frases}
 
 
-def _candidatos(membros, janela):
+def _candidatos(membros, janela, arquivados=frozenset()):
     contagem = Counter(c[0] for c in janela if c[2] == GYM_TOTALPASS)
     ultima_categoria = {c[0]: c[2] for c in janela}  # janela esta em ordem cronologica
     lista = [
         {"nome": membros[mid].nome, "checkins": n,
          "whatsapp": create_whatsapp_link(membros[mid].whatsapp or "")}
         for mid, n in contagem.items()
-        if n >= LIMIAR_CANDIDATO and ultima_categoria[mid] == GYM_TOTALPASS
+        if n >= LIMIAR_CANDIDATO and ultima_categoria[mid] == GYM_TOTALPASS and mid not in arquivados
     ]
     return sorted(lista, key=lambda c: (-c["checkins"], c["nome"]))
 
 
-def _vencidos(membros, no_periodo, hoje: date):
-    ids = {c[0] for c in no_periodo if c[2] == ASSINANTE}
+def _vencidos(membros, no_periodo, hoje: date, arquivados=frozenset()):
+    ids = {c[0] for c in no_periodo if c[2] == ASSINANTE and c[0] not in arquivados}
     vencidos = sorted(
         (m for m in (membros[i] for i in ids)
          if categoria_do_plano(m.plano) == ASSINANTE and m.vencimento_plano and m.vencimento_plano < hoje),
@@ -164,7 +164,7 @@ def _kpis(no_periodo, pag_periodo) -> dict:
 
 
 def _periodo(ini: date, fim: date, rotulo: str, hoje: date, membros, checkins, pagamentos,
-             min_celula: int) -> dict:
+             min_celula: int, arquivados=frozenset()) -> dict:
     """Numeros de [ini, fim): uma Semana ou um Mes."""
     janela = [c for c in checkins if fim - timedelta(days=JANELA_DIAS) <= c[1].date() < fim]
     no_periodo = [c for c in checkins if ini <= c[1].date() < fim]
@@ -190,8 +190,8 @@ def _periodo(ini: date, fim: date, rotulo: str, hoje: date, membros, checkins, p
         **_mapa_de_calor(no_periodo, min_celula),
         "conversoes": _nomes(membros, {c[0] for c in no_periodo if c[3] == GYM_TOTALPASS and c[2] in PAGANTES}),
         "perdas": _nomes(membros, {c[0] for c in no_periodo if c[3] in PAGANTES and c[2] == GYM_TOTALPASS}),
-        "candidatos": _candidatos(membros, janela),
-        "vencidos": _vencidos(membros, no_periodo, hoje),
+        "candidatos": _candidatos(membros, janela, arquivados),
+        "vencidos": _vencidos(membros, no_periodo, hoje, arquivados),
         "perfil": _perfil(membros, janela, ini),
     }
 
@@ -207,6 +207,8 @@ def _comparar(periodos: list, n: int, n_media: int) -> list:
 def montar_semanas(session: Session, hoje: date) -> list:
     """As 12 ultimas Semanas fechadas, da mais recente [0] para a mais antiga."""
     membros, checkins, pagamentos = _carregar(session)
+    # arquivado (CONTEXT.md) so sai das listas de contato; numeros nao mudam
+    arquivados = ids_arquivados(session, hoje)
     ultima = semana_fechada(hoje)
     periodos = []
     # +4 Semanas so para os comparativos da Semana mais antiga
@@ -214,7 +216,7 @@ def montar_semanas(session: Session, hoje: date) -> list:
         seg = ultima - timedelta(weeks=i)
         rotulo = f"{seg:%d/%m} – {seg + timedelta(days=5):%d/%m}"
         periodos.append(_periodo(seg, seg + timedelta(days=7), rotulo, hoje,
-                                 membros, checkins, pagamentos, MIN_CELULA_SEMANA))
+                                 membros, checkins, pagamentos, MIN_CELULA_SEMANA, arquivados))
     return _comparar(periodos, N_SEMANAS, N_MEDIA_SEMANAS)
 
 

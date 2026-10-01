@@ -113,6 +113,30 @@ def test_inativos(meses):
     assert inativos[0]["whatsapp"].startswith("https://wa.me/")
 
 
+def test_arquivado_sai_das_listas_de_contato(db_session):
+    s = db_session
+    zeca = _membro(s, "Zeca", "Mensal", cadastro=date(2026, 1, 5))    # sumiu em maio: arquivado
+    bento = _membro(s, "Bento", "Mensal", cadastro=date(2026, 1, 5))  # igual, mas pagou em setembro
+    _pagamento(s, bento, date(2026, 9, 20), date(2026, 10, 20))
+    for m in (zeca, bento):
+        for dia in (date(2026, 5, 3), date(2026, 5, 10)):
+            _checkin(s, m, dia)
+    ivo = _membro(s, "Ivo", "Mensal")      # veio em abril com plano vencido, depois sumiu: arquivado
+    jade = _membro(s, "Jade", "Mensal")    # igual, mas pagou em setembro
+    _pagamento(s, jade, date(2026, 9, 20), date(2026, 10, 20))
+    for m in (ivo, jade):
+        m.vencimento_plano = date(2026, 4, 1)
+        _checkin(s, m, date(2026, 4, 10))
+    s.flush()
+
+    meses = {m["rotulo"]: m for m in montar_meses(s, HOJE)}
+
+    inativos = {i["nome"] for i in meses["Junho/2026"]["inativos"]}
+    assert "Bento" in inativos and "Zeca" not in inativos
+    vencidos = {v["nome"] for v in meses["Abril/2026"]["vencidos"]}
+    assert "Jade" in vencidos and "Ivo" not in vencidos
+
+
 def test_gera_html_mensal(db_session, tmp_path, monkeypatch):
     monkeypatch.setattr("src.reports.weekly_summary.get_reports_dir", lambda: tmp_path)
     html = Path(generate_monthly_summary(db_session=db_session, hoje=HOJE)).read_text(encoding="utf-8")

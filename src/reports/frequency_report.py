@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from src.data.db import create_session
 from src.data.models import Frequencia, Membro
 from src.core.plan_status import PENDENTE
-from src.reports._common import get_reports_dir, get_template_env
+from src.reports._common import get_reports_dir, get_template_env, ids_arquivados
 
 def generate_frequency_report(
     db_session: Optional[Session] = None,
@@ -176,7 +176,7 @@ def generate_frequency_report(
         )
 
         at_risk_rows = (
-            db_session.query(Membro.nome, Membro.plano, Membro.whatsapp, ultimo_ci_sq.c.ultimo_checkin)
+            db_session.query(Membro.id, Membro.nome, Membro.plano, Membro.whatsapp, ultimo_ci_sq.c.ultimo_checkin)
             .outerjoin(ultimo_ci_sq, Membro.id == ultimo_ci_sq.c.member_id)
             .filter(
                 Membro.estado_plano == 'ATIVO',
@@ -186,6 +186,9 @@ def generate_frequency_report(
             .order_by(Membro.nome)
             .all()
         )
+        # arquivado (CONTEXT.md) nao e "em risco": ja saiu da base
+        arquivados = ids_arquivados(db_session)
+        at_risk_rows = [m for m in at_risk_rows if m.id not in arquivados]
 
         at_risk_members = []
         for m in at_risk_rows:

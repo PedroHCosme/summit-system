@@ -125,7 +125,9 @@ def test_mapa_de_calor_e_so_da_semana(semanas):
     assert 0 < celulas <= s["checkins"]  # com 4 Semanas no mapa, passaria de 3x o total
 
 
-from src.data.models import Membro
+from datetime import datetime
+
+from src.data.models import Frequencia, Membro, Pagamento
 from src.reports.weekly_summary import generate_weekly_summary
 
 
@@ -154,3 +156,24 @@ def test_nome_malicioso_nao_quebra_o_script(demo_session, tmp_path, monkeypatch,
     assert nome not in html
     # todo "<" do JSON embutido vira <: o JS decodifica igual, o parser de HTML nao ve tag nem comentario
     assert nome.replace("<", "\\u003c") in html
+
+
+def test_arquivado_sai_dos_candidatos(db_session):
+    def candidato(nome):
+        m = Membro(nome=nome, plano="Gympass", whatsapp="(31) 99999-0000")
+        db_session.add(m)
+        db_session.flush()
+        for dia in (16, 17, 18, 19, 20, 22, 23, 24):  # 8 check-ins Gym/Totalpass em junho
+            db_session.add(Frequencia(member_id=m.id, checkin_datetime=datetime(2026, 6, dia, 18), plano="Gympass"))
+        return m
+
+    candidato("Gil Sumido")
+    hana = candidato("Hana Pagou")
+    db_session.add(Pagamento(member_id=hana.id, data_pagamento=datetime(2026, 9, 1, 10),
+                             tipo_transacao="Gympass", valor=15.0))
+    db_session.flush()
+
+    semana = next(s for s in montar_semanas(db_session, HOJE) if s["rotulo"] == "06/07 – 11/07")
+
+    nomes = {c["nome"] for c in semana["candidatos"]}
+    assert "Hana Pagou" in nomes and "Gil Sumido" not in nomes
