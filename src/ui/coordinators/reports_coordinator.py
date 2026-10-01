@@ -95,6 +95,16 @@ class ReportsCoordinator:
         except Exception as e:
             show_error(self.window, "Não foi possível gerar o resumo semanal. Tente novamente.", detail=e)
 
+    def generate_monthly_summary(self):
+        if not self.window.is_connected:
+            return
+        try:
+            from src.reports.monthly_summary import generate_monthly_summary
+
+            webbrowser.open(f"file://{generate_monthly_summary()}")
+        except Exception as e:
+            show_error(self.window, "Não foi possível gerar o resumo mensal. Tente novamente.", detail=e)
+
     def offer_weekly_summary_on_monday(self):
         """Na primeira conexão de cada segunda-feira, oferece abrir o Resumo Semanal."""
         hoje = date.today()

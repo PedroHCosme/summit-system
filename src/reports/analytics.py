@@ -11,6 +11,7 @@ from sqlalchemy import and_, func
 from sqlalchemy.orm import Session
 
 from src.core.plan_status import (
+    DIAS_ARQUIVAR,
     LIMIAR_INATIVO_AVULSO,
     LIMIAR_INATIVO_PADRAO,
     LIMIAR_INATIVO_QUOTA,
@@ -23,6 +24,7 @@ from src.core.plan_status import (
     calcular_status_plano,
 )
 from src.data.models import Frequencia, Membro, Pagamento
+from src.reports._common import ids_arquivados
 from src.services.plan_service import PlanService
 
 
@@ -224,7 +226,9 @@ class ReportAnalyticsService:
             .all()
         )
 
-        features: List[MemberFeature] = []
+        arquivados = ids_arquivados(self.db_session)
+
+        todos: List[MemberFeature] = []
         for membro, ultimo_checkin, checkins_periodo, checkins_prev, receita_periodo in rows:
             plano_nome = membro.plano or "Sem Plano"
             plano_info = self.planos_dict.get(plano_nome, {})
@@ -272,7 +276,10 @@ class ReportAnalyticsService:
                 ),
                 is_pendente=False,
             )
-            features.append(feature)
+            todos.append(feature)
+
+        # arquivado (CONTEXT.md) sai das contagens, segmentos e filas; `todos` guarda a receita
+        features = [f for f in todos if f.member_id not in arquivados]
 
         p90 = percentile_nearest_rank([f.checkins_periodo for f in features], 0.9)
         for feature in features:
@@ -283,6 +290,8 @@ class ReportAnalyticsService:
 
         return {
             "member_features": features,
+            "todos_features": todos,
+            "arquivados": len(todos) - len(features),
             "p90_checkins": p90,
             "executive_summary": self._build_executive_summary(features),
             "segment_distribution": self._build_segment_distribution(features),
@@ -538,3 +547,24 @@ class ReportAnalyticsService:
             -feature.valor_mensal_estimado,
         )
 
+
+def legenda_segmentos() -> Dict[str, Any]:
+    """Texto da legenda 'Como classificamos os membros', montado das constantes de plan_status."""
+    def dias(extra: int) -> str:
+        return (f"{LIMIAR_INATIVO_PADRAO + extra} dias (mensal e similares), "
+                f"{LIMIAR_INATIVO_QUOTA + extra} (pacote) ou {LIMIAR_INATIVO_AVULSO + extra} (Gympass, Totalpass, diaria)")
+
+    return {
+        "intro": (f"Ativo = o ultimo check-in esta dentro do limite do plano: {LIMIAR_INATIVO_PADRAO} dias "
+                  f"(mensal e similares), {LIMIAR_INATIVO_QUOTA} (pacote, que tambem exige creditos) ou "
+                  f"{LIMIAR_INATIVO_AVULSO} (Gympass, Totalpass, diaria, cortesia)."),
+        "linhas": [
+            {"nome": "Muito ativo", "regra": "Dentro do limite do plano e entre os 10% que mais vieram no periodo (minimo 4 check-ins)."},
+            {"nome": "Estavel", "regra": "Dentro do limite do plano, com frequencia normal."},
+            {"nome": "Risco moderado", "regra": f"Passou do limite do plano sem check-in: mais de {dias(0)}. Pacote sem creditos tambem entra aqui."},
+            {"nome": "Risco alto", "regra": f"Sem check-in ha mais de {dias(14)}; ou plano vencido e mais de 14 dias sem check-in."},
+            {"nome": "Reativacao urgente", "regra": f"Sem check-in ha mais de {dias(30)}. Quem nunca fez check-in tambem entra aqui."},
+            {"nome": "Arquivado", "regra": (f"Mais de {DIAS_ARQUIVAR} dias sem check-in, sem plano vigente e sem pagamento no mesmo prazo. "
+                                            "Fica fora dos relatorios e volta sozinho com um check-in ou pagamento.")},
+        ],
+    }

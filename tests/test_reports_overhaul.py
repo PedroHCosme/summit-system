@@ -165,3 +165,35 @@ def test_members_and_finance_reports_render_new_contract(db_session):
     assert "Top fontes de receita" in finance_html
     assert "Menores fontes de receita" in finance_html
 
+
+
+def test_arquivado_sai_das_contagens_mas_fica_na_receita_por_plano(db_session):
+    _seed_plans(db_session)
+    sumido = _add_member(db_session, "Sumido", plano="Anual", venc_offset=-200)
+    ativo = _add_member(db_session, "Ativo Hoje", venc_offset=20)
+    _add_checkin(db_session, sumido.id, days_ago=120)
+    _add_checkin(db_session, ativo.id, days_ago=2)
+    _add_payment(db_session, sumido.id, 190.0, days_ago=100)
+    inicio = datetime.combine(date.today() - timedelta(days=150), time.min)
+    fim = datetime.combine(date.today(), time.max)
+
+    payload = ReportAnalyticsService(db_session).compute_member_features(inicio, fim)
+    assert "Sumido" not in {r["nome"] for r in payload["list_data"]}
+    assert payload["executive_summary"]["total_base"] == 1
+    assert payload["arquivados"] == 1
+    assert "Sumido" in {f.nome for f in payload["todos_features"]}
+
+    membros_html = Path(generate_members_report(
+        db_session=db_session, start_date=inicio, end_date=fim, period_label="Teste")).read_text(encoding="utf-8")
+    assert "Como classificamos os membros" in membros_html
+    assert "Membros arquivados (fora destas contagens): 1" in membros_html
+    assert "Sumido" not in membros_html
+
+    financeiro_html = Path(generate_finance_report(
+        period="Teste", start_date=inicio, end_date=fim,
+        payment_service=PaymentService(db_session=db_session),
+        member_service=MemberService(db_session=db_session),
+    )).read_text(encoding="utf-8")
+    assert "Como classificamos os membros" in financeiro_html
+    assert "Membros arquivados (fora destas contagens): 1" in financeiro_html
+    assert "Anual" in financeiro_html  # ranking por plano continua com a receita de quem arquivou

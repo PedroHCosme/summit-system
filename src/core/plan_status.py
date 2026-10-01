@@ -16,7 +16,7 @@ Regras de negócio (definidas pelo dono da academia):
     não estar frequentando (e portanto ser INATIVO por frequência).
 """
 
-from datetime import date
+from datetime import date, timedelta
 from typing import Optional
 
 
@@ -52,6 +52,9 @@ STATUS_MEMBRO_INATIVO = "INATIVO"
 LIMIAR_INATIVO_PADRAO = 14     # Mensal, Trimestral, Semestral, Anual, Escolinha, Mens. c/ Treino
 LIMIAR_INATIVO_AVULSO = 45    # Gympass, Totalpass, Diária, Cortesia
 LIMIAR_INATIVO_QUOTA = 30     # Planos quota (Pacote 10 etc)
+
+# Membro arquivado: sem check-in ha mais de 3 meses e sem plano vigente nem pagamento recente
+DIAS_ARQUIVAR = 90
 
 # Planos que usam o limiar longo (45 dias) — frequência irregular é normal
 PLANOS_LIMIAR_AVULSO = frozenset({
@@ -158,6 +161,35 @@ def calcular_status_membro(
 
     # Planos com vencimento (mensal, trimestral, etc): limiar curto
     return STATUS_MEMBRO_ATIVO if dias_sem_checkin <= LIMIAR_INATIVO_PADRAO else STATUS_MEMBRO_INATIVO
+
+
+def esta_arquivado(
+    ultimo_checkin,
+    ultimo_pagamento,
+    vencimento_plano,
+    vencimento_treino,
+    data_cadastro,
+    hoje: Optional[date] = None,
+) -> bool:
+    """
+    True se o membro nao deve aparecer nos relatorios (CONTEXT.md: Arquivado).
+
+    Arquivado = mais de DIAS_ARQUIVAR dias desde o ultimo check-in (quem nunca
+    veio conta desde o cadastro), sem plano/treino vigente e sem pagamento no
+    mesmo prazo. Calculado na hora, nada e gravado: um check-in desarquiva.
+    """
+    hoje = _coerce_to_date(hoje) or date.today()
+    for vencimento in (vencimento_plano, vencimento_treino):
+        venc = _coerce_to_date(vencimento)
+        if venc and venc >= hoje:
+            return False
+    limite = hoje - timedelta(days=DIAS_ARQUIVAR)
+    pagou = _coerce_to_date(ultimo_pagamento)
+    if pagou and pagou >= limite:
+        return False
+    referencia = _coerce_to_date(ultimo_checkin) or _coerce_to_date(data_cadastro)
+    # ponytail: sem check-in nem cadastro nao ha o que mostrar, entao arquiva
+    return referencia is None or referencia < limite
 
 
 # =============================================================================

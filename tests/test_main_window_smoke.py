@@ -49,6 +49,7 @@ def test_coordinators_instantiated(window):
     ("checkin_coordinator", "on_confirm_checkin_clicked"),
     ("checkin_coordinator", "on_checkin_search_by_name"),
     ("reports_coordinator", "load_financial_data"),
+    ("reports_coordinator", "generate_monthly_summary"),
     ("members_coordinator", "on_aniversariantes_search_clicked"),
 ])
 def test_coordinator_handlers_exist(window, coordinator, method):

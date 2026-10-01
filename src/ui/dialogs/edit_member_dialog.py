@@ -210,9 +210,16 @@ class EditMemberDialog(QDialog):
 
         self.apelido_input.setText(self.member_data.get('apelido', ''))
 
-        plano = self.member_data.get('plano', '')
-        if plano in self.plans_cache or self.plano_combo.findText(plano) >= 0:
+        plano = self.member_data.get('plano') or ''
+        if plano and self.plano_combo.findText(plano) < 0:
+            # plano inativo ou legado: mantem o valor real em vez de cair no primeiro item da lista
+            self.plano_combo.addItem(plano)
+        if plano:
             self.plano_combo.setCurrentText(plano)
+        else:
+            # sem plano: em branco, a validacao obriga a escolher antes de salvar
+            self.plano_combo.insertItem(0, "")
+            self.plano_combo.setCurrentIndex(0)
 
         vencimento_val = self.member_data.get('vencimento_plano')
         vencimento_dt = coerce_to_date(vencimento_val)

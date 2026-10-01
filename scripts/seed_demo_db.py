@@ -206,6 +206,9 @@ def gerar(destino: Path = DEMO_PATH) -> Path:
     checkin(m, FIM)
 
     checkins.sort(key=lambda c: c[1])
+    primeiro_checkin = {}  # data_cadastro do demo: dia do 1o check-in (sem check-in: INICIO); nao gasta o rng
+    for mid, dt, _ in checkins:
+        primeiro_checkin.setdefault(mid, dt.date())
 
     # --- Fase 1: esquema antigo (sem frequencia.plano), dados ate a migracao ---
     Base.metadata.create_all(create_engine(f"sqlite:///{destino}"))
@@ -219,7 +222,7 @@ def gerar(destino: Path = DEMO_PATH) -> Path:
         " data_cadastro, whatsapp, genero, voucher_credits) VALUES (?, ?, ?, ?, 'ATIVO', ?, ?, ?, ?, ?)",
         [(m["id"], m["nome"], plano_em(m, MIGRACAO),
           m["vencimento"].isoformat() if m["vencimento"] else None,
-          m["nasc"].isoformat(), INICIO.isoformat(), m["whatsapp"], m["genero"], m["creditos"])
+          m["nasc"].isoformat(), primeiro_checkin.get(m["id"], INICIO).isoformat(), m["whatsapp"], m["genero"], m["creditos"])
          for m in membros])
     con.executemany(
         "INSERT INTO pagamentos (member_id, data_pagamento, tipo_transacao, descricao, valor,"

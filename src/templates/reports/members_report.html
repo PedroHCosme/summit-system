@@ -264,6 +264,8 @@
 window.segmentChartData = {{ segment_chart_json | safe }};
 window.riskFunnelData = {{ risk_funnel_json | safe }};
 </script>
+
+{% include "_legenda_membros.html" %}
 {% endblock %}
 
 {% block scripts %}

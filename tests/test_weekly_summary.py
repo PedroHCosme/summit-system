@@ -32,6 +32,13 @@ def test_banco_simulado_tem_tipo_do_checkin_em_tudo(demo_db):
     assert sem_tipo == 0
 
 
+def test_banco_simulado_tem_membros_cadastrados_em_meses_diferentes(demo_db):
+    con = sqlite3.connect(demo_db)
+    meses = {linha[0] for linha in con.execute("SELECT DISTINCT substr(data_cadastro, 1, 7) FROM membros")}
+    con.close()
+    assert {"2026-06", "2026-08"} <= meses  # o demo precisa de Membros novos para o Resumo Mensal
+
+
 from datetime import date
 
 from sqlalchemy import create_engine
@@ -102,7 +109,7 @@ def test_valor_por_visita_e_fatia_gym_totalpass(semanas):
 def test_comparativos(semanas):
     s = semanas[0]
     assert s["anterior"]["checkins"] == semanas[1]["checkins"]
-    assert set(s["media4"]) == {"checkins", "pct_gt", "receita"}
+    assert set(s["media"]) == {"checkins", "pct_gt", "receita"}
 
 
 def test_mapa_de_calor_e_perfil(semanas):
@@ -112,7 +119,15 @@ def test_mapa_de_calor_e_perfil(semanas):
     assert sum(s["perfil"]["Gym/Totalpass"]["idade"].values()) > 0
 
 
-from src.data.models import Membro
+def test_mapa_de_calor_e_so_da_semana(semanas):
+    s = semanas[0]
+    celulas = sum(total for linha in s["calor"] for total, _ in linha)
+    assert 0 < celulas <= s["checkins"]  # com 4 Semanas no mapa, passaria de 3x o total
+
+
+from datetime import datetime
+
+from src.data.models import Frequencia, Membro, Pagamento
 from src.reports.weekly_summary import generate_weekly_summary
 
 
@@ -121,16 +136,44 @@ def test_gera_html_com_as_semanas_embutidas(demo_session, tmp_path, monkeypatch)
     html = Path(generate_weekly_summary(db_session=demo_session, hoje=HOJE)).read_text(encoding="utf-8")
     assert "<title>Resumo Semanal" in html
     assert '"rotulo": "21/09 – 26/09"' in html
+    assert '"mensal": false' in html
+    assert 'id="evolucao"' not in html  # blocos do Mes so aparecem no Resumo Mensal
 
 
-def test_nome_malicioso_nao_fecha_o_script(demo_session, tmp_path, monkeypatch):
+@pytest.mark.parametrize("nome", [
+    "</script><b>x",     # fecha o <script> antes da hora
+    "<!--<script>x",     # abre o modo "double escaped" do parser e o </script> real deixa de fechar
+])
+def test_nome_malicioso_nao_quebra_o_script(demo_session, tmp_path, monkeypatch, nome):
     monkeypatch.setattr("src.reports.weekly_summary.get_reports_dir", lambda: tmp_path)
     membro = demo_session.query(Membro).filter_by(nome="Davi Prado").one()
-    membro.nome = "</script><b>x"
+    membro.nome = nome
     demo_session.flush()
     try:
         html = Path(generate_weekly_summary(db_session=demo_session, hoje=HOJE)).read_text(encoding="utf-8")
     finally:
         demo_session.rollback()
-    assert "</script><b>x" not in html
-    assert "<\/script><b>x" in html
+    assert nome not in html
+    # todo "<" do JSON embutido vira <: o JS decodifica igual, o parser de HTML nao ve tag nem comentario
+    assert nome.replace("<", "\\u003c") in html
+
+
+def test_arquivado_sai_dos_candidatos(db_session):
+    def candidato(nome):
+        m = Membro(nome=nome, plano="Gympass", whatsapp="(31) 99999-0000")
+        db_session.add(m)
+        db_session.flush()
+        for dia in (16, 17, 18, 19, 20, 22, 23, 24):  # 8 check-ins Gym/Totalpass em junho
+            db_session.add(Frequencia(member_id=m.id, checkin_datetime=datetime(2026, 6, dia, 18), plano="Gympass"))
+        return m
+
+    candidato("Gil Sumido")
+    hana = candidato("Hana Pagou")
+    db_session.add(Pagamento(member_id=hana.id, data_pagamento=datetime(2026, 9, 1, 10),
+                             tipo_transacao="Gympass", valor=15.0))
+    db_session.flush()
+
+    semana = next(s for s in montar_semanas(db_session, HOJE) if s["rotulo"] == "06/07 – 11/07")
+
+    nomes = {c["nome"] for c in semana["candidatos"]}
+    assert "Hana Pagou" in nomes and "Gil Sumido" not in nomes

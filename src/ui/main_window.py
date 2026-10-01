@@ -123,6 +123,7 @@ class MainWindow(QMainWindow):
         self.sidebar.reports_members_clicked.connect(self.reports_coordinator.generate_members_report)
         self.sidebar.reports_financial_clicked.connect(self.reports_coordinator.generate_financial_report)
         self.sidebar.reports_weekly_clicked.connect(self.reports_coordinator.generate_weekly_summary)
+        self.sidebar.reports_monthly_clicked.connect(self.reports_coordinator.generate_monthly_summary)
         self.sidebar.reports_frequency_clicked.connect(self.reports_coordinator.generate_frequency_report)
 
         # === Bloco de Notas ===

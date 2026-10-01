@@ -19,6 +19,15 @@ Publico-alvo: dono da academia (unico consumidor).
 - Testado contra banco simulado: `python scripts/seed_demo_db.py` → `demo_database.db` (fora do git)
 - Limite: Perdas para Gym/Totalpass anteriores a migracao do Tipo do Check-in ficam invisiveis (ADR 0001)
 
+### Resumo Mensal (`src/reports/monthly_summary.py`)
+
+Mesmo motor e mesmo template do Resumo Semanal (`weekly_summary.html`, parametrizado por `termos`). Spec: `docs/superpowers/specs/2026-09-29-resumo-mensal-e-ajustes-design.md`.
+
+- 12 Meses fechados navegaveis; comparativo com o Mes anterior e a media dos 3 anteriores
+- Mapa de calor do Mes inteiro (limite de destaque 5); o semanal usa so a Semana (limite 3)
+- Blocos so do Mes: evolucao semana a semana, membros novos, renovacoes, inativos
+- Limite conhecido: "Membros novos" usa `data_cadastro`; membros importados de planilha entram no mes da importacao (a legenda do bloco avisa)
+
 ### Relatorio Financeiro (`src/reports/finance_report.py`)
 
 **Template**: `src/templates/reports/finance_report.html`
@@ -107,6 +116,20 @@ Publico-alvo: dono da academia (unico consumidor).
 - [x] Adicionar "ultimo check-in" na tabela de membros em risco — FEITO
 - [ ] Usar nova regra de status do membro (calcular_status_membro) na query de risco em vez de estado_plano == ATIVO
 - [ ] Unificar denominadores de porcentagem (top_members usa total/dias, weekday usa total/total_checkins)
+
+---
+
+## Membros arquivados e legenda de classificacao
+
+Spec: `docs/superpowers/specs/2026-10-01-arquivar-membros-inativos-design.md`. Regra em `esta_arquivado` (`src/core/plan_status.py`); `ids_arquivados` (`src/reports/_common.py`) devolve os ids.
+
+- Arquivado = mais de 90 dias sem check-in, sem plano/treino vigente e sem pagamento nesse prazo. Calculado na hora, nada gravado.
+- Membros e Financeiro: fora de contagens, segmentos e filas, com rodape "Membros arquivados (fora destas contagens): N". No Financeiro a receita (incluindo o ranking por plano) continua completa.
+- Frequencia: fora de "membros em risco". Semanal: fora de Candidatos. Mensal: fora de Candidatos, Vencidos que vieram e Inativos. Numeros e Renovacoes nao mudam.
+- Membros e Financeiro ganharam a secao "Como classificamos os membros" (`legenda_segmentos()` em `analytics.py`, template `_legenda_membros.html`), montada das constantes de `plan_status.py`.
+- Limite do Financeiro: em periodos com mais de 90 dias, quem pagou entao e hoje esta arquivado sai de "receita por segmento" e "receita em risco", que podem somar menos que a receita realizada (o ranking por plano, o DRE e o extrato ficam completos).
+- Pacote (quota) com creditos sobrando mas sem check-in nem pagamento ha 90 dias e arquivado (creditos nao protegem).
+- Limites: listas de contato de Periodos antigos perdem quem foi arquivado depois; `data_cadastro` de importados de planilha da 90 dias de folga a quem nunca fez check-in.
 
 ---
 

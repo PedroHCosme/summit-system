@@ -14,13 +14,16 @@
         .lista a { margin-left: 8px; }
         .vazio { color: var(--text-muted); font-style: italic; }
         .legenda { color: var(--text-muted); font-size: 0.85em; margin: 8px 0; }
+        .tabela { border-collapse: collapse; width: 100%; }
+        .tabela th, .tabela td { padding: 6px 12px; text-align: right; border-bottom: 1px solid #eee; }
+        .tabela th:first-child, .tabela td:first-child { text-align: left; }
 {% endblock %}
 
 {% block content %}
 <div class="nav-semana">
-    <button id="btn-antiga" title="Semana anterior">←</button>
+    <button id="btn-antiga" title="{{ termos.periodo }} anterior">←</button>
     <h2 id="rotulo"></h2>
-    <button id="btn-nova" title="Semana seguinte">→</button>
+    <button id="btn-nova" title="{{ termos.periodo }} seguinte">→</button>
 </div>
 
 <div class="stats-grid">
@@ -35,7 +38,7 @@
         <div class="label" id="d-pct"></div>
     </div>
     <div class="stat-card green">
-        <div class="label">Receita da Semana</div>
+        <div class="label">{{ termos.receita }}</div>
         <div class="value" id="k-receita"></div>
         <div class="label" id="d-receita"></div>
     </div>
@@ -47,12 +50,12 @@
 </div>
 
 <div class="section">
-    <h2>Check-ins por dia</h2>
+    <h2>{{ termos.por_dia }}</h2>
     <div class="chart-container"><canvas id="grafico-dias"></canvas></div>
 </div>
 
 <div class="section">
-    <h2>Lotação (últimas 4 semanas)</h2>
+    <h2>{{ termos.mapa }}</h2>
     <ul class="lista" id="destaques"></ul>
     <p class="legenda">Número = check-ins no horário. Quanto mais vermelho, maior a fatia Gym/Totalpass.</p>
     <div style="overflow-x: auto;"><table class="calor" id="calor"></table></div>
@@ -68,6 +71,33 @@
     <div class="section"><h2>Vieram e estão com plano vencido</h2><ul class="lista" id="vencidos"></ul></div>
 </div>
 
+{% if termos.mensal %}
+<div class="section">
+    <h2>Evolução semana a semana</h2>
+    <table class="tabela" id="evolucao"></table>
+</div>
+
+<div class="duas-colunas">
+    <div class="section">
+        <h2>Membros novos</h2>
+        <p class="legenda" id="novos-resumo"></p>
+        <p class="legenda">Conta pela data de cadastro: quem foi importado de planilha entra no mês da importação.</p>
+        <ul class="lista" id="novos"></ul>
+    </div>
+    <div class="section">
+        <h2>Renovações</h2>
+        <p class="legenda" id="renovacoes-resumo"></p>
+        <h3>Não renovaram</h3>
+        <ul class="lista" id="nao-renovaram"></ul>
+    </div>
+</div>
+
+<div class="section">
+    <h2>Inativos: treinaram no mês anterior e não vieram</h2>
+    <ul class="lista" id="inativos"></ul>
+</div>
+{% endif %}
+
 <div class="duas-colunas">
     <div class="section"><h2>Perfil por idade (%)</h2><div class="chart-container"><canvas id="grafico-idade"></canvas></div></div>
     <div class="section"><h2>Perfil por gênero (%)</h2><div class="chart-container"><canvas id="grafico-genero"></canvas></div></div>
@@ -77,7 +107,8 @@
 {% block scripts %}
 <script>
 const DADOS = {{ dados_json }};
-const S = DADOS.semanas;  // S[0] = Semana mais recente
+const S = DADOS.periodos;  // S[0] = periodo mais recente
+const T = DADOS.termos;
 const CORES = {"Assinante": "#6c5ce7", "Pacote": "#00b894", "Avulso": "#fdcb6e",
                "Gym/Totalpass": "#d63031", "Sem Receita": "#b2bec3", "Outros": "#636e72"};
 const reais = v => v.toLocaleString("pt-BR", {style: "currency", currency: "BRL"});
@@ -85,6 +116,8 @@ const graficos = {};
 let atual = 0;
 
 function texto(id, valor) { document.getElementById(id).textContent = valor; }
+
+function plural(n, um, varios) { return n + " " + (n === 1 ? um : varios); }
 
 function variacao(valor, referencia, sufixo) {
     if (!referencia) return "sem comparação";
@@ -99,7 +132,7 @@ function lista(id, itens, montar) {
     if (!itens.length) {
         const li = document.createElement("li");
         li.className = "vazio";
-        li.textContent = "Ninguém nesta semana";
+        li.textContent = T.vazio;
         ul.append(li);
         return;
     }
@@ -136,17 +169,50 @@ function perfil(s, chave, rotulos, id) {
                  options: {responsive: true, maintainAspectRatio: false}});
 }
 
+// Blocos so do Mes (Resumo Mensal)
+function extras(s) {
+    const tabela = document.getElementById("evolucao");
+    tabela.replaceChildren();
+    const cabecalho = tabela.insertRow();
+    for (const h of ["Semana", "Check-ins", "% Gym/Totalpass", "Receita"]) {
+        const th = document.createElement("th");
+        th.textContent = h;
+        cabecalho.append(th);
+    }
+    for (const b of s.evolucao) {
+        const tr = tabela.insertRow();
+        tr.insertCell().textContent = b.rotulo;
+        tr.insertCell().textContent = b.checkins;
+        tr.insertCell().textContent = b.pct_gt + "%";
+        tr.insertCell().textContent = reais(b.receita);
+    }
+
+    texto("novos-resumo", plural(s.novos.total, "cadastro", "cadastros") + " · " +
+        plural(s.novos.voltaram, "voltou", "voltaram") + " (2 ou mais check-ins)");
+    lista("novos", s.novos.por_categoria, (li, n) => {
+        li.textContent = n.categoria + ": " + n.total + " (" + plural(n.voltaram, "voltou", "voltaram") + ")";
+    });
+
+    texto("renovacoes-resumo", "Renovaram: " + s.renovacoes.renovaram + " de " + s.renovacoes.venciam +
+        " que venciam no mês");
+    lista("nao-renovaram", s.renovacoes.nao_renovaram, (li, r) =>
+        comWhatsApp(li, r.nome + " — " + r.plano + ", venceu em " + r.vencimento, r.whatsapp));
+
+    lista("inativos", s.inativos, (li, i) =>
+        comWhatsApp(li, i.nome + " — " + plural(i.checkins, "check-in", "check-ins") + " no mês anterior", i.whatsapp));
+}
+
 function mostrar(i) {
     atual = i;
     const s = S[i];
-    texto("rotulo", "Semana " + s.rotulo);
+    texto("rotulo", T.prefixo + s.rotulo);
     document.getElementById("btn-antiga").disabled = i === S.length - 1;
     document.getElementById("btn-nova").disabled = i === 0;
 
     texto("k-checkins", s.checkins);
-    texto("d-checkins", variacao(s.checkins, s.anterior.checkins, "vs anterior") + " · média 4 sem.: " + s.media4.checkins);
+    texto("d-checkins", variacao(s.checkins, s.anterior.checkins, "vs anterior") + " · " + T.media + ": " + s.media.checkins);
     texto("k-pct", s.pct_gt + "%");
-    texto("d-pct", "anterior: " + s.anterior.pct_gt + "% · média 4 sem.: " + s.media4.pct_gt + "%");
+    texto("d-pct", "anterior: " + s.anterior.pct_gt + "% · " + T.media + ": " + s.media.pct_gt + "%");
     texto("k-receita", reais(s.receita));
     texto("d-receita", variacao(s.receita, s.anterior.receita, "vs anterior"));
     texto("k-visita", reais(s.valor_visita_assinante) + " vs " + reais(s.valor_visita_gt));
@@ -191,6 +257,7 @@ function mostrar(i) {
     perfil(s, "idade", DADOS.faixas, "grafico-idade");
     const generos = [...new Set(["Gym/Totalpass", "Assinante"].flatMap(c => Object.keys(s.perfil[c].genero)))].sort();
     perfil(s, "genero", generos, "grafico-genero");
+    if (T.mensal) extras(s);
 }
 
 document.getElementById("btn-antiga").onclick = () => mostrar(atual + 1);
