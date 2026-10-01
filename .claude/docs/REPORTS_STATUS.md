@@ -127,6 +127,8 @@ Spec: `docs/superpowers/specs/2026-10-01-arquivar-membros-inativos-design.md`. R
 - Membros e Financeiro: fora de contagens, segmentos e filas, com rodape "Membros arquivados (fora destas contagens): N". No Financeiro a receita (incluindo o ranking por plano) continua completa.
 - Frequencia: fora de "membros em risco". Semanal: fora de Candidatos. Mensal: fora de Candidatos, Vencidos que vieram e Inativos. Numeros e Renovacoes nao mudam.
 - Membros e Financeiro ganharam a secao "Como classificamos os membros" (`legenda_segmentos()` em `analytics.py`, template `_legenda_membros.html`), montada das constantes de `plan_status.py`.
+- Limite do Financeiro: em periodos com mais de 90 dias, quem pagou entao e hoje esta arquivado sai de "receita por segmento" e "receita em risco", que podem somar menos que a receita realizada (o ranking por plano, o DRE e o extrato ficam completos).
+- Pacote (quota) com creditos sobrando mas sem check-in nem pagamento ha 90 dias e arquivado (creditos nao protegem).
 - Limites: listas de contato de Periodos antigos perdem quem foi arquivado depois; `data_cadastro` de importados de planilha da 90 dias de folga a quem nunca fez check-in.
 
 ---

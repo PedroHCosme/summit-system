@@ -561,9 +561,9 @@ def legenda_segmentos() -> Dict[str, Any]:
         "linhas": [
             {"nome": "Muito ativo", "regra": "Dentro do limite do plano e entre os 10% que mais vieram no periodo (minimo 4 check-ins)."},
             {"nome": "Estavel", "regra": "Dentro do limite do plano, com frequencia normal."},
-            {"nome": "Risco moderado", "regra": f"Passou do limite do plano sem check-in: mais de {dias(0)}."},
+            {"nome": "Risco moderado", "regra": f"Passou do limite do plano sem check-in: mais de {dias(0)}. Pacote sem creditos tambem entra aqui."},
             {"nome": "Risco alto", "regra": f"Sem check-in ha mais de {dias(14)}; ou plano vencido e mais de 14 dias sem check-in."},
-            {"nome": "Reativacao urgente", "regra": f"Sem check-in ha mais de {dias(30)}."},
+            {"nome": "Reativacao urgente", "regra": f"Sem check-in ha mais de {dias(30)}. Quem nunca fez check-in tambem entra aqui."},
             {"nome": "Arquivado", "regra": (f"Mais de {DIAS_ARQUIVAR} dias sem check-in, sem plano vigente e sem pagamento no mesmo prazo. "
                                             "Fica fora dos relatorios e volta sozinho com um check-in ou pagamento.")},
         ],

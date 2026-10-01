@@ -178,7 +178,7 @@ def esta_arquivado(
     veio conta desde o cadastro), sem plano/treino vigente e sem pagamento no
     mesmo prazo. Calculado na hora, nada e gravado: um check-in desarquiva.
     """
-    hoje = hoje or date.today()
+    hoje = _coerce_to_date(hoje) or date.today()
     for vencimento in (vencimento_plano, vencimento_treino):
         venc = _coerce_to_date(vencimento)
         if venc and venc >= hoje:

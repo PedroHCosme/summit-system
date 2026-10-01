@@ -46,6 +46,11 @@ def test_checkin_vale_mais_que_o_cadastro():
     assert _arquivado(ultimo_checkin=_dia(200), data_cadastro=HOJE - timedelta(days=5)) is True
 
 
+def test_hoje_pode_ser_datetime():
+    agora = datetime.combine(HOJE, time(9))
+    assert esta_arquivado(None, None, HOJE, None, None, hoje=agora) is False
+
+
 def test_sem_nenhuma_data_esta_arquivado():
     assert _arquivado() is True
 
