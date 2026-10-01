@@ -225,6 +225,8 @@
 window.segmentRevenueChartData = {{ segment_chart_json | safe }};
 window.riskRevenueChartData = {{ risk_vs_revenue_json | safe }};
 </script>
+
+{% include "_legenda_membros.html" %}
 {% endblock %}
 
 {% block scripts %}

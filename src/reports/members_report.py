@@ -16,6 +16,7 @@ from src.reports.analytics import (
     SEGMENTO_RISCO_ALTO,
     SEGMENTO_RISCO_MODERADO,
     ReportAnalyticsService,
+    legenda_segmentos,
     period_bounds,
 )
 
@@ -115,6 +116,8 @@ def generate_members_report(
             "clientes_muito_ativos": clientes_ativos,
             "segment_chart_json": segment_chart_json,
             "risk_funnel_json": risk_funnel_json,
+            "legenda": legenda_segmentos(),
+            "arquivados": retention["arquivados"],
         }
 
         env = get_template_env()

@@ -12,6 +12,7 @@ from src.reports.analytics import (
     SEGMENTO_REATIVACAO_URGENTE,
     SEGMENTO_RISCO_ALTO,
     ReportAnalyticsService,
+    legenda_segmentos,
     period_bounds,
     previous_period_bounds,
 )
@@ -228,7 +229,8 @@ def generate_finance_report(
             metodos_map[metodo] = metodos_map.get(metodo, 0.0) + float(tx.get("valor") or 0.0)
 
         planos_map: Dict[str, float] = {}
-        for feature in member_features:
+        # receita por plano usa todos os membros: arquivado so sai das contagens, nao do caixa
+        for feature in retention_current["todos_features"]:
             planos_map[feature.plano] = planos_map.get(feature.plano, 0.0) + feature.valor_receita_periodo
 
         total_receita_rank = max(summary.total_receita, 1.0)
@@ -349,6 +351,8 @@ def generate_finance_report(
             "transacoes": extrato_formatado,
             "segment_chart_json": segment_chart_json,
             "risk_vs_revenue_json": risk_vs_revenue_json,
+            "legenda": legenda_segmentos(),
+            "arquivados": retention_current["arquivados"],
         }
 
         env = get_template_env()
