@@ -138,14 +138,19 @@ def test_gera_html_com_as_semanas_embutidas(demo_session, tmp_path, monkeypatch)
     assert 'id="evolucao"' not in html  # blocos do Mes so aparecem no Resumo Mensal
 
 
-def test_nome_malicioso_nao_fecha_o_script(demo_session, tmp_path, monkeypatch):
+@pytest.mark.parametrize("nome", [
+    "</script><b>x",     # fecha o <script> antes da hora
+    "<!--<script>x",     # abre o modo "double escaped" do parser e o </script> real deixa de fechar
+])
+def test_nome_malicioso_nao_quebra_o_script(demo_session, tmp_path, monkeypatch, nome):
     monkeypatch.setattr("src.reports.weekly_summary.get_reports_dir", lambda: tmp_path)
     membro = demo_session.query(Membro).filter_by(nome="Davi Prado").one()
-    membro.nome = "</script><b>x"
+    membro.nome = nome
     demo_session.flush()
     try:
         html = Path(generate_weekly_summary(db_session=demo_session, hoje=HOJE)).read_text(encoding="utf-8")
     finally:
         demo_session.rollback()
-    assert "</script><b>x" not in html
-    assert "<\/script><b>x" in html
+    assert nome not in html
+    # todo "<" do JSON embutido vira <: o JS decodifica igual, o parser de HTML nao ve tag nem comentario
+    assert nome.replace("<", "\\u003c") in html

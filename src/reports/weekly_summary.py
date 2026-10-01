@@ -229,8 +229,8 @@ def gerar_html(periodos: list, *, title: str, subtitle: str, termos: dict, prefi
         termos=termos,
         generate_date=agora.strftime("%d/%m/%Y às %H:%M"),
         current_year=agora.year,
-        # "</" escapado: nomes vem do cadastro web e nao podem fechar o <script>
-        dados_json=json.dumps(dados, ensure_ascii=False).replace("</", "<\\/"),
+        # "<" escapado: nomes vem do cadastro web e nao podem fechar o <script> nem abrir "<!--"
+        dados_json=json.dumps(dados, ensure_ascii=False).replace("<", "\\u003c"),
     )
     caminho = get_reports_dir() / f"{prefixo}_{agora:%Y%m%d_%H%M%S}.html"
     caminho.write_text(html, encoding="utf-8")
