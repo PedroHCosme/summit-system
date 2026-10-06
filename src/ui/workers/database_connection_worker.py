@@ -1,6 +1,7 @@
 """Worker para conexão com banco de dados."""
 
 import os
+import traceback
 from PyQt6.QtCore import QThread, pyqtSignal
 
 from src.config import CREDENTIALS_PATH
@@ -17,37 +18,101 @@ class DatabaseConnectionWorker(QThread):
         """Inicializa o worker."""
         super().__init__()
     
+    def _run_migrations(self):
+        """Executa migrações do banco usando Alembic."""
+        try:
+            from alembic import command
+            from alembic.config import Config
+            from sqlalchemy import inspect
+
+            print("[DatabaseConnection] Executando migrações Alembic...")
+            self.status_updated.emit("Executando migrações do banco de dados (Alembic)...")
+
+            project_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+            alembic_ini_path = os.path.join(project_dir, "alembic.ini")
+
+            alembic_cfg = Config(alembic_ini_path)
+            alembic_cfg.set_main_option("script_location", os.path.join(project_dir, "alembic_migrations"))
+
+            # Banco novo: cria schema completo e stampa revisão inicial para que
+            # upgrade head só execute migrações incrementais (ex: phase4).
+            from src.data.db import get_engine, init_db
+            engine = get_engine()
+            inspector = inspect(engine)
+            existing_tables = inspector.get_table_names()
+
+            if "membros" not in existing_tables:
+                print("[DatabaseConnection] Banco novo detectado: criando schema base...")
+                init_db()
+
+            if "alembic_version" not in existing_tables:
+                print("[DatabaseConnection] Stampando revisão inicial...")
+                command.stamp(alembic_cfg, "b7156d140f0a")
+
+            print("[DatabaseConnection] Upgrading to head...")
+            command.upgrade(alembic_cfg, "head")
+
+            print("[DatabaseConnection] ✓ Migrações Alembic executadas com sucesso")
+            return True
+        except Exception as e:
+            print(f"[DatabaseConnection] ⚠ Erro nas migrações: {e}")
+            traceback.print_exc()
+            # Não bloqueia - continua mesmo com erro nas migrações
+            return False
+    
     def run(self):
         """Executa a conexão com a fonte de dados."""
         try:
+            print("[DatabaseConnection] Iniciando conexão...")
             from src.data.data_provider import USE_SQLITE, get_provider
             
             if USE_SQLITE:
+                print("[DatabaseConnection] Modo: SQLite")
                 self.status_updated.emit("Conectando ao banco de dados SQLite...")
+                
+                # IMPORTANTE: Rodar migrações ANTES de usar SQLAlchemy
+                # Isso garante que todas as colunas existem antes das queries
+                self._run_migrations()
+                
             else:
+                print("[DatabaseConnection] Modo: Google Sheets")
                 self.status_updated.emit("Verificando credenciais...")
                 
                 # Verifica credenciais
                 if not os.path.exists(CREDENTIALS_PATH):
-                    self.status_updated.emit("Erro: Arquivo de credenciais não encontrado.")
+                    msg = "Erro: Arquivo de credenciais não encontrado."
+                    print(f"[DatabaseConnection] {msg}")
+                    self.status_updated.emit(msg)
                     self.connection_completed.emit(False)
                     return
                 
                 self.status_updated.emit("Conectando ao Google Sheets...")
             
-            # Tenta inicializar o provider
+            # Tenta inicializar o provider (agora com banco migrado)
+            print("[DatabaseConnection] Inicializando provider...")
             provider = get_provider()
+            print(f"[DatabaseConnection] Provider criado: {type(provider).__name__}")
 
             if USE_SQLITE:
                 self.status_updated.emit("Verificando e atualizando planos expirados...")
-                # A instância do provider é o DatabaseManager
+                print("[DatabaseConnection] Atualizando planos expirados...")
                 updated_count = provider.update_expired_plans()
                 if updated_count > 0:
-                    self.status_updated.emit(f"{updated_count} plano(s) atualizado(s) para INATIVO.")
+                    from src.core.plan_status import INATIVO
+                    msg = f"{updated_count} plano(s) atualizado(s) para {INATIVO}."
+                    print(f"[DatabaseConnection] {msg}")
+                    self.status_updated.emit(msg)
             
+            print("[DatabaseConnection] ✓ Conexão estabelecida com sucesso!")
             self.status_updated.emit("Conexão estabelecida com sucesso!")
             self.connection_completed.emit(True)
             
         except Exception as e:
-            self.status_updated.emit(f"Erro na conexão: {e}")
+            error_msg = f"Erro na conexão: {e}"
+            print(f"[DatabaseConnection] ❌ {error_msg}")
+            print("[DatabaseConnection] Traceback completo:")
+            traceback.print_exc()
+            self.status_updated.emit(error_msg)
             self.connection_completed.emit(False)
+
+

@@ -1,0 +1,265 @@
+{% extends "base_report.html" %}
+
+{% block extra_css %}
+.stats-grid-secondary {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 15px;
+    margin-bottom: 24px;
+}
+.delta-positive { color: #00b894; font-weight: 600; }
+.delta-negative { color: #d63031; font-weight: 600; }
+{% endblock %}
+
+{% block content %}
+<div class="section">
+    <h2>Resumo Executivo</h2>
+    <div style="margin-bottom: 10px; color: var(--text-muted);">
+        Baseline: {{ comparison_previous_period.start_date }} a {{ comparison_previous_period.end_date }}
+    </div>
+    <div class="stats-grid-secondary">
+        <div class="stat-card blue">
+            <div class="label">Receita bruta</div>
+            <div class="value">R$ {{ "%.2f"|format(executive_summary.receita_bruta) }}</div>
+            <div class="{% if comparison_previous_period.delta_receita_pct >= 0 %}delta-positive{% else %}delta-negative{% endif %}">
+                {% if comparison_previous_period.delta_receita_pct >= 0 %}+{% endif %}{{ "%.1f"|format(comparison_previous_period.delta_receita_pct) }}%
+            </div>
+        </div>
+        <div class="stat-card green">
+            <div class="label">Ticket medio</div>
+            <div class="value">R$ {{ "%.2f"|format(executive_summary.ticket_medio) }}</div>
+            <div class="{% if comparison_previous_period.delta_ticket_pct >= 0 %}delta-positive{% else %}delta-negative{% endif %}">
+                {% if comparison_previous_period.delta_ticket_pct >= 0 %}+{% endif %}{{ "%.1f"|format(comparison_previous_period.delta_ticket_pct) }}%
+            </div>
+        </div>
+        <div class="stat-card orange">
+            <div class="label">Receita em risco</div>
+            <div class="value">R$ {{ "%.2f"|format(risk_revenue_metrics.receita_em_risco) }}</div>
+            <div class="{% if comparison_previous_period.delta_risk_revenue_pct <= 0 %}delta-positive{% else %}delta-negative{% endif %}">
+                {% if comparison_previous_period.delta_risk_revenue_pct >= 0 %}+{% endif %}{{ "%.1f"|format(comparison_previous_period.delta_risk_revenue_pct) }}%
+            </div>
+        </div>
+        <div class="stat-card purple">
+            <div class="label">Transacoes</div>
+            <div class="value">{{ executive_summary.total_transacoes }}</div>
+            <div class="{% if comparison_previous_period.delta_transacoes_pct >= 0 %}delta-positive{% else %}delta-negative{% endif %}">
+                {% if comparison_previous_period.delta_transacoes_pct >= 0 %}+{% endif %}{{ "%.1f"|format(comparison_previous_period.delta_transacoes_pct) }}%
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="section">
+    <h2>Diagnostico</h2>
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+        <div class="chart-container"><canvas id="segmentRevenueChart"></canvas></div>
+        <div class="chart-container"><canvas id="riskRevenueChart"></canvas></div>
+    </div>
+
+    <h3 style="margin-top:16px;">Concentracao de receita por segmento</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Segmento</th>
+                <th class="text-right">Receita</th>
+                <th class="text-right">Participacao</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in segment_revenue %}
+            <tr>
+                <td>{{ item.label }}</td>
+                <td class="text-right">R$ {{ "%.2f"|format(item.receita) }}</td>
+                <td class="text-right">{{ "%.1f"|format(item.pct_receita) }}%</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <h3 style="margin-top:16px;">DRE e reconciliacao</h3>
+    <table>
+        <tbody>
+            <tr>
+                <td><strong>(+) Receita Bruta</strong></td>
+                <td class="text-right">R$ {{ "%.2f"|format(executive_summary.receita_bruta) }}</td>
+            </tr>
+            <tr>
+                <td style="padding-left:30px;">Mensalidades / Renovações</td>
+                <td class="text-right">R$ {{ "%.2f"|format(dre.mensalidades) }}</td>
+            </tr>
+            <tr>
+                <td style="padding-left:30px;">Treino</td>
+                <td class="text-right">R$ {{ "%.2f"|format(dre.treino) }}</td>
+            </tr>
+            <tr>
+                <td style="padding-left:30px;">Avulsos / Per-checkin</td>
+                <td class="text-right">R$ {{ "%.2f"|format(dre.avulsos) }}</td>
+            </tr>
+            <tr class="total-row">
+                <td><strong>Diferenca reconciliacao</strong></td>
+                <td class="text-right {% if auditoria.balanceado %}positive{% else %}negative{% endif %}">
+                    R$ {{ "%.2f"|format(auditoria.diferenca) }}
+                </td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<div class="section">
+    <h2>Acoes Recomendadas</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Acao</th>
+                <th>Descricao</th>
+                <th>Impacto</th>
+                <th>Esforco</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for rec in retention_recommendations %}
+            <tr>
+                <td><strong>{{ rec.titulo }}</strong></td>
+                <td>{{ rec.descricao }}</td>
+                <td>{{ rec.impacto|upper }}</td>
+                <td>{{ rec.esforco|upper }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <h3 style="margin-top: 18px;">Receita em risco e recuperavel</h3>
+    <table>
+        <tbody>
+            <tr>
+                <td>Receita realizada no periodo</td>
+                <td class="text-right">R$ {{ "%.2f"|format(risk_revenue_metrics.receita_realizada) }}</td>
+            </tr>
+            <tr>
+                <td>Receita em risco (risco alto + reativacao urgente)</td>
+                <td class="text-right negative">R$ {{ "%.2f"|format(risk_revenue_metrics.receita_em_risco) }}</td>
+            </tr>
+            <tr>
+                <td>Receita recuperavel estimada</td>
+                <td class="text-right positive">R$ {{ "%.2f"|format(risk_revenue_metrics.receita_recuperavel) }}</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<div class="section">
+    <h2>Listas Operacionais</h2>
+    <h3>Top fontes de receita</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Categoria</th>
+                <th>Fonte</th>
+                <th class="text-right">Valor</th>
+                <th class="text-right">Contribuicao</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in top_fontes_receita %}
+            <tr>
+                <td>{{ row.categoria }}</td>
+                <td><strong>{{ row.nome }}</strong></td>
+                <td class="text-right">R$ {{ "%.2f"|format(row.valor) }}</td>
+                <td class="text-right">{{ "%.1f"|format(row.pct) }}%</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <h3 style="margin-top:18px;">Menores fontes de receita</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Categoria</th>
+                <th>Fonte</th>
+                <th class="text-right">Valor</th>
+                <th class="text-right">Contribuicao</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in menores_fontes_receita %}
+            <tr>
+                <td>{{ row.categoria }}</td>
+                <td><strong>{{ row.nome }}</strong></td>
+                <td class="text-right">R$ {{ "%.2f"|format(row.valor) }}</td>
+                <td class="text-right">{{ "%.1f"|format(row.pct) }}%</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <h3 style="margin-top:18px;">Extrato de pagamentos</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Data</th>
+                <th>Membro</th>
+                <th>Tipo</th>
+                <th>Metodo</th>
+                <th class="text-right">Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for tx in transacoes %}
+            <tr>
+                <td>{{ tx.data }}</td>
+                <td>{{ tx.membro }}</td>
+                <td>{{ tx.plano }}</td>
+                <td>{{ tx.metodo }}</td>
+                <td class="text-right">R$ {{ "%.2f"|format(tx.total) }}</td>
+            </tr>
+            {% endfor %}
+            {% if not transacoes %}
+            <tr><td colspan="5" class="text-center">Nenhuma transacao no periodo.</td></tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+
+<script>
+window.segmentRevenueChartData = {{ segment_chart_json | safe }};
+window.riskRevenueChartData = {{ risk_vs_revenue_json | safe }};
+</script>
+
+{% include "_legenda_membros.html" %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const segCtx = document.getElementById('segmentRevenueChart').getContext('2d');
+    new Chart(segCtx, {
+        type: 'bar',
+        data: {
+            labels: window.segmentRevenueChartData.labels,
+            datasets: [{
+                label: 'Receita (R$)',
+                data: window.segmentRevenueChartData.values,
+                backgroundColor: ['#d63031', '#e17055', '#fdcb6e', '#00b894', '#6c5ce7']
+            }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+    });
+
+    const riskCtx = document.getElementById('riskRevenueChart').getContext('2d');
+    new Chart(riskCtx, {
+        type: 'bar',
+        data: {
+            labels: window.riskRevenueChartData.labels,
+            datasets: [{
+                label: 'Valor (R$)',
+                data: window.riskRevenueChartData.values,
+                backgroundColor: ['#00b894', '#d63031', '#fdcb6e']
+            }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+    });
+});
+</script>
+{% endblock %}
+

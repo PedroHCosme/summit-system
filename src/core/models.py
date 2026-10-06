@@ -2,8 +2,10 @@
 Modelo de dados para Pessoa/Membro.
 Implementa conceitos de OOP: Encapsulamento, Properties, Métodos de classe.
 """
-from datetime import datetime
+from datetime import datetime, date
 from typing import Optional
+
+from src.utils.date_utils import coerce_to_date, format_display_date, parse_date
 
 
 class Pessoa:
@@ -17,17 +19,21 @@ class Pessoa:
         plano (str): Plano contratado
     """
     
+
     def __init__(
         self, 
         nome: str, 
         data_nascimento: Optional[datetime],
         whatsapp: str = "",
         plano: str = "N/A",
-        vencimento_plano: str = "",
+        vencimento_plano: Optional[date] = None,
         estado_plano: str = "",
         genero: str = "",
         frequencia: str = "",
-        calcado: str = ""
+        calcado: str = "",
+        apelido: str = "",
+        profissao: str = "",
+        contato_emergencia: str = ""
     ):
         """
         Inicializa uma Pessoa.
@@ -38,20 +44,26 @@ class Pessoa:
             whatsapp: Número de WhatsApp (opcional)
             plano: Plano contratado (opcional)
             vencimento_plano: Data de vencimento do plano (opcional)
-            estado_plano: Estado do plano (Ativo/Inativo) (opcional)
+            estado_plano: Estado do plano — ver src/core/plan_status.py (ATIVO/INATIVO)
             genero: Gênero do membro (opcional)
             frequencia: Frequência de treinos (opcional)
             calcado: Numeração de calçado (opcional)
+            apelido: Apelido do membro (opcional)
+            profissao: Profissão do membro (opcional)
+            contato_emergencia: Contato de emergência (opcional)
         """
         self._nome = nome.strip()
         self._data_nascimento = data_nascimento
         self._whatsapp = whatsapp.strip()
         self._plano = plano.strip()
-        self._vencimento_plano = vencimento_plano.strip()
+        self._vencimento_plano = coerce_to_date(vencimento_plano)
         self._estado_plano = estado_plano.strip()
         self._genero = genero.strip()
         self._frequencia = frequencia.strip()
         self._calcado = calcado.strip()
+        self._apelido = apelido.strip()
+        self._profissao = profissao.strip()
+        self._contato_emergencia = contato_emergencia.strip()
     
     # --- Getters (Properties) ---
     
@@ -76,7 +88,7 @@ class Pessoa:
         return self._plano
     
     @property
-    def vencimento_plano(self) -> str:
+    def vencimento_plano(self) -> Optional[date]:
         """Retorna o vencimento do plano."""
         return self._vencimento_plano
 
@@ -99,6 +111,21 @@ class Pessoa:
     def calcado(self) -> str:
         """Retorna a numeração do calçado."""
         return self._calcado
+
+    @property
+    def apelido(self) -> str:
+        """Retorna o apelido."""
+        return self._apelido
+
+    @property
+    def profissao(self) -> str:
+        """Retorna a profissão."""
+        return self._profissao
+
+    @property
+    def contato_emergencia(self) -> str:
+        """Retorna o contato de emergência."""
+        return self._contato_emergencia
 
     @property
     def idade(self) -> Optional[int]:
@@ -150,9 +177,9 @@ class Pessoa:
         self._plano = valor.strip()
 
     @vencimento_plano.setter
-    def vencimento_plano(self, valor: str):
+    def vencimento_plano(self, valor):
         """Define um novo vencimento de plano."""
-        self._vencimento_plano = valor.strip()
+        self._vencimento_plano = coerce_to_date(valor)
 
     @estado_plano.setter
     def estado_plano(self, valor: str):
@@ -173,6 +200,21 @@ class Pessoa:
     def calcado(self, valor: str):
         """Define uma nova numeração de calçado."""
         self._calcado = valor.strip()
+
+    @apelido.setter
+    def apelido(self, valor: str):
+        """Define um novo apelido."""
+        self._apelido = valor.strip()
+
+    @profissao.setter
+    def profissao(self, valor: str):
+        """Define uma nova profissão."""
+        self._profissao = valor.strip()
+
+    @contato_emergencia.setter
+    def contato_emergencia(self, valor: str):
+        """Define um novo contato de emergência."""
+        self._contato_emergencia = valor.strip()
     
     # --- Métodos de Negócio ---
     
@@ -278,14 +320,17 @@ class Pessoa:
             'idade': self.idade,
             'whatsapp': self._whatsapp,
             'plano': self._plano,
-            'vencimento_plano': self._vencimento_plano,
+            'vencimento_plano': format_display_date(self._vencimento_plano) if self._vencimento_plano else '',
             'estado_plano': self._estado_plano,
             'genero': self._genero,
             'frequencia': self._frequencia,
             'calcado': self._calcado,
             'dia_aniversario': self.dia_aniversario,
             'mes_aniversario': self.mes_aniversario,
-            'dias_ate_aniversario': dias_ate if dias_ate is not None else float('inf')
+            'dias_ate_aniversario': dias_ate if dias_ate is not None else float('inf'),
+            'apelido': self._apelido,
+            'profissao': self._profissao,
+            'contato_emergencia': self._contato_emergencia
         }
     
     @classmethod
@@ -300,16 +345,14 @@ class Pessoa:
             Instância de Pessoa ou None se dados inválidos
         """
         try:
-            # Tenta parsear a data em diferentes formatos
+            # Tenta parsear a data de nascimento
             data_str = dados.get('data_nascimento', '')
             data_nascimento = None
             
-            for formato in ('%d/%m/%Y', '%d-%m-%Y', '%Y-%m-%d'):
-                try:
-                    data_nascimento = datetime.strptime(data_str, formato)
-                    break
-                except ValueError:
-                    continue
+            if isinstance(data_str, (datetime, date)):
+                data_nascimento = data_str if isinstance(data_str, datetime) else datetime.combine(data_str, datetime.min.time())
+            elif isinstance(data_str, str) and data_str:
+                data_nascimento = parse_date(data_str)
             
             if not data_nascimento:
                 return None
@@ -319,11 +362,14 @@ class Pessoa:
                 data_nascimento=data_nascimento,
                 whatsapp=dados.get('whatsapp', ''),
                 plano=dados.get('plano', 'N/A'),
-                vencimento_plano=dados.get('vencimento_plano', ''),
+                vencimento_plano=coerce_to_date(dados.get('vencimento_plano')),
                 estado_plano=dados.get('estado_plano', ''),
                 genero=dados.get('genero', ''),
                 frequencia=dados.get('frequencia', ''),
-                calcado=dados.get('calcado', '')
+                calcado=dados.get('calcado', ''),
+                apelido=dados.get('apelido', ''),
+                profissao=dados.get('profissao', ''),
+                contato_emergencia=dados.get('contato_emergencia', '')
             )
         except Exception:
             return None

@@ -28,3 +28,22 @@ env/
 # Arquivos de sistema operacional
 .DS_Store
 Thumbs.db
+*.db
+*.db-shm
+*.db-wal
+
+relatorios/*.html
+
+# Logs e Backups
+logs/
+*.log
+backups/
+
+# Mídia e Uploads
+media/
+uploads/
+fotos_alunos/
+
+# Arquivos de configuração local
+config_local.py
+.claude/settings.local.json.web_secret_key

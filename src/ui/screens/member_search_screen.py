@@ -7,13 +7,17 @@ from PyQt6.QtWidgets import (
     QLineEdit, QPushButton, QListWidget, QListWidgetItem,
     QTextBrowser, QTabWidget
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSignal
 
 from src.config import PLANOS_COM_VENCIMENTO
 
 
 class MemberSearchScreen(QWidget):
     """Tela de busca de membros."""
+
+    whatsapp_requested = pyqtSignal()
+    quick_payment_requested = pyqtSignal()
+    history_requested = pyqtSignal()
     
     def __init__(self):
         super().__init__()
@@ -26,21 +30,19 @@ class MemberSearchScreen(QWidget):
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(15)
         
-        # Título
         title_label = QLabel("Buscar Membro")
-        title_label.setObjectName("title")
+        title_label.setObjectName("pageTitle")
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title_label)
         
-        # Informação do mês atual
         from src.utils.utils import get_current_sheet_name
         mes_atual = get_current_sheet_name()
         self.mes_label = QLabel(f"Consultando aba: {mes_atual}")
+        self.mes_label.setObjectName("pageSubtitle")
         self.mes_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.mes_label.setStyleSheet("font-size: 14px; color: #555555;")
+        self.mes_label.setStyleSheet("font-size: 13px; color: #718096;")
         layout.addWidget(self.mes_label)
         
-        # Campo de busca
         search_layout = QHBoxLayout()
         
         self.name_input = QLineEdit()
@@ -48,20 +50,19 @@ class MemberSearchScreen(QWidget):
         search_layout.addWidget(self.name_input)
         
         self.search_button = QPushButton("Buscar")
+        self.search_button.setProperty("role", "primary")
         search_layout.addWidget(self.search_button)
         
         layout.addLayout(search_layout)
         
-        # Container com duas colunas: lista de resultados e detalhes
         results_layout = QHBoxLayout()
         
-        # Coluna esquerda: Lista de resultados
         left_container = QWidget()
         left_layout = QVBoxLayout(left_container)
         left_layout.setContentsMargins(0, 0, 0, 0)
         
         results_label = QLabel("Resultados:")
-        results_label.setStyleSheet("color: #007ACC; font-weight: bold; font-size: 14px;")
+        results_label.setStyleSheet("color: #1a2540; font-weight: bold; font-size: 14px;")
         left_layout.addWidget(results_label)
         
         self.results_list = QListWidget()
@@ -81,7 +82,7 @@ class MemberSearchScreen(QWidget):
                 background-color: #F0F0F0;
             }
             QListWidget::item:selected {
-                background-color: #007ACC;
+                background-color: #E67E22;
                 color: white;
             }
         """)
@@ -89,17 +90,14 @@ class MemberSearchScreen(QWidget):
         
         results_layout.addWidget(left_container, 1)
         
-        # Coluna direita: Detalhes do membro com abas
         right_container = QWidget()
         right_layout = QVBoxLayout(right_container)
         right_layout.setContentsMargins(0, 0, 0, 0)
         
-        # Header com título apenas
         details_label = QLabel("Detalhes:")
-        details_label.setStyleSheet("color: #007ACC; font-weight: bold; font-size: 14px;")
+        details_label.setStyleSheet("color: #1a2540; font-weight: bold; font-size: 14px;")
         right_layout.addWidget(details_label)
         
-        # Tab Widget para Informações e Histórico
         self.member_tabs = QTabWidget()
         self.member_tabs.setStyleSheet("""
             QTabWidget::pane {
@@ -113,7 +111,7 @@ class MemberSearchScreen(QWidget):
                 margin-right: 2px;
             }
             QTabBar::tab:selected {
-                background: #007ACC;
+                background: #E67E22;
                 color: white;
             }
             QTabBar::tab:hover {
@@ -121,7 +119,6 @@ class MemberSearchScreen(QWidget):
             }
         """)
         
-        # Aba 1: Informações do Membro com botão de editar
         info_tab_container = QWidget()
         info_tab_layout = QVBoxLayout(info_tab_container)
         info_tab_layout.setContentsMargins(0, 0, 0, 0)
@@ -132,42 +129,70 @@ class MemberSearchScreen(QWidget):
         self.member_result_browser.setHtml(self._get_initial_message())
         info_tab_layout.addWidget(self.member_result_browser)
         
-        # Botão de editar no canto inferior direito
         button_container = QWidget()
         button_layout = QHBoxLayout(button_container)
         button_layout.setContentsMargins(10, 10, 10, 10)
         button_layout.addStretch()
         
+        self.delete_button = QPushButton("🗑️ Deletar")
+        self.delete_button.setProperty("role", "danger")
+        self.delete_button.setFixedWidth(120)
+        self.delete_button.setFixedHeight(35)
+        self.delete_button.setVisible(False)
+        button_layout.addWidget(self.delete_button)
+        
+        self.renew_button = QPushButton("🔄 Renovar Plano")
+        self.renew_button.setProperty("role", "secondary")
+        self.renew_button.setFixedWidth(150)
+        self.renew_button.setFixedHeight(35)
+        self.renew_button.setVisible(False)
+        button_layout.addWidget(self.renew_button)
+
+        self.quick_payment_button = QPushButton("💵 Registrar Pagamento")
+        self.quick_payment_button.setProperty("role", "secondary")
+        self.quick_payment_button.setFixedWidth(180)
+        self.quick_payment_button.setFixedHeight(35)
+        self.quick_payment_button.clicked.connect(self.quick_payment_requested.emit)
+        self.quick_payment_button.setVisible(False)
+        button_layout.addWidget(self.quick_payment_button)
+
+        self.whatsapp_button = QPushButton("💬 WhatsApp")
+        self.whatsapp_button.setProperty("role", "secondary")
+        self.whatsapp_button.setFixedWidth(130)
+        self.whatsapp_button.setFixedHeight(35)
+        self.whatsapp_button.clicked.connect(self.whatsapp_requested.emit)
+        self.whatsapp_button.setVisible(False)
+        button_layout.addWidget(self.whatsapp_button)
+
+        self.history_button = QPushButton("📜 Histórico")
+        self.history_button.setProperty("role", "secondary")
+        self.history_button.setFixedWidth(120)
+        self.history_button.setFixedHeight(35)
+        self.history_button.clicked.connect(self._open_history_tab)
+        self.history_button.setVisible(False)
+        button_layout.addWidget(self.history_button)
+        
         self.edit_button = QPushButton("✏️ Editar")
+        self.edit_button.setProperty("role", "secondary")
         self.edit_button.setFixedWidth(120)
         self.edit_button.setFixedHeight(35)
-        self.edit_button.setStyleSheet("""
-            QPushButton {
-                background-color: #007ACC;
-                color: white;
-                font-weight: bold;
-                border: none;
-                border-radius: 4px;
-                padding: 8px;
-                font-size: 14px;
-            }
-            QPushButton:hover {
-                background-color: #005FA3;
-            }
-        """)
-        self.edit_button.setVisible(False)  # Escondido até que um membro seja selecionado
+        self.edit_button.setVisible(False)
         button_layout.addWidget(self.edit_button)
         
         info_tab_layout.addWidget(button_container)
         
         self.member_tabs.addTab(info_tab_container, "Informações")
         
-        # Aba 2: Histórico de Frequência
         self.member_history_browser = QTextBrowser()
         self.member_history_browser.setOpenExternalLinks(False)
         self.member_history_browser.setHtml("<p style='color: #888888;'>Selecione um membro para ver o histórico.</p>")
         self.member_history_browser.anchorClicked.connect(self._on_history_link_clicked)
         self.member_tabs.addTab(self.member_history_browser, "Histórico de Frequência")
+        
+        self.member_financial_browser = QTextBrowser()
+        self.member_financial_browser.setOpenExternalLinks(False)
+        self.member_financial_browser.setHtml("<p style='color: #888888;'>Selecione um membro para ver o histórico financeiro.</p>")
+        self.member_tabs.addTab(self.member_financial_browser, "Histórico Financeiro")
         
         right_layout.addWidget(self.member_tabs)
         
@@ -180,7 +205,7 @@ class MemberSearchScreen(QWidget):
         return """
             <div style="text-align: center; padding: 40px;">
                 <h3 style="color: #007ACC;">Buscar Membro</h3>
-                <p style="color: #333333;">Digite o nome do membro e clique em buscar.</p>
+                <p style="color: #333333;">Digite nome ou sobrenome e clique em buscar para ver os detalhes.</p>
             </div>
         """
     
@@ -190,7 +215,12 @@ class MemberSearchScreen(QWidget):
         self.search_button.setEnabled(False)
         self.results_list.clear()
         self.member_result_browser.clear()
-        self.edit_button.setVisible(False)  # Esconde o botão durante a busca
+        self.edit_button.setVisible(False)
+        self.delete_button.setVisible(False)
+        self.renew_button.setVisible(False)
+        self.quick_payment_button.setVisible(False)
+        self.whatsapp_button.setVisible(False)
+        self.history_button.setVisible(False)
         self.current_member_data = None
     
     def set_ready_state(self):
@@ -203,47 +233,76 @@ class MemberSearchScreen(QWidget):
         self.member_result_browser.setHtml("""
             <div style="text-align: center; padding: 20px;">
                 <h3 style="color: #FF6B6B;">Nenhum membro encontrado</h3>
-                <p style="color: #555555;">Tente buscar com outros termos.</p>
+                <p style="color: #555555;">Não encontramos esse membro. Tente nome ou sobrenome.</p>
             </div>
         """)
         self.edit_button.setVisible(False)
+        self.delete_button.setVisible(False)
+        self.quick_payment_button.setVisible(False)
+        self.whatsapp_button.setVisible(False)
+        self.history_button.setVisible(False)
     
     def show_empty_search_warning(self):
         """Mostra aviso de busca vazia."""
         self.member_result_browser.setHtml("""
             <div style="text-align: center; padding: 20px;">
-                <p style="color: #FF6B6B;">Por favor, digite um nome para buscar.</p>
+                <p style="color: #FF6B6B;">Digite um nome para iniciar a busca.</p>
             </div>
         """)
         self.edit_button.setVisible(False)
+        self.delete_button.setVisible(False)
+        self.quick_payment_button.setVisible(False)
+        self.whatsapp_button.setVisible(False)
+        self.history_button.setVisible(False)
     
     def populate_results(self, results: list):
         """Popula a lista de resultados."""
         self.results_list.clear()
         for result in results:
-            item = QListWidgetItem(result['nome'])
+            nome = result.get('nome', '')
+            apelido = result.get('apelido', '')
+            display_text = f"{nome} ({apelido})" if apelido else nome
+            
+            item = QListWidgetItem(display_text)
             item.setData(Qt.ItemDataRole.UserRole, result.get('id', result.get('row_index', 0)))
             self.results_list.addItem(item)
         
         self.member_result_browser.setHtml(f"""
             <div style="text-align: center; padding: 20px;">
                 <h3 style="color: #007ACC;">{len(results)} resultado(s) encontrado(s)</h3>
-                <p style="color: #555555;">Clique em um nome na lista ao lado para ver os detalhes.</p>
+                <p style="color: #555555;">Clique em um nome na lista para abrir detalhes e ações rápidas.</p>
             </div>
         """)
         self.edit_button.setVisible(False)  # Esconde até selecionar um membro
+        self.delete_button.setVisible(False)
     
     def display_member_data(self, member_data: dict):
         """Exibe os dados do membro."""
         self.current_member_data = member_data  # Armazena os dados atuais
         html = self._format_member_data(member_data)
         self.member_result_browser.setHtml(html)
-        self.edit_button.setVisible(True)  # Mostra o botão de editar
+        self.edit_button.setVisible(True)  # Mostra os botões de ação
+        self.delete_button.setVisible(True)
+        self.quick_payment_button.setVisible(True)
+        self.whatsapp_button.setVisible(True)
+        self.history_button.setVisible(True)
+        
+        # Mostrar botão de renovar apenas para planos renováveis
+        plano = member_data.get('plano', '')
+        from src.config import PLANOS_NAO_RENOVAVEIS
+        planos_nao_renovaveis = PLANOS_NAO_RENOVAVEIS
+        is_renewable = plano not in planos_nao_renovaveis and plano in PLANOS_COM_VENCIMENTO
+        self.renew_button.setVisible(is_renewable)
     
     def display_member_history(self, member_id: int, member_name: str, history: list):
         """Exibe o histórico do membro."""
         html = self._format_member_history(member_name, history)
         self.member_history_browser.setHtml(html)
+    
+    def display_member_financial_history(self, member_id: int, member_name: str, payments: list):
+        """Exibe o histórico financeiro do membro."""
+        html = self._format_member_financial_history(member_name, payments)
+        self.member_financial_browser.setHtml(html)
     
     def show_error(self):
         """Mostra mensagem de erro."""
@@ -258,6 +317,16 @@ class MemberSearchScreen(QWidget):
             </div>
         """)
         self.edit_button.setVisible(False)
+        self.delete_button.setVisible(False)
+        self.renew_button.setVisible(False)
+        self.quick_payment_button.setVisible(False)
+        self.whatsapp_button.setVisible(False)
+        self.history_button.setVisible(False)
+
+    def _open_history_tab(self):
+        """Abre a aba de histórico de frequência no atalho rápido."""
+        self.member_tabs.setCurrentIndex(1)
+        self.history_requested.emit()
     
     def open_edit_dialog(self):
         """Abre o diálogo de edição do membro atual."""
@@ -269,6 +338,20 @@ class MemberSearchScreen(QWidget):
         dialog = EditMemberDialog(self.current_member_data, self)
         
         # Quando o membro for atualizado, o sinal será emitido
+        # A conexão desse sinal será feita no controller
+        
+        dialog.exec()
+    
+    def open_renew_dialog(self):
+        """Abre o diálogo de renovação do plano."""
+        if not self.current_member_data:
+            return
+        
+        from src.ui.dialogs.renew_plan_dialog import RenewPlanDialog
+        
+        dialog = RenewPlanDialog(self.current_member_data, self)
+        
+        # Quando o plano for renovado, o sinal será emitido
         # A conexão desse sinal será feita no controller
         
         dialog.exec()
@@ -285,6 +368,10 @@ class MemberSearchScreen(QWidget):
             # Emite um sinal ou chama diretamente o controller
             # Por enquanto, vamos armazenar o ID para ser tratado externamente
             self.request_delete_checkin(checkin_id)
+        # Verifica se é um link de editar
+        elif url_str.startswith("edit:"):
+            checkin_id = int(url_str.split(":")[1])
+            self.request_edit_checkin(checkin_id)
     
     def request_delete_checkin(self, checkin_id: int):
         """
@@ -294,82 +381,21 @@ class MemberSearchScreen(QWidget):
         # Placeholder - será conectado no main_window
         pass
     
+    def request_edit_checkin(self, checkin_id: int):
+        """
+        Solicita a edição de um check-in.
+        Este método será conectado ao controller na main_window.
+        """
+        # Placeholder - será conectado no main_window
+        pass
+    
     def _format_member_data(self, member_data: dict) -> str:
         """Formata os dados do membro em HTML."""
-        fields = [
-            ('nome', 'Nome'),
-            ('plano', 'Plano'),
-        ]
-        
-        plano = member_data.get('plano', '')
-        if plano in PLANOS_COM_VENCIMENTO:
-            fields.append(('vencimento_plano', 'Vencimento do Plano'))
-        
-        fields.extend([
-            ('estado_plano', 'Estado do Plano'),
-            ('data_nascimento', 'Data de Nascimento'),
-            ('whatsapp', 'WhatsApp'),
-            ('genero', 'Gênero'),
-            ('frequencia', 'Frequência'),
-            ('calcado', 'Calçado')
-        ])
-        
-        html = """
-            <div style="padding: 20px;">
-                <h2 style="color: #007ACC; text-align: center; margin-bottom: 20px;">Dados do Membro</h2>
-                <div style="background-color: #F8F8F8; border: 1px solid #DDDDDD; border-radius: 8px; padding: 15px;">
-        """
-        
-        for field_key, field_label in fields:
-            value = member_data.get(field_key, '')
-            if value:
-                if field_key == 'whatsapp' and value:
-                    digits = ''.join(filter(str.isdigit, value))
-                    if len(digits) == 11:
-                        whatsapp_link = f"https://wa.me/55{digits}"
-                        html += f"""
-                            <div style="margin-bottom: 10px;">
-                                <strong style="color: #333333;">{field_label}:</strong>
-                                <span style="color: #555555;"> {value}</span>
-                                <a href="{whatsapp_link}" style="color: #007ACC; margin-left: 10px;">[Abrir WhatsApp]</a>
-                            </div>
-                        """
-                    else:
-                        html += f"""
-                            <div style="margin-bottom: 10px;">
-                                <strong style="color: #333333;">{field_label}:</strong>
-                                <span style="color: #555555;"> {value}</span>
-                            </div>
-                        """
-                elif field_key == 'estado_plano':
-                    color = '#28a745' if value.upper() == 'ATIVO' else '#FF6B6B'
-                    html += f"""
-                        <div style="margin-bottom: 10px;">
-                            <strong style="color: #333333;">{field_label}:</strong>
-                            <span style="color: {color}; font-weight: bold;"> {value}</span>
-                        </div>
-                    """
-                else:
-                    html += f"""
-                        <div style="margin-bottom: 10px;">
-                            <strong style="color: #333333;">{field_label}:</strong>
-                            <span style="color: #555555;"> {value}</span>
-                        </div>
-                    """
-            else:
-                html += f"""
-                    <div style="margin-bottom: 10px;">
-                        <strong style="color: #333333;">{field_label}:</strong>
-                        <span style="color: #888888; font-style: italic;"> Não informado</span>
-                    </div>
-                """
-        
-        html += """
-                </div>
-            </div>
-        """
-        
-        return html
+        from src.ui.components.member_info_formatter import format_member_data, calculate_monthly_frequency
+        member_id = member_data.get('id')
+        freq = calculate_monthly_frequency(member_id) if member_id else 0
+        return format_member_data(member_data, freq)
+
     
     def _format_member_history(self, member_name: str, history: list) -> str:
         """Formata o histórico do membro em HTML."""
@@ -378,20 +404,40 @@ class MemberSearchScreen(QWidget):
                 <div style="padding: 20px;">
                     <h3 style="color: #007ACC;">Histórico de {member_name}</h3>
                     <p style="color: #888888; font-style: italic;">
-                        Nenhum check-in registrado ainda.
+                        Ainda não há check-ins. Use o botão de check-in para iniciar o histórico deste membro.
                     </p>
                 </div>
             """
-        
+
+        ultimo_checkin = None
+        try:
+            ultimo_checkin = max(datetime.fromisoformat(c["checkin_datetime"]) for c in history)
+        except Exception:
+            pass
+
+        ultimo_checkin_label = (
+            ultimo_checkin.strftime("%d/%m/%Y às %H:%M")
+            if ultimo_checkin else "Não disponível"
+        )
+
         html = f"""
             <div style="padding: 20px; font-family: 'Segoe UI', Arial, sans-serif;">
                 <h3 style="color: #007ACC; margin-bottom: 15px;">
                     Histórico de Frequência: {member_name}
                 </h3>
-                <p style="color: #333333; margin-bottom: 20px;">
-                    Total de check-ins: <strong style="color: #007ACC;">{len(history)}</strong>
-                </p>
-                <div style="max-height: 500px; overflow-y: auto;">
+                <div style="background:#F8F9FA; border:1px solid #E2E8F0; border-radius:8px; padding:12px; margin-bottom:14px;">
+                    <div style="color:#1A2540; margin-bottom:6px;">
+                        Total de check-ins: <strong style="color:#E67E22;">{len(history)}</strong>
+                    </div>
+                    <div style="color:#4A5568;">
+                        Último check-in: <strong>{ultimo_checkin_label}</strong>
+                    </div>
+                </div>
+                <details>
+                    <summary style="cursor:pointer; color:#E67E22; font-weight:700; margin-bottom:10px;">
+                        Ver histórico completo
+                    </summary>
+                    <div style="max-height: 500px; overflow-y: auto; padding-top:8px;">
         """
         
         # Agrupar por mês/ano
@@ -441,7 +487,10 @@ class MemberSearchScreen(QWidget):
                             <span style="color: #555555; margin-left: 10px;">{date_str}</span>
                             <span style="color: #007ACC; margin-left: 10px;">⏰ {time_str}</span>
                         </div>
-                        <a href="delete:{checkin_id}" style="color: #FF6B6B; text-decoration: none; font-weight: bold; padding: 4px 8px; background: #FFE5E5; border-radius: 4px;">🗑️ Deletar</a>
+                        <div style="display: flex; gap: 8px;">
+                            <a href="edit:{checkin_id}" style="color: #007ACC; text-decoration: none; font-weight: bold; padding: 4px 8px; background: #E3F2FD; border-radius: 4px;">✏️ Editar</a>
+                            <a href="delete:{checkin_id}" style="color: #FF6B6B; text-decoration: none; font-weight: bold; padding: 4px 8px; background: #FFE5E5; border-radius: 4px;">🗑️ Deletar</a>
+                        </div>
                     </div>
                 """
             
@@ -451,7 +500,176 @@ class MemberSearchScreen(QWidget):
             """
         
         html += """
+                    </div>
+                </details>
+            </div>
+        """
+        
+        return html
+    
+
+    def _calculate_monthly_frequency(self, member_id: int) -> int:
+        """Calcula quantos check-ins o membro fez no mes atual."""
+        from src.ui.components.member_info_formatter import calculate_monthly_frequency
+        return calculate_monthly_frequency(member_id)
+
+    
+    def _format_member_financial_history(self, member_name: str, payments: list) -> str:
+        """Formata o histórico financeiro do membro em HTML."""
+        if not payments:
+            return f"""
+                <div style="padding: 20px;">
+                    <h3 style="color: #007ACC;">Histórico Financeiro: {member_name}</h3>
+                    <p style="color: #888888; font-style: italic;">
+                        Ainda não há pagamentos. Use o atalho “Registrar Pagamento” para lançar a primeira transação.
+                    </p>
                 </div>
+            """
+        
+        # Calcular estatísticas
+        total_pago = sum(p.get('valor', 0) for p in payments)
+        num_transacoes = len(payments)
+        ticket_medio = total_pago / num_transacoes if num_transacoes > 0 else 0
+        
+        # Agrupar por tipo de transação
+        tipos_count = {}
+        tipos_total = {}
+        for p in payments:
+            tipo = p.get('tipo_transacao', 'Não especificado')
+            tipos_count[tipo] = tipos_count.get(tipo, 0) + 1
+            tipos_total[tipo] = tipos_total.get(tipo, 0) + p.get('valor', 0)
+        
+        html = f"""
+            <div style="padding: 20px; font-family: 'Segoe UI', Arial, sans-serif;">
+                <h3 style="color: #007ACC; margin-bottom: 15px;">
+                    Histórico Financeiro: {member_name}
+                </h3>
+                
+                <!-- Resumo Financeiro -->
+                <div style="background: #F0F8FF; border-left: 4px solid #007ACC; padding: 15px; margin-bottom: 20px; border-radius: 4px;">
+                    <h4 style="margin: 0 0 10px 0; color: #007ACC;">Resumo Geral</h4>
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px;">
+                        <div>
+                            <div style="font-size: 12px; color: #666;">Total Pago</div>
+                            <div style="font-size: 20px; font-weight: bold; color: #28a745;">
+                                R$ {total_pago:,.2f}
+                            </div>
+                        </div>
+                        <div>
+                            <div style="font-size: 12px; color: #666;">Transações</div>
+                            <div style="font-size: 20px; font-weight: bold; color: #007ACC;">
+                                {num_transacoes}
+                            </div>
+                        </div>
+                        <div>
+                            <div style="font-size: 12px; color: #666;">Ticket Médio</div>
+                            <div style="font-size: 20px; font-weight: bold; color: #FFA500;">
+                                R$ {ticket_medio:,.2f}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Breakdown por Tipo -->
+                <div style="background: #FFF9E6; border-left: 4px solid #FFA500; padding: 15px; margin-bottom: 20px; border-radius: 4px;">
+                    <h4 style="margin: 0 0 10px 0; color: #FFA500;">Por Tipo de Transação</h4>
+                    <table style="width: 100%; border-collapse: collapse;">
+        """
+        
+        for tipo in sorted(tipos_count.keys()):
+            count = tipos_count[tipo]
+            total = tipos_total[tipo]
+            perc = (total / total_pago * 100) if total_pago > 0 else 0
+            
+            html += f"""
+                        <tr style="border-bottom: 1px solid #EEEEEE;">
+                            <td style="padding: 8px; color: #333;">{tipo}</td>
+                            <td style="padding: 8px; text-align: center; color: #666;">{count}x</td>
+                            <td style="padding: 8px; text-align: right; font-weight: bold; color: #28a745;">
+                                R$ {total:,.2f}
+                            </td>
+                            <td style="padding: 8px; text-align: right; color: #007ACC;">
+                                {perc:.1f}%
+                            </td>
+                        </tr>
+            """
+        
+        html += """
+                    </table>
+                </div>
+                
+                <!-- Lista de Transações -->
+                <details>
+                    <summary style="cursor:pointer; color:#E67E22; font-weight:700; margin-bottom:10px;">
+                        Ver histórico financeiro completo
+                    </summary>
+                    <div style="max-height: 400px; overflow-y: auto;">
+        """
+        
+        # Ordenar pagamentos por data (mais recente primeiro)
+        sorted_payments = sorted(
+            payments, 
+            key=lambda x: x.get('data_pagamento', ''), 
+            reverse=True
+        )
+        
+        for payment in sorted_payments:
+            tipo = payment.get('tipo_transacao', 'N/A')
+            descricao = payment.get('descricao', '')
+            valor = payment.get('valor', 0)
+            metodo = payment.get('metodo_pagamento', 'N/A')
+            data = payment.get('data_pagamento', '')
+            nova_data_vencimento = payment.get('nova_data_vencimento', '')
+            
+            # Formatar data
+            try:
+                data_dt = datetime.fromisoformat(data)
+                data_str = data_dt.strftime('%d/%m/%Y às %H:%M')
+            except:
+                data_str = data
+            
+            # Cor do tipo
+            if 'Renovação' in tipo or 'Plano' in tipo:
+                tipo_color = '#28a745'
+                tipo_icon = '🔄'
+            elif 'Diária' in tipo or 'Gympass' in tipo or 'Totalpass' in tipo:
+                tipo_color = '#007ACC'
+                tipo_icon = '✓'
+            else:
+                tipo_color = '#FFA500'
+                tipo_icon = '💰'
+            
+            html += f"""
+                    <div style="margin-bottom: 12px; padding: 12px; background: #FAFAFA; 
+                                border-left: 4px solid {tipo_color}; border-radius: 4px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                            <div>
+                                <span style="font-size: 16px;">{tipo_icon}</span>
+                                <strong style="color: {tipo_color}; font-size: 15px;">{tipo}</strong>
+                                {f" - {descricao}" if descricao else ""}
+                            </div>
+                            <div style="font-size: 18px; font-weight: bold; color: #28a745;">
+                                R$ {valor:,.2f}
+                            </div>
+                        </div>
+                        <div style="font-size: 12px; color: #666;">
+                            <span>📅 {data_str}</span>
+                            <span style="margin-left: 15px;">💳 {metodo}</span>
+            """
+            
+            if nova_data_vencimento:
+                html += f"""
+                            <span style="margin-left: 15px;">⏰ Novo vencimento: {nova_data_vencimento}</span>
+                """
+            
+            html += """
+                        </div>
+                    </div>
+            """
+        
+        html += """
+                    </div>
+                </details>
             </div>
         """
         

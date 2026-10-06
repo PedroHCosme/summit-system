@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="landing-buttons">
+    <a href="{{ url_for('checkin') }}" class="btn btn-primary">
+        CHECK-IN
+    </a>
+
+    <a href="{{ url_for('register') }}" class="btn btn-outline">
+        NOVO CADASTRO
+    </a>
+</div>
+{% endblock %}

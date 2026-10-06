@@ -53,6 +53,9 @@ class HTMLFormatter:
                     Data: {pessoa.data_nascimento_formatada}<br>
                     Idade: {pessoa.idade} anos<br>
                     Plano: {pessoa.plano}<br>
+                    Profissão: {pessoa.profissao or 'Não informada'}<br>
+                    Frequência (Meta): {pessoa.frequencia or 'Não informada'}<br>
+                    Contato Emerg.: {pessoa.contato_emergencia or 'Não informado'}<br>
         """
         
         if whatsapp_html:

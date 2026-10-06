@@ -70,7 +70,9 @@ class GoogleSheetsService:
             sheet = self.service.spreadsheets()
             result = sheet.values().get(
                 spreadsheetId=spreadsheet_id,
-                range=full_range
+                range=full_range,
+                valueRenderOption='FORMATTED_VALUE',  # Pega valores formatados como aparecem no Sheets
+                dateTimeRenderOption='FORMATTED_STRING'  # Datas como strings formatadas
             ).execute()
             
             return result.get('values', [])

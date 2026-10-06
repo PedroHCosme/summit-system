@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="form-container">
+    <h2 style="text-align: center;">Check-in</h2>
+
+    <form method="POST" action="{{ url_for('checkin') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="form-group">
+            <label for="identifier">Nome ou Apelido</label>
+            <input type="text" id="identifier" name="identifier" class="hero-input" required
+                placeholder="Digite seu nome..." value="{{ identifier or '' }}" autocomplete="off" autofocus>
+        </div>
+
+        <button type="submit" class="btn btn-primary">CONFIRMAR</button>
+    </form>
+
+    {% if not_found %}
+    <div class="checkin-empty-state">
+        <h3>Membro não encontrado</h3>
+        <p>Não encontramos ninguém com "{{ identifier }}". Confira o nome ou faça seu cadastro.</p>
+        <a href="{{ url_for('register') }}" class="btn btn-outline">Fazer cadastro</a>
+    </div>
+    {% endif %}
+
+    {% if results %}
+    <section class="checkin-results" aria-live="polite">
+        {% if results|length == 1 %}
+        <div class="checkin-results-header">
+            <h3>Encontramos você?</h3>
+            <p>Confirme seus dados antes de registrar o check-in.</p>
+        </div>
+        {% else %}
+        <div class="checkin-results-header">
+            <h3>Encontramos mais de um membro.</h3>
+            <p>Escolha seu nome para continuar.</p>
+        </div>
+        {% endif %}
+
+        <div class="member-card-list">
+            {% for member in results %}
+            <article class="checkin-member-card">
+                <div class="member-card-main">
+                    <div class="member-card-header">
+                        <span class="member-name">{{ member.nome }}</span>
+                        <span class="status-pill status-{{ member.status_class }}">{{ member.status_label }}</span>
+                    </div>
+                    {% if member.apelido %}
+                    <span class="member-nickname">Apelido: {{ member.apelido }}</span>
+                    {% endif %}
+                    <div class="member-card-meta">
+                        {% if member.plano %}
+                        <span>{{ member.plano }}</span>
+                        {% endif %}
+                        {% if member.is_quota %}
+                        <span>Vouchers: {{ member.voucher_credits }}</span>
+                        {% endif %}
+                        {% if member.whatsapp_hint %}
+                        <span>{{ member.whatsapp_hint }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                {% if member.can_checkin %}
+                    {% if member.requires_warning %}
+                    <p class="member-card-warning">Seu plano parece vencido. O check-in será registrado, mas fale com a recepção.</p>
+                    {% endif %}
+                    <form method="POST" action="{{ url_for('checkin') }}" class="member-checkin-form"
+                        onsubmit="return confirmCheckin('{{ member.nome }}', {{ 'true' if member.requires_warning else 'false' }})">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <input type="hidden" name="member_id" value="{{ member.id }}">
+                        <button type="submit" class="btn btn-success member-checkin-button">
+                            {% if results|length == 1 %}Sou eu, fazer check-in{% else %}Sou eu{% endif %}
+                        </button>
+                    </form>
+                {% elif member.no_vouchers %}
+                    <p class="member-card-warning">Você está sem vouchers disponíveis. Procure a recepção para comprar mais antes de fazer o check-in.</p>
+                {% else %}
+                    <p class="member-card-warning">Seu cadastro ainda está aguardando aprovação da academia.</p>
+                {% endif %}
+            </article>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    <a href="{{ url_for('index') }}" class="back-link">Voltar</a>
+</div>
+
+<!-- Success Feedback Modal -->
+<div id="successFeedback" class="feedback-success">
+    <div class="checkmark"></div>
+    <p>Check-in Realizado!</p>
+</div>
+
+<script>
+    function confirmCheckin(name, requiresWarning) {
+        const warning = requiresWarning
+            ? '\n\nSeu plano parece vencido. O check-in será registrado, mas fale com a recepção.'
+            : '';
+        return confirm(`Confirmar check-in para ${name}?${warning}`);
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        const input = document.getElementById('identifier');
+        if (input) {
+            // Focus and select all text on load
+            input.focus();
+            input.select();
+        }
+
+        // Check for success/warning flash messages and show feedback
+        const successAlert = document.querySelector('.alert-success');
+        const warningAlert = document.querySelector('.alert-warning:not([style*="margin-top"])');
+
+        if (successAlert) {
+            // Show success animation
+            const feedback = document.getElementById('successFeedback');
+            if (feedback) {
+                feedback.classList.add('show');
+                setTimeout(() => {
+                    feedback.classList.remove('show');
+                }, 2500);
+            }
+        }
+    });
+</script>
+{% endblock %}
