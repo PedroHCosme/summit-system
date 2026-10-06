@@ -4,6 +4,7 @@ import logging
 import os
 import secrets
 import sys
+import time
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, g, session, abort
 try:
@@ -41,7 +42,34 @@ from src.core.models import Pessoa
 from src.utils.utils import calculate_new_due_date
 
 app = Flask(__name__)
-app.secret_key = os.environ.get('SECRET_KEY') or os.urandom(32)
+def _load_secret_key():
+    """SECRET_KEY do ambiente, ou chave persistida em arquivo.
+
+    Com vários workers do gunicorn (e reinícios do --reload), uma chave aleatória
+    por processo invalida a sessão/CSRF de forma intermitente. O arquivo é
+    compartilhado por todos os workers.
+    """
+    env_key = os.environ.get('SECRET_KEY')
+    if env_key:
+        return env_key
+    path = os.path.join(os.path.dirname(__file__), '..', '..', '.web_secret_key')
+    try:
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    except FileExistsError:
+        pass
+    else:  # este worker criou o arquivo; os demais só leem
+        with os.fdopen(fd, 'w') as f:
+            f.write(secrets.token_hex(32))
+    for _ in range(50):  # ponytail: espera curta caso outro worker ainda esteja escrevendo
+        with open(path) as f:
+            key = f.read().strip()
+        if key:
+            return key
+        time.sleep(0.1)
+    raise RuntimeError('Não foi possível ler a chave secreta da web.')
+
+
+app.secret_key = _load_secret_key()
 app.config['SESSION_COOKIE_SECURE'] = os.environ.get('FLASK_DEBUG', '').lower() not in ('1', 'true')
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
