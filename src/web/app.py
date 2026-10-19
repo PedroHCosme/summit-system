@@ -4,8 +4,9 @@ import logging
 import os
 import secrets
 import sys
+import time
 from datetime import datetime
-from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, g, session, abort
+from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, g
 try:
     from flask_limiter import Limiter
     from flask_limiter.util import get_remote_address
@@ -41,7 +42,34 @@ from src.core.models import Pessoa
 from src.utils.utils import calculate_new_due_date
 
 app = Flask(__name__)
-app.secret_key = os.environ.get('SECRET_KEY') or os.urandom(32)
+def _load_secret_key():
+    """SECRET_KEY do ambiente, ou chave persistida em arquivo.
+
+    Com vários workers do gunicorn (e reinícios do --reload), uma chave aleatória
+    por processo invalida a sessão (mensagens flash) de forma intermitente. O arquivo é
+    compartilhado por todos os workers.
+    """
+    env_key = os.environ.get('SECRET_KEY')
+    if env_key:
+        return env_key
+    path = os.path.join(os.path.dirname(__file__), '..', '..', '.web_secret_key')
+    try:
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    except FileExistsError:
+        pass
+    else:  # este worker criou o arquivo; os demais só leem
+        with os.fdopen(fd, 'w') as f:
+            f.write(secrets.token_hex(32))
+    for _ in range(50):  # ponytail: espera curta caso outro worker ainda esteja escrevendo
+        with open(path) as f:
+            key = f.read().strip()
+        if key:
+            return key
+        time.sleep(0.1)
+    raise RuntimeError('Não foi possível ler a chave secreta da web.')
+
+
+app.secret_key = _load_secret_key()
 app.config['SESSION_COOKIE_SECURE'] = os.environ.get('FLASK_DEBUG', '').lower() not in ('1', 'true')
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -57,26 +85,9 @@ limiter = Limiter(
 
 SessionLocal = get_session_factory()
 
-
-def get_csrf_token():
-    """Gera (ou reaproveita) o token CSRF da sessão atual."""
-    if 'csrf_token' not in session:
-        session['csrf_token'] = secrets.token_hex(32)
-    return session['csrf_token']
-
-
-@app.context_processor
-def inject_csrf_token():
-    return dict(csrf_token=get_csrf_token())
-
-
-@app.before_request
-def check_csrf_token():
-    """Valida o token CSRF em todo POST — app só tem essas rotas de formulário."""
-    if request.method == 'POST':
-        token = request.form.get('csrf_token')
-        if not token or token != session.get('csrf_token'):
-            abort(400, description='Token CSRF inválido ou ausente.')
+# ponytail: sem checagem de CSRF de propósito. O app não tem login, então não há
+# sessão autenticada para um site terceiro abusar; o token em cookie só causava
+# "Bad Request" intermitente no celular. Abuso é contido pelo Limiter acima.
 
 
 def get_db():
