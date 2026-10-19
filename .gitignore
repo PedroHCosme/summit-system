@@ -46,4 +46,5 @@ fotos_alunos/
 
 # Arquivos de configuração local
 config_local.py
-.claude/settings.local.json.web_secret_key
+.claude/settings.local.json
+.web_secret_key

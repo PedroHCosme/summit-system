@@ -10,7 +10,7 @@ from src.data.models import Membro, Plano
 def web_client(db_session, monkeypatch):
     from src.web import app as web_app
 
-    web_app.app.config.update(TESTING=True, WTF_CSRF_ENABLED=False)
+    web_app.app.config.update(TESTING=True)
     monkeypatch.setattr(web_app, "SessionLocal", lambda: db_session)
     return web_app.app.test_client()
 
